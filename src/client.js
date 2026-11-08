@@ -3337,9 +3337,6 @@ window.__ModuleLoader__.load({
             }, ['full', 'strict', 'off'].map(function (level) { return h('option', { key: level, value: level }, level); }))
           );
         })),
-        // Always on: the preview is the only place you can see all five card kinds
-        // side by side, and a switch that hides it only ever hid a debugging aid.
-        h(CardPreview, { key: 'card-preview', locale: props === null || props === undefined ? undefined : props.locale }),
         numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
         h('div', { className: 'ah-settings-row', key: 'clear-on' },
           h('span', { className: 'ah-settings-label' }, t('config.clearOn'), h('span', { className: 'ah-settings-note' }, t('config.clearOnNote'))),
@@ -3352,6 +3349,9 @@ window.__ModuleLoader__.load({
             onClick: function () { change('clearEnabled', draft.clearEnabled !== true); },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
+        // Always on, and last: the preview is a looking glass, not a setting — it belongs
+        // under everything you actually came here to change.
+        h(CardPreview, { key: 'card-preview', locale: props === null || props === undefined ? undefined : props.locale }),
         h('div', { className: 'ah-settings-row', key: 'actions' },
           h('button', { type: 'button', className: 'ah-btn', onClick: save, disabled: status === 'saving' }, t('config.save')),
           status === 'saved' ? h('span', { className: 'ah-hint' }, t('config.saved')) : null,
