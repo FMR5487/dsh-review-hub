@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="明镜 MingJing — 金框手持镜 v21 主冠改珠">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12222b"/>
+      <stop offset="1" stop-color="#0b1218"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3c96b"/>
+      <stop offset="0.55" stop-color="#c08a2e"/>
+      <stop offset="1" stop-color="#8a5a1c"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0.1" x2="1" y2="0.9">
+      <stop offset="0" stop-color="#cdeee0"/>
+      <stop offset="0.5" stop-color="#79c7ad"/>
+      <stop offset="1" stop-color="#2f6f6b"/>
+    </linearGradient>
+    <clipPath id="glassclip">
+      <ellipse cx="64" cy="54" rx="24" ry="28.5"/>
+    </clipPath>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="27.25" fill="none" stroke="#2c4048" stroke-width="1.5"/>
+  <!-- 镜组整组居中：包围盒（手柄左下+主冠右上）中心对齐画布正中，镜盘相应让向右上方 -->
+  <g transform="translate(63.7 53.3) scale(0.94) translate(-64 -54)">
+    <!-- 手柄 -->
+    <path d="M46 74 L24 96 Q17 104 22 108 Q27 112 34 104 L52 86 Z" fill="url(#gold)" stroke="#6e4517" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M41 81 L28 94 M45 86 L33 98" stroke="#7c5426" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="47" cy="75" r="6" fill="url(#gold)" stroke="#6e4517" stroke-width="2"/>
+    <!-- 镜框 -->
+    <ellipse cx="64" cy="54" rx="30" ry="34" fill="url(#gold)" stroke="#6e4517" stroke-width="2.5"/>
+    <!-- 内圈与镜面 -->
+    <ellipse cx="64" cy="54" rx="25.5" ry="30" fill="none" stroke="#5e3d16" stroke-width="2"/>
+    <ellipse cx="64" cy="54" rx="24" ry="28.5" fill="url(#glass)"/>
+    <ellipse cx="64" cy="54" rx="24" ry="28.5" fill="none" stroke="#eafaf3" stroke-width="1.6" opacity="0.4"/>
+    <g clip-path="url(#glassclip)">
+      <path d="M52 26 C48 42 48 66 54 82" stroke="#f6e8bd" stroke-width="6.5" stroke-linecap="round" fill="none" opacity="0.55"/>
+      <path d="M74 28 C77 44 77 64 73 80" stroke="#f6e8bd" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.3"/>
+    </g>
+    <!-- 七枚小珠（主冠位 1:30 亦为珠）：镜框之上 -->
+    <circle cx="85.4" cy="30" r="4.6" fill="url(#gold)" stroke="#6e4517" stroke-width="1.5"/>
+    <circle cx="64" cy="20" r="4.6" fill="url(#gold)" stroke="#6e4517" stroke-width="1.5"/>
+    <circle cx="42.6" cy="30" r="4.6" fill="url(#gold)" stroke="#6e4517" stroke-width="1.5"/>
+    <circle cx="34" cy="54" r="4.6" fill="url(#gold)" stroke="#6e4517" stroke-width="1.5"/>
+    <circle cx="64" cy="88" r="4.6" fill="url(#gold)" stroke="#6e4517" stroke-width="1.5"/>
+    <circle cx="85.4" cy="78" r="4.6" fill="url(#gold)" stroke="#6e4517" stroke-width="1.5"/>
+    <circle cx="94" cy="54" r="4.6" fill="url(#gold)" stroke="#6e4517" stroke-width="1.5"/>
+  </g>
+  <!-- 对勾：最上层 -->
+  <path d="M68 84 l11 11 21-24" stroke="#0f2a20" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.55"/>
+  <path d="M68 84 l11 11 21-24" stroke="#8ff0c4" stroke-width="10.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

@@ -1,0 +1,63 @@
+{
+  "name": "dsh-review-hub",
+  "displayName": "明镜",
+  "version": "1.0.0",
+  "description": "明镜 (MingJing) — an approval brain for DSH: deterministic hard-risk layer, per-session memory learning, an AI that may only pass or ask, exact attribution, composer hints, right-sidebar diff/undo, and an exportable ledger.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "approval",
+    "ai-review",
+    "human-in-the-loop"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/USER/dsh-review-hub.git"
+  },
+  "homepage": "https://github.com/USER/dsh-review-hub#readme",
+  "bugs": {
+    "url": "https://github.com/USER/dsh-review-hub/issues"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./src/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./assets/icon.svg"
+  },
+  "files": [
+    "src",
+    "locale",
+    "assets",
+    "cordis.patch.yml",
+    "README.md",
+    "README-EN.md",
+    "README-AI.md",
+    "AGENT.md",
+    "CHANGELOG.md",
+    "UX.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/run.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0",
+    "node": ">=22.13"
+  }
+}

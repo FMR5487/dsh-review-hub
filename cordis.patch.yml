@@ -1,0 +1,7 @@
+# review-hub bundle patch: one Host row mounts the package; the browser half
+# declared by package.json dsh.client binds to that same row.
+# P4 only: while dsh-auto-review is still mounted the hub observes but the AI
+# decision stays with auto-review. Never list both as the deciding answerer.
+- insert:
+    - id: dsh-review-hub
+      name: 'dsh-review-hub'
