@@ -71,17 +71,17 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 
 | 插件 | 版本 | 它的做法 | 与本插件的关系 |
 |---|---|---|---|
-| `dsh-auto-review` | 0.15.0 | 链首第二模型预审；reviewer 不可用时 **fail-closed**（直接拒绝，不给人机会） | AI 层（L3）取了它的分层、每轮预算与熔断；**去掉否决权**，并修掉 PTC 折叠参数看不到就盲拒 |
-| `dsh-perm-gate` | 5.4.4 | 确定性阶梯 P0 硬拒绝 → P1 会话授权 → P2 静态规则 → P3 可选 LLM → P4 人工 | 取它"确定性优先"：本插件的 L0/L1 就是不花模型的确定性层 |
-| `moon09300731/dsh-approval-gate` | 0.5.2（2026-08 停更） | Flash 判 SAFE/RISKY，五类硬风险永不学习；绿条 + 时间线 + diff/撤销 | 产品形态（学习循环、输入框上方提示、diff/撤销）的主要参考；但它是**拦截式门**（自己就是整条链），本插件是分层 + 永不阻断 |
-| `dsh-approval-gate-safe` | 0.2.4 | 上面那个的兼容加固 fork，含更宽的 Windows/PowerShell 命令词表 | 命令词表的参考 |
-| `@goodandready/dsh-approval-gate` | 0.1.31 | 纯规则：认得出的危险直接拦，认不出的交给人 | 与本插件 L0 同一纪律："看不懂就交给人" |
-| `dsh-approval-ledger` | 1.2.2 | 批量审批 + 风险门 + 可导出台账 | 台账导出的参考 |
-| `dsh-approval-hotkeys` | 0.2.0 | Enter 确认 / Esc 取消 | 未采用：原生审批弹窗不在插件手里 |
-| `@aiwayds/dsh-approval-policy` | 0.2.1 | 给子代理 / cron 的审批请求有界答复 | 与"按请求方分档"同源，本插件默认对子代理/定时/看板更严 |
-| `dsh-approval-toast` | 1.0.3 | Windows 原生 toast 里直接批 | 功能互补（触达），但它也能作答，同时启用要确认不抢答 |
+| [`dsh-auto-review`](https://www.npmjs.com/package/dsh-auto-review) | 0.15.0 | 链首第二模型预审；reviewer 不可用时 **fail-closed**（直接拒绝，不给人机会） | AI 层（L3）取了它的分层、每轮预算与熔断；**去掉否决权**，并修掉 PTC 折叠参数看不到就盲拒 |
+| [`dsh-perm-gate`](https://www.npmjs.com/package/dsh-perm-gate) | 5.4.4 | 确定性阶梯 P0 硬拒绝 → P1 会话授权 → P2 静态规则 → P3 可选 LLM → P4 人工 | 取它"确定性优先"：本插件的 L0/L1 就是不花模型的确定性层 |
+| [`moon09300731/dsh-approval-gate`](https://github.com/moon09300731/dsh-approval-gate) | 0.5.2（2026-08 停更） | Flash 判 SAFE/RISKY，五类硬风险永不学习；绿条 + 时间线 + diff/撤销 | 产品形态（学习循环、输入框上方提示、diff/撤销）的主要参考；但它是**拦截式门**（自己就是整条链），本插件是分层 + 永不阻断 |
+| [`dsh-approval-gate-safe`](https://www.npmjs.com/package/dsh-approval-gate-safe) | 0.2.4 | 上面那个的兼容加固 fork，含更宽的 Windows/PowerShell 命令词表 | 命令词表的参考 |
+| [`@goodandready/dsh-approval-gate`](https://www.npmjs.com/package/@goodandready/dsh-approval-gate) | 0.1.31 | 纯规则：认得出的危险直接拦，认不出的交给人 | 与本插件 L0 同一纪律："看不懂就交给人" |
+| [`dsh-approval-ledger`](https://www.npmjs.com/package/dsh-approval-ledger) | 1.2.2 | 批量审批 + 风险门 + 可导出台账 | 台账导出的参考 |
+| [`dsh-approval-hotkeys`](https://www.npmjs.com/package/dsh-approval-hotkeys) | 0.2.0 | Enter 确认 / Esc 取消 | 未采用：原生审批弹窗不在插件手里 |
+| [`@aiwayds/dsh-approval-policy`](https://www.npmjs.com/package/@aiwayds/dsh-approval-policy) | 0.2.1 | 给子代理 / cron 的审批请求有界答复 | 与"按请求方分档"同源，本插件默认对子代理/定时/看板更严 |
+| [`dsh-approval-toast`](https://www.npmjs.com/package/dsh-approval-toast) | 1.0.3 | Windows 原生 toast 里直接批 | 功能互补（触达），但它也能作答，同时启用要确认不抢答 |
 
-更细的逐个拆解（机制、可借鉴点、版本号、下载量）见 [RESEARCH.md](RESEARCH.md) §4，那份文档带采集日期。
+表里的包名都能点开（指向 npm 页面；`moon09300731/dsh-approval-gate` 那个是 GitHub 仓库，它没有发布到 npm）。更细的逐个拆解（机制、可借鉴点、版本号、下载量）见 [RESEARCH.md](RESEARCH.md) §4，那份文档带采集日期。
 
 > ⚠️ 冲突只发生在**也在 `approval/request` 上作答**的插件之间：两个 answerer 抢答时归属会显示成 `external`，审批可能被它们先答掉。装本插件前请把这类插件从 profile 移除，并确认 `/health` 的 `counters.external` 恒为 0。
 
@@ -170,5 +170,6 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 | [README-AI.md](README-AI.md) | **AI 代理**：红线、结构、数据格式、SSE 协议、失败模式 |
 | [AGENT.md](AGENT.md) | 想自己改的人/AI：改设置、加策略、加席位、加测试的逐条配方 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更 |
+| [UX.md](UX.md) | 界面取舍记录：每处 UI 为什么长这样，含**被否掉**的方案和原因 |
 | [docs/FEEDBACK.md](docs/FEEDBACK.md) | 一次真实问题复盘（指纹被分页参数劈开） |
 | [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | 调研与实施计划（历史） |

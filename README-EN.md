@@ -70,17 +70,17 @@ Versions below were checked on **2026-11-03** (`fetch('https://registry.npmjs.or
 
 | Plugin | Version | Its approach | Relationship |
 |---|---|---|---|
-| `dsh-auto-review` | 0.15.0 | second-model pre-check at the head of the chain; **fail-closed** when the reviewer is unavailable (rejects outright, no human) | the AI layer (L3) borrows its tiering, per-turn budget and breaker; **the veto is removed**, and the "PTC arguments folded → blind deny" bug is fixed |
-| `dsh-perm-gate` | 5.4.4 | deterministic ladder P0 hard-deny → P1 session grants → P2 static rules → P3 optional LLM → P4 human | borrows "deterministic first": this plugin's L0/L1 is that layer, with no model in the path |
-| `moon09300731/dsh-approval-gate` | 0.5.2 (unmaintained since 2026-08) | Flash classifies SAFE/RISKY, five hard-risk classes never learn; green bar + timeline + diff/undo | the main product-shape reference (learning loop, hint above the composer, diff/undo); but it is an **intercepting gate** — it *is* the whole chain — while this plugin is layered and never blocks |
-| `dsh-approval-gate-safe` | 0.2.4 | a compatibility-hardened fork of the above, with wider Windows/PowerShell vocabularies | reference for command vocabularies |
-| `@goodandready/dsh-approval-gate` | 0.1.31 | pure rules: block what it recognises, hand the rest to the human | same discipline as this plugin's L0: "if you cannot tell, hand it over" |
-| `dsh-approval-ledger` | 1.2.2 | batch approvals + risk gate + exportable ledger | reference for ledger export |
-| `dsh-approval-hotkeys` | 0.2.0 | Enter approves / Esc cancels | not adopted: the native prompt is not ours |
-| `@aiwayds/dsh-approval-policy` | 0.2.1 | bounded answers for subagents / cron requests | same idea as "tier by requester"; subagents, schedules and the task board are stricter by default here |
-| `dsh-approval-toast` | 1.0.3 | approve straight from a Windows toast | complementary (delivery), but it can answer too — verify it does not race |
+| [`dsh-auto-review`](https://www.npmjs.com/package/dsh-auto-review) | 0.15.0 | second-model pre-check at the head of the chain; **fail-closed** when the reviewer is unavailable (rejects outright, no human) | the AI layer (L3) borrows its tiering, per-turn budget and breaker; **the veto is removed**, and the "PTC arguments folded → blind deny" bug is fixed |
+| [`dsh-perm-gate`](https://www.npmjs.com/package/dsh-perm-gate) | 5.4.4 | deterministic ladder P0 hard-deny → P1 session grants → P2 static rules → P3 optional LLM → P4 human | borrows "deterministic first": this plugin's L0/L1 is that layer, with no model in the path |
+| [`moon09300731/dsh-approval-gate`](https://github.com/moon09300731/dsh-approval-gate) | 0.5.2 (unmaintained since 2026-08) | Flash classifies SAFE/RISKY, five hard-risk classes never learn; green bar + timeline + diff/undo | the main product-shape reference (learning loop, hint above the composer, diff/undo); but it is an **intercepting gate** — it *is* the whole chain — while this plugin is layered and never blocks |
+| [`dsh-approval-gate-safe`](https://www.npmjs.com/package/dsh-approval-gate-safe) | 0.2.4 | a compatibility-hardened fork of the above, with wider Windows/PowerShell vocabularies | reference for command vocabularies |
+| [`@goodandready/dsh-approval-gate`](https://www.npmjs.com/package/@goodandready/dsh-approval-gate) | 0.1.31 | pure rules: block what it recognises, hand the rest to the human | same discipline as this plugin's L0: "if you cannot tell, hand it over" |
+| [`dsh-approval-ledger`](https://www.npmjs.com/package/dsh-approval-ledger) | 1.2.2 | batch approvals + risk gate + exportable ledger | reference for ledger export |
+| [`dsh-approval-hotkeys`](https://www.npmjs.com/package/dsh-approval-hotkeys) | 0.2.0 | Enter approves / Esc cancels | not adopted: the native prompt is not ours |
+| [`@aiwayds/dsh-approval-policy`](https://www.npmjs.com/package/@aiwayds/dsh-approval-policy) | 0.2.1 | bounded answers for subagents / cron requests | same idea as "tier by requester"; subagents, schedules and the task board are stricter by default here |
+| [`dsh-approval-toast`](https://www.npmjs.com/package/dsh-approval-toast) | 1.0.3 | approve straight from a Windows toast | complementary (delivery), but it can answer too — verify it does not race |
 
-The per-plugin breakdown (mechanism, what was borrowed, versions, download counts) is in [RESEARCH.md](RESEARCH.md) §4, together with its collection date.
+Every package name above links to its npm page; `moon09300731/dsh-approval-gate` points at the GitHub repository (it was never published to npm). The per-plugin breakdown (mechanism, what was borrowed, versions, download counts) is in [RESEARCH.md](RESEARCH.md) §4, together with its collection date.
 
 > ⚠️ A conflict only exists between plugins that **also answer `approval/request`**: two answerers mean decisions get recorded as `external` and may be answered before you see them. Remove those from the profile, and verify `/health` `counters.external` stays 0.
 
@@ -168,5 +168,6 @@ Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). 
 | [README-AI.md](README-AI.md) | **AI agents**: red lines, structure, data formats, SSE protocol, failure modes |
 | [AGENT.md](AGENT.md) | Humans or AIs who want to modify it: recipes for settings, policies, seats, tests |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [UX.md](UX.md) | UI decision log: why each screen looks the way it does, **including the options that were rejected** and why |
 | [docs/FEEDBACK.md](docs/FEEDBACK.md) | Post-mortem of a real bug (fingerprints split by paging knobs) |
 | [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | Research notes and the implementation plan |
