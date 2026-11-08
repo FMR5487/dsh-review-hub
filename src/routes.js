@@ -51,14 +51,17 @@ export function isTrusted(req, options = {}) {
 			return false;
 		}
 	}
-	// No Origin at all: EventSource never sends one, so the old code had to allow it —
-	// which also allowed "curl http://127.0.0.1:<port>/api/review-hub/config". Browsers
-	// always attach Sec-Fetch-Site (it is a forbidden header, so page JS cannot forge
-	// it) while curl / PowerShell send neither. That distinction is the whole fence.
-	const site = req?.headers?.['sec-fetch-site'];
-	if (site === 'same-origin' || site === 'same-site' || site === 'none') return true;
-	// Explicit escape hatch, for a host build that stops sending Sec-Fetch-*.
-	return options.allowNoOrigin === true;
+	// No Origin at all. EventSource never sends one, so this case has to stay open by
+	// default — the desktop shell turned out to send neither Origin nor Sec-Fetch-*, and
+	// gating on those bricked the panel (verified on the real host, 2026-11-09).
+	//
+	// The stricter rule is therefore opt-in: `strictOrigin` accepts only a browser fetch
+	// context (Sec-Fetch-Site) and rejects bare clients like curl / PowerShell.
+	if (options.strictOrigin === true) {
+		const site = req?.headers?.['sec-fetch-site'];
+		return site === 'same-origin' || site === 'same-site' || site === 'none';
+	}
+	return true;
 }
 
 function sendJson(res, code, body) {
@@ -268,7 +271,7 @@ export function createRoutes(deps) {
 
 	const guard = (handler, methods) => async (req, res) => {
 		try {
-			if (isTrusted(req, { allowNoOrigin: deps.allowNoOrigin === true }) === false) {
+			if (isTrusted(req, { strictOrigin: deps.strictOrigin === true }) === false) {
 				sendJson(res, 403, { error: 'forbidden' });
 				return;
 			}

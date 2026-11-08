@@ -565,8 +565,9 @@ export function apply(ctx, rawConfig = {}) {
 			version: VERSION,
 			settings: () => store.settingsSnapshot(),
 			pendingView: () => [...pending.values()],
-			// Escape hatch for a host build that stops sending Sec-Fetch-*; off by default.
-			allowNoOrigin: rawConfig?.allowNoOrigin === true,
+			// Opt-in hardening: reject requests that carry neither Origin nor Sec-Fetch-Site.
+			// Off by default — the desktop shell sends neither, so this would brick the panel.
+			strictOrigin: rawConfig?.strictOrigin === true,
 			// The host's real catalog, aggregated and cached by ./catalog.js: the menu
 			// offers every model the host can actually run, not only the lanes seen so far.
 			modelCatalog: (session, opts) => catalog.snapshot({ session, refresh: opts?.refresh === true }),

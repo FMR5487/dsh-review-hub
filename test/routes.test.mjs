@@ -21,20 +21,19 @@ const row = (over) => Object.assign({ id: 'r', ts: Date.now(), sessionId: 's1', 
 
 export const cases = [
 	{
-		name: '同源围栏：浏览器放行，裸 curl 拒绝（S2）',
+		name: '同源围栏：默认放行裸客户端，strictOrigin 才收严',
 		async fn() {
 			const base = { host: '127.0.0.1:12345' };
-			// 浏览器：同源 Origin，或没有 Origin 但有 Sec-Fetch-Site
 			assertEqual(isTrusted({ headers: { ...base, origin: 'http://127.0.0.1:12345' } }), true, '同源 Origin 放行');
-			assertEqual(isTrusted({ headers: { ...base, 'sec-fetch-site': 'same-origin' } }), true, 'EventSource 没有 Origin，但有 Sec-Fetch-Site');
 			assertEqual(isTrusted({ headers: { ...base, origin: 'dsh-app://local' } }), true, '桌面壳协议放行');
-			// 裸 HTTP 客户端：两个头都没有
-			assertEqual(isTrusted({ headers: { ...base } }), false, 'curl 不带 Origin 也不带 Sec-Fetch-Site → 拒绝');
-			assertEqual(isTrusted({ headers: { ...base, 'sec-fetch-site': 'cross-site' } }), false, '跨站不放行');
 			assertEqual(isTrusted({ headers: { ...base, origin: 'http://evil.example' } }), false, '别的源不放行');
-			assertEqual(isTrusted({ headers: { host: '10.0.0.5:12345', 'sec-fetch-site': 'same-origin' } }), false, '非回环直接拒绝');
-			// 逃生舱：宿主某天不再发 Sec-Fetch-* 时由配置打开
-			assertEqual(isTrusted({ headers: { ...base } }, { allowNoOrigin: true }), true, 'allowNoOrigin 是显式逃生舱');
+			assertEqual(isTrusted({ headers: { host: '10.0.0.5:12345' } }), false, '非回环直接拒绝');
+			// 默认模式：桌面壳既不发 Origin 也不发 Sec-Fetch-Site，所以没有 Origin 时放行（0.4.x 行为）。
+			assertEqual(isTrusted({ headers: { ...base } }), true, '默认放行无 Origin 的请求（否则面板会全 403）');
+			// strictOrigin：只接受浏览器上下文
+			assertEqual(isTrusted({ headers: { ...base, 'sec-fetch-site': 'same-origin' } }, { strictOrigin: true }), true, '浏览器上下文放行');
+			assertEqual(isTrusted({ headers: { ...base } }, { strictOrigin: true }), false, '裸客户端被拒');
+			assertEqual(isTrusted({ headers: { ...base, 'sec-fetch-site': 'cross-site' } }, { strictOrigin: true }), false, '跨站被拒');
 		},
 	},
 	{

@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.0.0 修订四（S2 回退为可选）
+
+- **S2 的真机结论：桌面壳的请求不带 `Origin` 也不带 `Sec-Fetch-Site`**。上一版把它们当作「来自浏览器」的判据，结果所有请求 403 → 面板 offline、设置全部无响应（用户 2026-11-09 实测）。
+- **处置**：默认行为回到 0.4.x 的宽松围栏（`Host` 回环 + 有 `Origin` 时要求同源），严格的「必须来自浏览器」改为**可选**——插件配置 `strictOrigin: true`（默认关）。这样面板绝不因为加固而不可用，想要收紧的环境仍可显式打开。
+- 测试改为覆盖两种模式：默认放行无 Origin 请求、`strictOrigin` 下裸客户端被拒。94 passed。
+- 待办：若确实要收口，需要先做一次**请求头取证**（把真实请求头名打日志），再按宿主实际发送的头来设计规则——不能再靠假设。
+
 ## 1.0.0 修订三（S2）
 
 - **S2 · 本地 HTTP 面不再对裸客户端开放**：`isTrusted()` 的「没有 Origin 就放行」分支改成「没有 Origin 时必须带 `Sec-Fetch-Site`（`same-origin` / `same-site` / `none`）」。理由：`EventSource` 从不发 `Origin`，所以旧代码只能一律放行 —— 连带把 `curl http://127.0.0.1:<port>/api/review-hub/config` 也放行了；而 `Sec-Fetch-Site` 是浏览器强制写入的 forbidden header，页面 JS 无法伪造，`curl` / PowerShell 默认不带。
