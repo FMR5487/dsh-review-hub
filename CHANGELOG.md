@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.0.0 修订三（S2）
+
+- **S2 · 本地 HTTP 面不再对裸客户端开放**：`isTrusted()` 的「没有 Origin 就放行」分支改成「没有 Origin 时必须带 `Sec-Fetch-Site`（`same-origin` / `same-site` / `none`）」。理由：`EventSource` 从不发 `Origin`，所以旧代码只能一律放行 —— 连带把 `curl http://127.0.0.1:<port>/api/review-hub/config` 也放行了；而 `Sec-Fetch-Site` 是浏览器强制写入的 forbidden header，页面 JS 无法伪造，`curl` / PowerShell 默认不带。
+- 逃生舱：`allowNoOrigin: true`（插件配置，默认关）——万一某个宿主版本不再发 `Sec-Fetch-*`，改这一行即可恢复旧行为。
+- 文档：README / README-EN 的「安全边界」同步为「回环 + 同源 + 浏览器上下文」三重校验。
+- 测试 93 → 94 passed（新增 8 条围栏断言：同源 Origin、EventSource、dsh-app 协议、裸客户端、跨站、异地 Host、逃生舱）。
+
 ## 1.0.0 修订二（S1 / S3）
 
 - **S3 · 命令类硬风险只判能执行命令的工具**：`CLASSES` 现在带 `shape`——`delete / discard / remote-exec / system / batch` 是 `command` 型，只在 `SHELL_TOOLS`（ops_bash/bash/pwsh/run_code…）上生效；`credentials` 是 `path` 型，对所有工具生效。此前 `edit`/`write` 的**正文里出现 `rm -rf` 字样**就会被判成 L0：直接交人工、不进记忆、永不自动放行。写一段文档不是删除。

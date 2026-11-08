@@ -37,19 +37,28 @@ function isLoopback(host) {
 	return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
 }
 
-/** Same-origin fence: only the desktop GUI reads this data. */
-export function isTrusted(req) {
+/** Browser-only fence: loopback host, same-origin Origin, and a browser-set fetch context. */
+export function isTrusted(req, options = {}) {
 	const host = req?.headers?.host;
 	if (isLoopback(host) === false) return false;
 	const origin = req?.headers?.origin ?? req?.headers?.referer;
-	if (origin === undefined) return true;
-	try {
-		const parsed = new URL(origin);
-		if (parsed.protocol === 'dsh-app:') return true;
-		return parsed.host === host;
-	} catch {
-		return false;
+	if (origin !== undefined) {
+		try {
+			const parsed = new URL(origin);
+			if (parsed.protocol === 'dsh-app:') return true;
+			return parsed.host === host;
+		} catch {
+			return false;
+		}
 	}
+	// No Origin at all: EventSource never sends one, so the old code had to allow it —
+	// which also allowed "curl http://127.0.0.1:<port>/api/review-hub/config". Browsers
+	// always attach Sec-Fetch-Site (it is a forbidden header, so page JS cannot forge
+	// it) while curl / PowerShell send neither. That distinction is the whole fence.
+	const site = req?.headers?.['sec-fetch-site'];
+	if (site === 'same-origin' || site === 'same-site' || site === 'none') return true;
+	// Explicit escape hatch, for a host build that stops sending Sec-Fetch-*.
+	return options.allowNoOrigin === true;
 }
 
 function sendJson(res, code, body) {
@@ -259,7 +268,7 @@ export function createRoutes(deps) {
 
 	const guard = (handler, methods) => async (req, res) => {
 		try {
-			if (isTrusted(req) === false) {
+			if (isTrusted(req, { allowNoOrigin: deps.allowNoOrigin === true }) === false) {
 				sendJson(res, 403, { error: 'forbidden' });
 				return;
 			}
