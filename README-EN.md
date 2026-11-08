@@ -130,6 +130,18 @@ Fine, but each window tracks its own seen/baseline watermark, so the badge can d
 
 ---
 
+## Security boundaries
+
+What this does and does not protect against, stated plainly.
+
+- **Who can read this data**: the HTTP surface (`/api/review-hub/*`) binds to the host's loopback port and checks that `Host` is a loopback address and that `Origin`/`Referer` match it. **There is no additional token** — any local process that can reach that port can read and rewrite the ledger and the settings. The host picks a random port on every start (`--port 0`); that is the only real barrier today.
+- **What lands on disk**: `~/.dsh/storages/review-hub/` holds the ledger (tool, arguments, reason, who decided), the memory table, the settings, the AI verdict cache, and `snapshots/` — which stores the **full pre-edit content** of every `write`/`edit` target (256KB per file, 64 per session). In other words: **the files you approved edits for are kept in plaintext on this machine**, including any `.env` you edited.
+- **How to remove it**: delete the whole `~/.dsh/storages/review-hub/` directory (it is recreated on the next start). The "clear history" button in the panel clears the ledger and memory — it **does not touch `snapshots/`**.
+- **What the AI sees**: only the redacted argument summary (≤240 chars) plus the stated reason, never full file contents. Verdicts are cached on disk so a restart does not pay twice.
+- **The AI has no veto**: it may only answer `allow` or `ask`; a `deny` is downgraded to `ask`. That is a hard rule — see [README-AI.md](README-AI.md).
+
+---
+
 ## Performance
 
 Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). Each approval is one frame (measured ≈630 bytes per row; ~0.5 approvals/hour on this machine). If the stream dies the client falls back to 3-second polling; when the window is hidden the stream is closed, so no renderer wakeups.

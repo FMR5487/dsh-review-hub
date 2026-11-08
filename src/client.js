@@ -4055,6 +4055,7 @@ window.__ModuleLoader__.load({
         cardChipClass: cardChipClass,
         ringTiming: ringTiming,
         laneParts: laneParts,
+        knobKeys: KNOB_KEYS,
         aiEscalated: aiEscalated,
         rowModelOf: rowModelOf,
       },

@@ -15,6 +15,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 import { createStore, fileFingerprintOf, filePathOf, fingerprintOf, splitRoute } from './store.js';
 import { diffStatsFor } from './routes.js';
 import { classify, DEFAULT_TOOLS_POLICY, toolsPolicyOf } from './policy.js';
@@ -28,7 +29,15 @@ import { registerRoutes } from './routes.js';
 export const name = 'review-hub';
 export const inject = ['approval'];
 
-const VERSION = '0.4.55';
+/** Read once from package.json: a hand-maintained constant always drifts. */
+const VERSION = (function () {
+	try {
+		const pkg = createRequire(import.meta.url)('../package.json');
+		return typeof pkg?.version === 'string' && pkg.version !== '' ? pkg.version : '0.0.0';
+	} catch {
+		return '0.0.0';
+	}
+})();
 /** The longest command text a row keeps; past this the row says it was cut. */
 const ARGS_TEXT_MAX = 4000;
 /** A human click cannot arrive this fast; anything faster came from another answerer. */
@@ -237,7 +246,7 @@ async function maybeReview(input) {
 		// The verdict cache is shared across sessions on purpose (the same operation
 		// in a new session is still the same operation); memory counts stay
 		// session-scoped, which is a different mechanism with a different risk.
-		cacheKey: input.fp === undefined ? undefined : String(input.agentKind ?? 'unknown') + '\\u0000' + String(input.fp),
+		cacheKey: input.fp === undefined ? undefined : [String(input.agentKind ?? 'unknown'), String(input.fp)].join('\u0000'),
 		route,
 	});
 }
@@ -321,6 +330,8 @@ async function answerer(request, next) {
 			decidedBy = 'memory';
 			memoryCount = hit.count;
 			counters.memory += 1;
+			// The count stays frozen; the row's "last used" does not.
+			if (store !== undefined && fp !== undefined) await store.memoryTouch(sessionId, fp).catch(() => 0);
 		} else if (fileArmed === true && fileHits >= Math.max(1, Number(settings.threshold) || 3)) {
 			// The human opted this file in: count its approvals, not its contents.
 			outcome = 'allowed-once';

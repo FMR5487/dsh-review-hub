@@ -652,6 +652,21 @@ export function createStore(options = {}) {
 		return { ...row, key };
 	}
 
+	/**
+	 * A learned operation passed on its own. The count must not move — only human
+	 * approvals may raise it — but the row is still *in use*, and freezing lastTs made
+	 * every frequently auto-passing operation sink to the bottom of the memory list.
+	 */
+	async function memoryTouch(sessionId, fp) {
+		await ensureLoaded();
+		const key = memoryKey(String(sessionId ?? ''), String(fp ?? ''));
+		const row = memory.get(key);
+		if (row === undefined) return 0;
+		row.lastTs = Date.now();
+		await persistMemory();
+		return 1;
+	}
+
 	async function memoryEntry(sessionId, fp) {
 		await ensureLoaded();
 		const row = memory.get(memoryKey(sessionId, fp));
@@ -727,6 +742,7 @@ export function createStore(options = {}) {
 		memoryRows,
 		memoryEntry,
 		memoryBump,
+		memoryTouch,
 		memoryRemove,
 		memoryClear,
 		settingsSnapshot,

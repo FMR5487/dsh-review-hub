@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { assertEqual, assertTrue } from './helpers.mjs';
+import { KNOB_KEYS } from '../src/store.js';
 
 const REACT_STUB = {
 	createElement: function (type, props) {
@@ -243,6 +244,13 @@ export const cases = [
 			assertEqual(bag.cardChipClass('memory', false), 'ah-card-chip ah-card-chip-memory');
 			assertEqual(bag.cardChipClass('pending', true), 'ah-card-chip ah-card-chip-danger');
 			assertEqual(bag.cardChipClass(undefined, false), 'ah-card-chip ah-card-chip-other');
+			// 浏览器半身抄了一份旋钮键表（bundle 无法 import 服务端），两份必须一致：
+			// 服务端靠它合并指纹、客户端靠它隐藏显示，任何一方漏掉新键都会表现为「合并了但没隐藏」。
+			assertEqual(
+				JSON.stringify([...bag.knobKeys].sort()),
+				JSON.stringify([...KNOB_KEYS].sort()),
+				'client 与 store 的 KNOB_KEYS 必须相同',
+			);
 			// 窄栏分组隐藏：倍率 → 提供商 → 模型后缀
 			const parts = bag.laneParts('Qoder/Qwen3.8-Flash · x0.00');
 			assertEqual(parts.provider, 'Qoder/');
