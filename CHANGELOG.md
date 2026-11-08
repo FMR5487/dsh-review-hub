@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.0.0 修订五（高级设置整卡崩溃）
+
+- **现象**：重启后插件页「高级设置」整块不见（面板其它部分正常）。
+- **根因**：上一个提交给高级设置加「快照保留天数」时用了 `numRow(...)`，而 `numRow` 定义在**兄弟组件 `SettingsPanel` 里**（`client.js:2527`），`ConfigCard` 作用域内不存在 → 渲染到该行时抛 `ReferenceError` → 整张卡渲染失败、什么都不显示。`node --check` 查不出这种错误，而当时没有任何测试真的渲染过这张卡。
+- **修法**：`ConfigCard` 自己的 `numberField()` 增加可选 hint 参数，该行改用它；不再跨组件借用构建器。
+- **回归防线**：`ConfigCard` 支持一个仅供测试的 `props.debugDraft`（默认不传，行为不变），`__test.configCard` 暴露出来，`client.smoke` 里真的调用它渲染一次。已反向验证：把 `numRow` 那行改回去，测试立刻红（`numRow is not defined`）。
+- 测试 94 passed。
+
 ## 1.0.0 修订四（S2 回退为可选）
 
 - **S2 的真机结论：桌面壳的请求不带 `Origin` 也不带 `Sec-Fetch-Site`**。上一版把它们当作「来自浏览器」的判据，结果所有请求 403 → 面板 offline、设置全部无响应（用户 2026-11-09 实测）。

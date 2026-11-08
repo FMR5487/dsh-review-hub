@@ -251,6 +251,10 @@ export const cases = [
 				JSON.stringify([...KNOB_KEYS].sort()),
 				'client 与 store 的 KNOB_KEYS 必须相同',
 			);
+			// 高级设置卡片必须能真的渲染出来。曾经它借用了兄弟组件里的 numRow，作用域外
+			// 引用 → 整张卡抛异常 → 插件页「高级设置全部不见了」，而当时所有测试都是绿的。
+			const card = bag.configCard({ locale: 'zh', debugDraft: {} });
+			assertTrue(card !== null && card !== undefined, '高级设置卡片能渲染');
 			// 窄栏分组隐藏：倍率 → 提供商 → 模型后缀
 			const parts = bag.laneParts('Qoder/Qwen3.8-Flash · x0.00');
 			assertEqual(parts.provider, 'Qoder/');

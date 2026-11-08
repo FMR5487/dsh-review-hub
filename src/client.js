@@ -3227,7 +3227,10 @@ window.__ModuleLoader__.load({
     function ConfigCard(props) {
       const t = translator(props);
       const view = useStore();
-      const state = React.useState(null);
+      // `debugDraft` only exists so the smoke test can render the real card without a
+      // host: a reference to an identifier that lives in a sibling component throws here
+      // and used to blank the whole plugin page with no test failing.
+      const state = React.useState(props !== null && props !== undefined && props.debugDraft !== undefined ? props.debugDraft : null);
       const draft = state[0];
       const setDraft = state[1];
       const statusState = React.useState('idle');
@@ -3281,9 +3284,12 @@ window.__ModuleLoader__.load({
         );
       };
 
-      const numberField = function (field, label) {
+      const numberField = function (field, label, hint) {
         return h('label', { className: 'ah-settings-row', key: field },
-          h('span', { className: 'ah-settings-label' }, label),
+          h('span', { className: 'ah-settings-label' },
+            label,
+            hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)
+          ),
           h('input', {
             className: 'ah-input',
             type: 'number',
@@ -3334,7 +3340,7 @@ window.__ModuleLoader__.load({
         // Always on: the preview is the only place you can see all five card kinds
         // side by side, and a switch that hides it only ever hid a debugging aid.
         h(CardPreview, { key: 'card-preview', locale: props === null || props === undefined ? undefined : props.locale }),
-        numRow('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote'), draft.snapshotRetentionDays === undefined ? 0 : draft.snapshotRetentionDays, function (value) { void savePatch({ snapshotRetentionDays: value }); }, 0, 365),
+        numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
         h('div', { className: 'ah-settings-row', key: 'clear-on' },
           h('span', { className: 'ah-settings-label' }, t('config.clearOn'), h('span', { className: 'ah-settings-note' }, t('config.clearOnNote'))),
           h('button', {
@@ -4061,6 +4067,7 @@ window.__ModuleLoader__.load({
         ringTiming: ringTiming,
         laneParts: laneParts,
         knobKeys: KNOB_KEYS,
+        configCard: ConfigCard,
         aiEscalated: aiEscalated,
         rowModelOf: rowModelOf,
       },
