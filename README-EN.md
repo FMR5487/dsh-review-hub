@@ -64,7 +64,7 @@ Every row records which layer decided: `ai` / `memory` / `human` / `external` / 
 
 The DSH approval ecosystem already has quite a few plugins with different ideas. This one collects the ideas that **can coexist** into a single implementation: a deterministic hard-risk layer that needs no model, an AI pre-check that can only pass or defer, a per-session learning layer, and the full panel / diff / undo surface.
 
-Versions below were checked on **2026-11-03** (`fetch('https://registry.npmjs.org/<pkg>/latest')`). These packages keep shipping — check the date before trusting a row:
+Versions below were checked on **2026-11-03** (`fetch('https://registry.npmjs.org/<pkg>/latest')`). **This table is history, not current state** — these packages keep shipping, so check npm / GitHub for today's facts:
 
 | Plugin | Version | Its approach | Relationship |
 |---|---|---|---|

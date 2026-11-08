@@ -6,6 +6,8 @@ dist/
 # local scratch (never part of the repo)
 .tmp/
 .install/
+# internal working notes — kept on this machine only
+docs/
 *.local.json
 
 # OS / editor
