@@ -2,6 +2,11 @@
 
 ## 未发版 · 文档整理
 
+- README / README-EN 顶部「和同类插件的关系」按另一会话（代码审查 + 竞品调研）的建议补齐：新增**四条差异**摘要（AI 无否决权 / 记忆只计人工批准 / 模型只看脱敏摘要 / 完整审批 UI），并把竞品表补上三个此前缺位的对手——官方 `@deepseek-ai/dsh-experimental-auto-review` 0.1.6-alpha.1、`dsh-auto-approve` 0.7.1（功能面最接近）、`dsh-plugin-auto-review` 0.1.0（机器可拒绝，作为反面参照）。每个包名都是实测 200 OK 的链接，版本取自 `registry.npmjs.org/<pkg>/latest`。
+- README / README-EN 底部加 **Star 趋势** 区块，与 [dsh-ops](https://github.com/T-Auto/dsh-ops) README 同款（`api.star-history.com/svg` + `star-history.com` 链接，`type=Date`）。
+
+## 未发版 · 文档合并
+
 - `docs/FEEDBACKv2.md` 合并进 `docs/FEEDBACK.md`：原来两批工单分别放在两个文件（§1–§9 指纹 v2，§10–§16 第二批体验工单），编号本来就连续，合并后一份文件即完整脉络；标题改为「问题复盘与工单」，文件头注明两批的时间与来源，CHANGELOG 里对「FEEDBACKv2 §N」的历史引用在合并说明里对齐。
 - 这两份文档只在**本机**保留（`docs/` 在 `.gitignore` 里），所以这次提交只包含 README / README-EN 的导航描述更新。
 - 教训（值得记）：`docs/` 不入库意味着**删除即不可恢复**。这次合并时 `awk` 静默产出了空文件、`rm` 又已经执行，靠 `git show 1a761a4:docs/FEEDBACKv2.md`（`.gitignore` 生效前那次提交）才捞回来。以后改/删 `docs/` 下的文件必须先在 `/tmp` 留副本并校验字节数，再动原文件。

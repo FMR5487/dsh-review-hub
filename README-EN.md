@@ -66,10 +66,20 @@ Every row records which layer decided: `ai` / `memory` / `human` / `external` / 
 
 The DSH approval ecosystem already has quite a few plugins with different ideas. This one collects the ideas that **can coexist** into a single implementation: a deterministic hard-risk layer that needs no model, an AI pre-check that can only pass or defer, a per-session learning layer, and the full panel / diff / undo surface.
 
-Versions below were checked on **2026-11-03** (`fetch('https://registry.npmjs.org/<pkg>/latest')`). **This table is history, not current state** — these packages keep shipping, so check npm / GitHub for today's facts:
+If you only remember four differences, these are the four (everything else is implementation detail):
+
+1. **The AI can only `allow` or `ask` — it cannot deny.** A `deny` is downgraded to "hand it to the human". Most peers let the model reject outright (fail-closed), so one bad judgement becomes a refused command.
+2. **Memory counts human approvals only.** Passes made by the AI or by memory itself never advance the counter, so every bit of evidence behind "learned, now silent" came from you.
+3. **The model only sees a redacted summary** — compressed arguments with paths and commands trimmed, not the original text; secret-like paths are not sent at all.
+4. **There is a real approval UI** — timeline, diff, undo, CSV/JSON ledger export, instead of a toast that disappears.
+
+Versions below were checked on **2026-11-03 / 09** (`fetch('https://registry.npmjs.org/<pkg>/latest')`). **This table is history, not current state** — these packages keep shipping, so check npm / GitHub for today's facts:
 
 | Plugin | Version | Its approach | Relationship |
 |---|---|---|---|
+| [`@deepseek-ai/dsh-experimental-auto-review`](https://www.npmjs.com/package/@deepseek-ai/dsh-experimental-auto-review) | 0.1.6-alpha.1 | the official experimental baseline shipped with the host: reviews every call with the session model, no deterministic risk list, risk/reason not persisted | the baseline this plugin is measured against: the deterministic layer (free, predictable), memory and the audit UI are what it lacks |
+| [`dsh-auto-approve`](https://www.npmjs.com/package/dsh-auto-approve) | 0.7.1 | keeps the sandbox and only narrows escalations; deterministic risk list runs before the classifier; per-session memory keyed on tool + raw args hash (30-minute TTL, in-memory only); falls back to the human when classification fails | **the closest thing to this plugin.** Differences: memory here persists, uses a threshold and counts human approvals only; risk-list hits never enter memory (both projects agree on that one) |
+| [`dsh-plugin-auto-review`](https://www.npmjs.com/package/dsh-plugin-auto-review) | 0.1.0 | ports the Codex Guardian / Grok escalation review prompts; the model may deny, and auto-denies when nobody is watching | a counter-example: a model that can deny is exactly this project's red line (the human stays in the loop) |
 | [`dsh-auto-review`](https://www.npmjs.com/package/dsh-auto-review) | 0.15.0 | second-model pre-check at the head of the chain; **fail-closed** when the reviewer is unavailable (rejects outright, no human) | the AI layer (L3) borrows its tiering, per-turn budget and breaker; **the veto is removed**, and the "PTC arguments folded → blind deny" bug is fixed |
 | [`dsh-perm-gate`](https://www.npmjs.com/package/dsh-perm-gate) | 5.4.4 | deterministic ladder P0 hard-deny → P1 session grants → P2 static rules → P3 optional LLM → P4 human | borrows "deterministic first": this plugin's L0/L1 is that layer, with no model in the path |
 | [`moon09300731/dsh-approval-gate`](https://github.com/moon09300731/dsh-approval-gate) | 0.5.2 (unmaintained since 2026-08) | Flash classifies SAFE/RISKY, five hard-risk classes never learn; green bar + timeline + diff/undo | the main product-shape reference (learning loop, hint above the composer, diff/undo); but it is an **intercepting gate** — it *is* the whole chain — while this plugin is layered and never blocks |
@@ -171,3 +181,9 @@ Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). 
 | [UX.md](UX.md) | UI decision log: why each screen looks the way it does, **including the options that were rejected** and why |
 | [docs/FEEDBACK.md](docs/FEEDBACK.md) | Post-mortems and work tickets (§1–§9: fingerprints split by paging knobs; §10 on: the second batch) |
 | [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | Research notes and the implementation plan |
+
+---
+
+## Star history
+
+[![Star history chart](https://api.star-history.com/svg?repos=FMR5487/dsh-review-hub&type=Date)](https://star-history.com/#FMR5487/dsh-review-hub&Date)

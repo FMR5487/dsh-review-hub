@@ -67,10 +67,20 @@ DSH（DeepSeek Harness）在工具需要提权时会停下来问人：`approval/
 
 DSH 的审批生态里已经有不少插件，思路各不相同。本插件把这些思路里**能共存的那些**收进一个实现：确定性优先的硬风险层（不需要模型）、AI 预审层（只能放行或转人工）、按会话的学习层，以及完整的面板/diff/撤销。
 
-下表版本核对于 **2026-11-03**（`fetch('https://registry.npmjs.org/<包名>/latest')` 复核）。**本表只作历史参考**——这些包都在更新，读的时候以当天的 npm / GitHub 为准：
+如果只记四条差异，是这四条（其余都是实现细节）：
+
+1. **AI 只有 `allow` / `ask`，没有否决权**——`deny` 被强制降级成「转人工」。多数同类插件让模型直接拒（fail-closed），一次误判就变成拒绝执行。
+2. **记忆只数「人工批准」**——AI 或记忆自己放行的次数不推进计数器，所以「学满自动放行」的每一分证据都是人给的，可审计。
+3. **模型只看脱敏摘要**——送审的是压缩后的参数摘要（路径/命令裁剪过），不是原文；凭据类路径连摘要都不给。
+4. **有完整的审批 UI**——时间线、diff、撤销、CSV/JSON 台账导出，而不是「弹一下就没了」。
+
+下表版本核对于 **2026-11-03 / 09**（`registry.npmjs.org/<包名>/latest` 与 GitHub 页面复核）。**本表只作历史参考**——这些包都在更新，读的时候以当天的 npm / GitHub 为准：
 
 | 插件 | 版本 | 它的做法 | 与本插件的关系 |
 |---|---|---|---|
+| [`@deepseek-ai/dsh-experimental-auto-review`](https://www.npmjs.com/package/@deepseek-ai/dsh-experimental-auto-review) | 0.1.6-alpha.1 | 官方随宿主的实验性基线：用当前会话模型审每个调用，无确定性危险清单，风险/理由不落盘 | 本插件的对比基线：确定性层（不花钱、可预测）、记忆、审计 UI 是它没有的 |
+| [`dsh-auto-approve`](https://www.npmjs.com/package/dsh-auto-approve) | 0.7.1 | 保留沙箱、只裁 escalation；确定性危险清单先于分类器；会话记忆（同工具 + 同参数原文哈希，TTL 30 分钟、仅在内存）；分类器失败回落人工 | **功能面最接近的一个**。差异：本插件的记忆是持久 + 阈值 + 只计人工批准，且危险清单命中永不进记忆（这点两家一致） |
+| [`dsh-plugin-auto-review`](https://www.npmjs.com/package/dsh-plugin-auto-review) | 0.1.0 | 移植 Codex Guardian / Grok escalation 的审查提示，模型可拒绝，无人值守时直接拒 | 反面参照：机器可拒绝正是本项目的红线（人在环里才有最终决定权） |
 | [`dsh-auto-review`](https://www.npmjs.com/package/dsh-auto-review) | 0.15.0 | 链首第二模型预审；reviewer 不可用时 **fail-closed**（直接拒绝，不给人机会） | AI 层（L3）取了它的分层、每轮预算与熔断；**去掉否决权**，并修掉 PTC 折叠参数看不到就盲拒 |
 | [`dsh-perm-gate`](https://www.npmjs.com/package/dsh-perm-gate) | 5.4.4 | 确定性阶梯 P0 硬拒绝 → P1 会话授权 → P2 静态规则 → P3 可选 LLM → P4 人工 | 取它"确定性优先"：本插件的 L0/L1 就是不花模型的确定性层 |
 | [`moon09300731/dsh-approval-gate`](https://github.com/moon09300731/dsh-approval-gate) | 0.5.2（2026-08 停更） | Flash 判 SAFE/RISKY，五类硬风险永不学习；绿条 + 时间线 + diff/撤销 | 产品形态（学习循环、输入框上方提示、diff/撤销）的主要参考；但它是**拦截式门**（自己就是整条链），本插件是分层 + 永不阻断 |
@@ -173,3 +183,9 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 | [UX.md](UX.md) | 界面取舍记录：每处 UI 为什么长这样，含**被否掉**的方案和原因 |
 | [docs/FEEDBACK.md](docs/FEEDBACK.md) | 问题复盘与工单（§1–§9 指纹被分页参数劈开；§10 起第二批体验工单） |
 | [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | 调研与实施计划（历史） |
+
+---
+
+## Star 趋势
+
+[![Star 趋势图](https://api.star-history.com/svg?repos=FMR5487/dsh-review-hub&type=Date)](https://star-history.com/#FMR5487/dsh-review-hub&Date)
