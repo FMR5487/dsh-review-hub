@@ -81,13 +81,23 @@ const BATCH_DESTRUCTION = [
 	/\bRemove-Item\b[^\n]*\*[^\n]*-Recurse/i,
 ];
 
+/**
+ * `shape` decides who gets judged by a class:
+ *
+ *   command — only tools that hand a string to a shell. A `write` whose *content*
+ *             mentions "rm -rf" writes a file; it does not delete anything, and
+ *             treating it as L0 meant every such edit was bounced to a human forever
+ *             and could never be learned.
+ *   path    — every tool: these patterns match a path or a literal secret, which is
+ *             exactly as meaningful in `edit {file_path: ".env"}` as in a shell line.
+ */
 const CLASSES = [
-	{ rule: 'delete', label: '删除类', patterns: DELETE },
-	{ rule: 'discard', label: '丢弃改动', patterns: DISCARD },
-	{ rule: 'credentials', label: '凭据类', patterns: SECRET_PATHS },
-	{ rule: 'remote-exec', label: '远程执行', patterns: REMOTE_EXEC },
-	{ rule: 'system', label: '系统级', patterns: SYSTEM_LEVEL },
-	{ rule: 'batch', label: '批量破坏', patterns: BATCH_DESTRUCTION },
+	{ rule: 'delete', label: '删除类', patterns: DELETE, shape: 'command' },
+	{ rule: 'discard', label: '丢弃改动', patterns: DISCARD, shape: 'command' },
+	{ rule: 'credentials', label: '凭据类', patterns: SECRET_PATHS, shape: 'path' },
+	{ rule: 'remote-exec', label: '远程执行', patterns: REMOTE_EXEC, shape: 'command' },
+	{ rule: 'system', label: '系统级', patterns: SYSTEM_LEVEL, shape: 'command' },
+	{ rule: 'batch', label: '批量破坏', patterns: BATCH_DESTRUCTION, shape: 'command' },
 ];
 
 /** Stable, secret-free JSON so the same action always fingerprints the same. */
@@ -141,7 +151,9 @@ export function hardRisk(toolName, argsText) {
 	// Path-shaped rules look at the whole argument text; command-shaped rules look
 	// at the command line so a JSON key named "delete" cannot trip them.
 	const command = commandText(toolName, text);
+	const runsCommands = SHELL_TOOLS.has(String(toolName ?? '').toLowerCase());
 	for (const entry of CLASSES) {
+		if (entry.shape === 'command' && runsCommands === false) continue;
 		for (const pattern of entry.patterns) {
 			if (pattern.test(text) || (command !== text && pattern.test(command))) {
 				return { rule: entry.rule, label: entry.label };
@@ -149,6 +161,16 @@ export function hardRisk(toolName, argsText) {
 		}
 	}
 	return undefined;
+}
+
+/** Does this text name a credential file? Path-shaped only — used by snapshot redaction. */
+export function isSecretLike(text) {
+	const value = typeof text === 'string' ? text : '';
+	if (value === '') return false;
+	for (const pattern of SECRET_PATHS) {
+		if (pattern.test(value)) return true;
+	}
+	return false;
 }
 
 export const DEFAULT_TOOLS_POLICY = Object.freeze({

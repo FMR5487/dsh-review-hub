@@ -54,6 +54,23 @@ export const cases = [
 		},
 	},
 	{
+		name: '快照：凭据类文件只留元数据，不留正文（S1）',
+		async fn() {
+			const { root, snapshot } = await harness('p3-redact');
+			const file = join(root, '.env');
+			await writeFile(file, 'API_KEY=super-secret', 'utf8');
+			snapshot.capture(exec('edit', 'c9', 's1', { file_path: file, old_string: 'a', new_string: 'b' }));
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			const entry = await snapshot.lookup('s1', 'c9');
+			assertEqual(entry.redacted, true, '凭据文件被标红');
+			assertEqual(entry.before, null, '不保存正文');
+			assertEqual(entry.afterHint, undefined, '也不保存改后形态');
+			assertEqual(snapshot.has('s1', 'c9'), false, '没有 before 就不该给撤销按钮');
+			const index = JSON.parse(await readFile(join(root, 'snapshots', 's1', 'index.json'), 'utf8'));
+			assertEqual(String(JSON.stringify(index)).indexOf('super-secret'), -1, '磁盘上也不出现正文');
+		},
+	},
+	{
 		name: '快照：PTC 后缀 id 与基 id 互相能查到',
 		async fn() {
 			const { root, snapshot } = await harness('p3-ptc');

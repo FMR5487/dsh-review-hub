@@ -33,6 +33,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	autoExpandDescription: false,
 	/** Hide knob arguments (limit/offset/…) in the displayed command; copy stays verbatim. */
 	hideKnobs: true,
+	/** Days to keep snapshots/ on disk; 0 = keep until the session cap evicts them. */
+	snapshotRetentionDays: 0,
 	/**
 	 * Global file-level mode: fingerprint by tool + file path, so every edit of the same
 	 * file counts as one operation and passes once the threshold is met.
@@ -89,6 +91,7 @@ const BOUNDS = {
 	toastQuietMs: [0, 600000],
 	maxEntriesPerSession: [20, 2000],
 	pollMs: [250, 30000],
+	snapshotRetentionDays: [0, 365],
 };
 const HINT_BOUNDS = { ai: [2000, 600000], memory: [2000, 600000], pending: [0, 600000] };
 const AI_LEVELS = new Set(['full', 'strict', 'off']);

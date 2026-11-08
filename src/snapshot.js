@@ -7,17 +7,22 @@
  * to happen before the tool writes), and the disk write is queued behind the
  * caller.
  */
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { callIdMatches } from './evidence.js';
 import { defaultRoot } from './store.js';
+import { isSecretLike } from './policy.js';
 
 export const SNAPSHOT_VERSION = 1;
 /** Per-session ring: the oldest captured call goes first. */
 export const SNAPSHOT_MAX_ENTRIES = 64;
 /** One before-image cap; a bigger file keeps only its metadata. */
 export const SNAPSHOT_MAX_BYTES = 256 * 1024;
+/** How many sessions keep snapshots on disk; the least recently used one goes first. */
+export const SNAPSHOT_MAX_SESSIONS = 64;
+/** Default retention: 0 = keep until the session cap evicts it. */
+export const SNAPSHOT_RETENTION_DAYS = 0;
 const SNAPSHOT_TOOLS = new Set(['write', 'edit', 'str_replace_editor']);
 const INDEX_FILE = 'index.json';
 
@@ -214,17 +219,25 @@ export function createSnapshot(options = {}) {
 			if (callId === undefined) return undefined;
 			const file = readBeforeSync(path);
 			const entry = { path, before: null, bytes: file.bytes ?? 0, ts: now(), toolName };
-			if (file.tooLarge === true) entry.tooLarge = true;
+			if (isSecretLike(path) === true) {
+				// A credential file is backed up by *not* backing it up: keeping a copy of
+				// .env just so an edit could be undone creates the very leak this plugin
+				// exists to prevent. Metadata stays, contents do not.
+				entry.redacted = true;
+			} else if (file.tooLarge === true) entry.tooLarge = true;
 			else if (file.exists === true) entry.before = typeof file.text === 'string' ? file.text : null;
-			if (entry.tooLarge !== true) {
+			if (entry.tooLarge !== true && entry.redacted !== true) {
 				const hint = afterHintOf(toolName, args, entry.before);
 				if (typeof hint === 'string' && Buffer.byteLength(hint, 'utf8') <= SNAPSHOT_MAX_BYTES) entry.afterHint = hint;
 			}
 			let bucket = sessions.get(sessionId);
 			if (bucket === undefined) {
 				bucket = new Map();
-				sessions.set(sessionId, bucket);
 			}
+			// Re-inserting moves the session to the end: eviction drops the coldest one.
+			sessions.delete(sessionId);
+			sessions.set(sessionId, bucket);
+			evictSessions();
 			// Re-inserting refreshes its position, so eviction drops the oldest capture.
 			bucket.delete(callId);
 			bucket.set(callId, entry);
@@ -243,11 +256,60 @@ export function createSnapshot(options = {}) {
 		}
 	}
 
+	/**
+	 * Keep the disk side as bounded as the memory side: an unbounded pile of session
+	 * directories is exactly the "history nobody asked to keep" problem.
+	 */
+	function evictSessions() {
+		while (sessions.size > SNAPSHOT_MAX_SESSIONS) {
+			const oldest = sessions.keys().next();
+			if (oldest.done === true) break;
+			const sessionId = oldest.value;
+			sessions.delete(sessionId);
+			loading.delete(sessionId);
+			// Best effort: a failed unlink only costs disk, never the answer.
+			void rm(join(dir, safeSegment(sessionId)), { recursive: true, force: true }).catch(() => undefined);
+		}
+	}
+
+	/** Drop session directories older than the retention window (0 = keep forever). */
+	let swept = false;
+	async function sweepRetention(days) {
+		if (swept === true) return 0;
+		swept = true;
+		const window = Number(days);
+		if (Number.isFinite(window) !== true || window <= 0) return 0;
+		const cutoff = now() - window * 24 * 60 * 60 * 1000;
+		let removed = 0;
+		let names = [];
+		try {
+			names = await readdir(dir);
+		} catch {
+			return 0;
+		}
+		for (const name of names) {
+			const target = join(dir, name);
+			try {
+				const info = await stat(join(target, INDEX_FILE));
+				if (info.mtimeMs >= cutoff) continue;
+				await rm(target, { recursive: true, force: true });
+				removed += 1;
+			} catch {
+				/* not a session directory, or already gone */
+			}
+		}
+		return removed;
+	}
+
 	/** Whether a snapshot exists for this call. Memory only: the entries route calls it per row. */
 	function has(sessionId, callId) {
 		try {
 			if (typeof sessionId !== 'string' || sessionId === '' || typeof callId !== 'string' || callId === '') return false;
-			return findKey(bucketOf(sessionId), callId) !== undefined;
+			const bucket = bucketOf(sessionId);
+			const key = findKey(bucket, callId);
+			if (key === undefined) return false;
+			// A redacted capture has metadata only: there is nothing to diff or revert.
+			return bucket.get(key)?.redacted !== true;
 		} catch {
 			return false;
 		}
@@ -293,6 +355,7 @@ export function createSnapshot(options = {}) {
 		load,
 		warm,
 		ensureLoaded,
+		sweepRetention,
 		/** Absolute path of the session index a revert instruction tells the agent to read. */
 		snapshotPath: (sessionId) => indexPath(String(sessionId ?? '')),
 	};

@@ -233,6 +233,8 @@ window.__ModuleLoader__.load({
       'preview.noPending': '当前没有待审',
       'bar.reviewer': '审查器 {lane} · allow {allow} / ask {ask} / 兜底 {fallback}',
       'bar.cache': 'AI 缓存 {hits}/{calls}',
+      'config.snapshotDays': '快照保留天数',
+      'config.snapshotDaysNote': '0 = 一直保留（受每会话 64 条、最多 64 个会话的限制）；设成 N 天后，过期快照在下次启动时清理',
       'config.aiTools': '额外先交给 AI 的工具',
       'config.aiToolsNote': '逗号或换行分隔。内置默认（shell、只读文件与检索、只读网络、任务输出）已写死在代码里，这里只填要额外加进去的工具；write / edit 属记忆档，不受影响。',
       'config.aiToolsDeny': '不交给 AI 的工具（黑名单）',
@@ -463,6 +465,8 @@ window.__ModuleLoader__.load({
       'preview.noPending': 'Nothing waiting right now',
       'bar.reviewer': 'reviewer {lane} · allow {allow} / ask {ask} / fallback {fallback}',
       'bar.cache': 'AI cache {hits}/{calls}',
+      'config.snapshotDays': 'Snapshot retention (days)',
+      'config.snapshotDaysNote': '0 = keep (bounded by 64 entries per session and 64 sessions); set N days and expired snapshots are swept on the next start',
       'config.aiTools': 'Extra tools to send to the AI',
       'config.aiToolsNote': 'Comma or newline separated. The built-in baseline (shell, read-only file/search, read-only network, job output) is hardcoded; list only the additions. write/edit are memory-tier and unaffected.',
       'config.aiToolsDeny': 'Tools kept away from the AI (deny list)',
@@ -3330,6 +3334,7 @@ window.__ModuleLoader__.load({
         // Always on: the preview is the only place you can see all five card kinds
         // side by side, and a switch that hides it only ever hid a debugging aid.
         h(CardPreview, { key: 'card-preview', locale: props === null || props === undefined ? undefined : props.locale }),
+        numRow('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote'), draft.snapshotRetentionDays === undefined ? 0 : draft.snapshotRetentionDays, function (value) { void savePatch({ snapshotRetentionDays: value }); }, 0, 365),
         h('div', { className: 'ah-settings-row', key: 'clear-on' },
           h('span', { className: 'ah-settings-label' }, t('config.clearOn'), h('span', { className: 'ah-settings-note' }, t('config.clearOnNote'))),
           h('button', {

@@ -30,6 +30,13 @@ export const cases = [
 				assertEqual(risk === undefined ? '' : risk.rule, 'credentials', path + ' 必须算凭据硬风险');
 			}
 			assertEqual(hardRisk('ops_read_files', JSON.stringify({ files: [{ path: 'D:/x/.environment.md' }] })), undefined, '.environment 不是 .env');
+			// S3：命令类规则只判「能执行命令的工具」。写一段含 rm -rf 的文档不是删除。
+			const doc = JSON.stringify({ file_path: 'D:/x/README.md', new_string: '用 rm -rf 清理缓存' });
+			assertEqual(hardRisk('edit', doc), undefined, '内容里写着 rm -rf 的编辑不算删除类硬风险');
+			assertEqual(hardRisk('write', doc), undefined, 'write 同理');
+			assertEqual((hardRisk('ops_bash', JSON.stringify({ command: 'rm -rf /tmp/x' })) || {}).rule, 'delete', 'shell 工具照旧');
+			assertEqual((hardRisk('run_code', JSON.stringify({ code: 'rm -rf /tmp/x' })) || {}).rule, 'delete', 'run_code 能执行，照旧');
+			assertEqual((hardRisk('edit', JSON.stringify({ file_path: 'C:/x/.env' })) || {}).rule, 'credentials', '路径类规则对所有工具生效');
 		},
 	},
 	{

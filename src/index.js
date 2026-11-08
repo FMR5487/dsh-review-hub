@@ -507,6 +507,9 @@ export function apply(ctx, rawConfig = {}) {
 			return undefined;
 		}
 	};
+	// One sweep per process: snapshots are the one place a plugin keeps file contents,
+	// so they must not accumulate silently.
+	void snapshot.sweepRetention(store.settingsSnapshot().snapshotRetentionDays).catch(() => 0);
 	activeReviewer = createReviewer({
 		getLlm,
 		getSettings: () => store.settingsSnapshot(),

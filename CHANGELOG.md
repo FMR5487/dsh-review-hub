@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 1.0.0 修订二（S1 / S3）
+
+- **S3 · 命令类硬风险只判能执行命令的工具**：`CLASSES` 现在带 `shape`——`delete / discard / remote-exec / system / batch` 是 `command` 型，只在 `SHELL_TOOLS`（ops_bash/bash/pwsh/run_code…）上生效；`credentials` 是 `path` 型，对所有工具生效。此前 `edit`/`write` 的**正文里出现 `rm -rf` 字样**就会被判成 L0：直接交人工、不进记忆、永不自动放行。写一段文档不是删除。
+- **S1 · 快照不再无界留存**（三步全做）：
+  - **凭据文件不留正文**：`SECRET_PATHS` 命中的路径（`.env` / `.pem` / `.credentials*` / `channel-pack/` …）只存 `{path, bytes, ts}` 元数据并标 `redacted`，不存 `before`、不存 `afterHint`；`has()` 对这类条目返回 false，因此列表里不会出现撤销按钮（撤销退化为让 agent 自己恢复）。为了能撤销而备份一份凭据，等于制造它本来要防的泄漏。
+  - **会话数上限**：新增 `SNAPSHOT_MAX_SESSIONS = 64`，按最近使用淘汰，同时 `rm -rf` 掉对应 `snapshots/<sid>/` 目录。
+  - **保留天数**：新增设置 `snapshotRetentionDays`（0–365，默认 0 = 一直保留），启动时扫一次过期目录。
+- 新增「快照保留天数」设置项（高级设置，`clear-on` 上方），中英文案齐备。
+- 测试 92 → 93 passed（新增凭据红action 用例 + 三条硬风险 shape 断言）。
+
 ## 1.0.0 修订（发版前审查修复，同版本号内并入）
 
 - **版本号自愈**：`index.js` 的 `VERSION` 不再手写，改为从 `package.json` 读取（读不到回退 `0.0.0`）。此前它停在 `0.4.55`，`/health` 与插件页都在报错误版本。
