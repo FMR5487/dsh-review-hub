@@ -20,6 +20,8 @@ DSH（DeepSeek Harness）在工具需要提权时会停下来问人：`approval/
 
 因为裁决者唯一，每条记录的"谁放的"是事实而不是猜测：`ai` / `memory` / `human` / `external` / `fallback`。
 
+> **AI 预审默认覆盖 ops 插件的命令**：[dsh-ops](https://github.com/T-Auto/dsh-ops) 发布的 `ops_bash` 与只读的 `ops_read_files` / `ops_grep` / `ops_glob` / `ops_inspect_local_file` / `ops_status`、以及它的后台任务工具 `job_output` / `job_list` 都在默认 AI 名单里——不用额外配置，装好就会预审它们。其它工具（`write` / `edit` 等）走记忆档，`plugin_manager` 这类默认直接问你；要增减都在插件页「高级设置 → 先交给 AI 的工具 / 不交给 AI 的工具」里改。
+
 ---
 
 ## 决策链

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.0.0 发版收尾
+
+- **插件描述**：`locale/zh.json` / `en.json` 里「AI 预审」与「记忆自动放行」互换位置——记忆是确定性层，排在概率层前面，描述顺序与决策链一致。
+- **README 补一段 ops 覆盖说明**（中英）：`dsh-ops` 的 `ops_bash`、只读检索五件与 `job_output` / `job_list` 默认就在 AI 名单里，装好即预审，并链到 [dsh-ops 仓库](https://github.com/T-Auto/dsh-ops)。
+- tag `v1.0.0` 已移到当前 HEAD（历史里的自我修复不单独成版）。测试 94 passed。
+
 ## 1.0.0 修订五（高级设置整卡崩溃）
 
 - **现象**：重启后插件页「高级设置」整块不见（面板其它部分正常）。

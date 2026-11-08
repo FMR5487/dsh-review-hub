@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "MingJing (dsh-review-hub)",
-    "description": "MingJing: AI pre-check + memory auto-pass + approval centralized preview + right-sidebar diff/undo, with attribution recorded as fact."
+    "description": "MingJing: memory auto-pass + AI pre-check + approval centralized preview + right-sidebar diff/undo, with attribution recorded as fact."
   }
 }

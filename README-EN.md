@@ -20,6 +20,8 @@ When a DSH tool needs an escalation, the harness stops and asks: `approval/reque
 
 Because there is exactly one answerer, "who let this through" is a recorded fact, not a guess: `ai` / `memory` / `human` / `external` / `fallback`.
 
+> **The AI pre-check covers the ops plugin's commands by default**: everything [dsh-ops](https://github.com/T-Auto/dsh-ops) publishes — `ops_bash`, the read-only `ops_read_files` / `ops_grep` / `ops_glob` / `ops_inspect_local_file` / `ops_status`, and its job tools `job_output` / `job_list` — is already in the built-in AI list. No extra configuration: install and it reviews them. Other tools go their own way (`write` / `edit` are memory-tier, `plugin_manager` asks you directly); add or remove any of them under *Advanced → extra tools to send to the AI / deny list*.
+
 ---
 
 ## The decision chain
