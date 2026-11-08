@@ -163,7 +163,7 @@ Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). 
 ## Known limitations
 
 - Tightly coupled to DSH internals (seat names, the right-sidebar API, `--dsh-composer-*` CSS variables); a major host bump may need work.
-- The client half is a single ~1700-line bundle (no build step).
+- The client half is a single ~4100-line bundle (no build step).
 - The approval tab is per session; there is no "all sessions" view.
 - Undo is an instruction delivered to the session, so it needs a live agent there.
 - Write-ahead snapshots are capped (256 KB per file, 64 per session); beyond that only metadata is kept.
