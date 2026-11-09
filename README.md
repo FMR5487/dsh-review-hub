@@ -107,6 +107,7 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 |---|---|---|---|
 | 挂载点 | `approval/request` answerer，全预设、按工具分档（AI / 记忆 / 直接人工） | `tools/pre-execute` 闸门，仅 `AUTO` 预设会话 | 权限预设 `sandboxed-auto`，仅选择该档的会话 |
 | 审查范围 | 所有走到审批的请求 | 该会话里每一次工具调用 | 只裁沙箱 escalation（作者估算约 2%） |
+| 顶层 `run_code` | **照样过 L0 硬风险与记忆学习**，只是不进 AI（`tier=memory`）——`run_code` 里写 `rm -rf` 会被拦下来问你 | **豁免审查**：`exec.parent === undefined` 时直接放行（它怕审外层会与子调用重复计费） | 不在其审查面内（只裁沙箱 escalation） |
 | AI 能否否决 | **不能**：`deny` 强制降级成 `ask`，人永远终审 | **能**：`deny` 且会话 override=`never` → 直接拒绝执行 | 有限：危险清单命中或分类器拿不准就转人工，`never` 档可硬拒 |
 | 审查失败 | 转人工，`aiSource` 记明原因 | **fail-closed**：拒绝执行 | 回落人工 |
 | 送模型什么 | **脱敏摘要**（≤240 字符，`sk-` / `Bearer` / 密钥字段名全 redact）；凭据类路径连摘要都不给 | **整个会话可见历史 + 原始参数 JSON + 工具 schema**，无脱敏 | 命令 + justification + 沙箱目标 + 用户原话（≤2000 字符，超长转人工） |

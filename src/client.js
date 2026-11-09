@@ -3538,28 +3538,6 @@ window.__ModuleLoader__.load({
           );
         })),
         numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
-        h('div', { className: 'ah-settings-row', key: 'debug-review' },
-          h('span', { className: 'ah-settings-label' }, t('config.debugReview'), h('span', { className: 'ah-settings-note' }, t('config.debugReviewNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.debugReview === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.debugReview === true ? 'true' : 'false',
-            title: t('config.debugReview'),
-            onClick: function () { change('debugReview', draft.debugReview !== true); },
-          }, h('span', { className: 'ah-switch-knob' }))
-        ),
-        h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
-          h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.strictVerdict === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
-            title: t('config.strictVerdict'),
-            onClick: function () { change('strictVerdict', draft.strictVerdict !== true); },
-          }, h('span', { className: 'ah-switch-knob' }))
-        ),
         h('div', { className: 'ah-settings-row', key: 'debug-headers' },
           h('span', { className: 'ah-settings-label' }, t('config.debugHeaders'), h('span', { className: 'ah-settings-note' }, t('config.debugHeadersNote'))),
           h('button', {
@@ -3571,6 +3549,17 @@ window.__ModuleLoader__.load({
             onClick: function () { change('debugHeaders', draft.debugHeaders !== true); },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
+        h('div', { className: 'ah-settings-row', key: 'debug-review' },
+          h('span', { className: 'ah-settings-label' }, t('config.debugReview'), h('span', { className: 'ah-settings-note' }, t('config.debugReviewNote'))),
+          h('button', {
+            type: 'button',
+            className: 'ah-switch' + (draft.debugReview === true ? ' ah-switch-on' : ''),
+            role: 'switch',
+            'aria-checked': draft.debugReview === true ? 'true' : 'false',
+            title: t('config.debugReview'),
+            onClick: function () { change('debugReview', draft.debugReview !== true); },
+          }, h('span', { className: 'ah-switch-knob' }))
+        ),
         h('div', { className: 'ah-settings-row', key: 'clear-on' },
           h('span', { className: 'ah-settings-label' }, t('config.clearOn'), h('span', { className: 'ah-settings-note' }, t('config.clearOnNote'))),
           h('button', {
@@ -3580,6 +3569,17 @@ window.__ModuleLoader__.load({
             'aria-checked': draft.clearEnabled === true ? 'true' : 'false',
             title: t('config.clearOn'),
             onClick: function () { change('clearEnabled', draft.clearEnabled !== true); },
+          }, h('span', { className: 'ah-switch-knob' }))
+        ),
+        h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
+          h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
+          h('button', {
+            type: 'button',
+            className: 'ah-switch' + (draft.strictVerdict === true ? ' ah-switch-on' : ''),
+            role: 'switch',
+            'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
+            title: t('config.strictVerdict'),
+            onClick: function () { change('strictVerdict', draft.strictVerdict !== true); },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
         // Always on, and last: the preview is a looking glass, not a setting — it belongs
