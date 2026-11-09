@@ -58,7 +58,9 @@ window.__ModuleLoader__.load({
       'chip.external': '外部裁决',
       'memory.progress': '记忆 {count}/{threshold} 次',
       'memory.progressLead': '记忆',
+      'memory.progressLeadMerged': '合并记忆',
       'memory.progressUnit': '次',
+      'memory.fullMerged': '合并记忆已满',
       'memory.count': '记忆 {n} 次',
       'memory.remove': '删除',
       'memory.clear': '清空记忆',
@@ -88,7 +90,6 @@ window.__ModuleLoader__.load({
       'diff.change': '改动',
       'diff.title': '明镜 · 改动',
       'diff.none': '在审批列表里点「改动」，这里会显示那一次调用的 diff',
-      'chip.merged': '合并记忆 {count}/{threshold} 次',
       'diff.stats': '+{add} / -{del} 行变更 · {unchanged} 行未变',
       'diff.loading': '正在读取改动…',
       'diff.noSnapshot': '这次审批没有留下快照（插件安装前、或该工具不建快照）',
@@ -301,7 +302,9 @@ window.__ModuleLoader__.load({
       'chip.external': 'External',
       'memory.progress': 'memory {count}/{threshold}',
       'memory.progressLead': 'memory',
+      'memory.progressLeadMerged': 'merged memory',
       'memory.progressUnit': '',
+      'memory.fullMerged': 'merged memory full',
       'memory.count': 'memory {n}',
       'memory.remove': 'Remove',
       'memory.clear': 'Clear memory',
@@ -331,7 +334,6 @@ window.__ModuleLoader__.load({
       'diff.change': 'Diff',
       'diff.title': 'MingJing · Change',
       'diff.none': 'Pick "Change" on a row: the diff of that call shows up here',
-      'chip.merged': 'merged memory {count}/{threshold}',
       'diff.stats': '+{add} / -{del} changed · {unchanged} unchanged',
       'diff.loading': 'Reading the change…',
       'diff.noSnapshot': 'No snapshot for this approval (older than the plugin, or the tool keeps none)',
@@ -811,17 +813,17 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * "合并记忆 n/N 次": this call's knobs were cut before fingerprinting, and it is the n-th
-     * time that merged operation has been approved. Only the **second** occurrence onward
-     * says it — on the first one nothing has been merged yet, so the badge would be a lie.
+     * Did this row fold knobs away *and* get approved more than once? "合并" is a property of
+     * the *memory sentence*, not a separate badge: it reads "合并记忆 3/3 次", the same number
+     * the row already prints. A second chip repeating that number was pure noise. The first
+     * occurrence is not merged yet, so nothing is prefixed there.
      */
-    function mergedMark(entry, t) {
-      if (entry === null || typeof entry !== 'object') return '';
-      if (entry.fpMode !== 'normalized') return '';
-      if (Array.isArray(entry.droppedKeys) === false || entry.droppedKeys.length === 0) return '';
+    function isMerged(entry) {
+      if (entry === null || typeof entry !== 'object') return false;
+      if (entry.fpMode !== 'normalized') return false;
+      if (Array.isArray(entry.droppedKeys) === false || entry.droppedKeys.length === 0) return false;
       const count = Number(entry.memoryCount);
-      if (Number.isFinite(count) === false || count < 2) return '';
-      return t('chip.merged', { count: count, threshold: rowThreshold(entry, liveThreshold()) });
+      return Number.isFinite(count) && count >= 2;
     }
 
     /**
@@ -843,13 +845,10 @@ window.__ModuleLoader__.load({
       const denied = entry && entry.outcome === 'rejected';
       const cancelled = entry && entry.outcome === 'cancelled';
       const pre = aiEscalated(entry) === true && cancelled === false ? t('chip.aiRejected') : undefined;
-      // "合并记忆 n/N 次" is its own group, not part of the decision text: a narrow pane
-      // drops it whole (see the chip container queries) instead of trimming the decision.
-      const merged = mergedMark(entry, t);
       if (cancelled) return { text: t('chip.cancelled'), tone: 'muted' };
-      if (by === 'memory') return { text: t('chip.memory'), tone: 'learn', merged: merged };
+      if (by === 'memory') return { text: t('chip.memory'), tone: 'learn' };
       if (by === 'ai') return { text: denied ? t('chip.aiDeny') : t('chip.ai'), tone: denied ? 'danger' : 'ok' };
-      if (by === 'human') return { text: denied ? t('chip.humanDeny') : t('chip.human'), tone: denied ? 'danger' : 'warn', pre: pre, merged: merged };
+      if (by === 'human') return { text: denied ? t('chip.humanDeny') : t('chip.human'), tone: denied ? 'danger' : 'warn', pre: pre };
       if (by === 'external') return { text: t('chip.external'), tone: 'muted', pre: pre };
       return { text: denied ? t('chip.rejected') : t('chip.fallback'), tone: denied ? 'danger' : 'muted', pre: pre };
     }
@@ -910,11 +909,18 @@ window.__ModuleLoader__.load({
       const threshold = rowThreshold(entry, live);
       // Three pieces, because a narrow pane drops the unit word ("次") while keeping the
       // fraction — "记忆 1/3 次" → "记忆 1/3".
+      const merged = isMerged(entry);
       const progress = function (count) {
         return {
-          long: t('memory.progress', { count: count, threshold: threshold }),
+          long: merged
+            ? t('memory.progressLeadMerged') + ' ' + count + '/' + threshold + ' ' + t('memory.progressUnit')
+            : t('memory.progress', { count: count, threshold: threshold }),
           short: null,
-          parts: { lead: t('memory.progressLead'), frac: count + '/' + threshold, unit: t('memory.progressUnit') },
+          parts: {
+            lead: merged ? t('memory.progressLeadMerged') : t('memory.progressLead'),
+            frac: count + '/' + threshold,
+            unit: t('memory.progressUnit'),
+          },
         };
       };
       const file = fileCountOf(entry);
@@ -924,7 +930,8 @@ window.__ModuleLoader__.load({
         // "已满" means *past* the threshold: the row that reaches it still shows n/N,
         // which is what that approval actually completed.
         if (count > threshold) {
-          return { long: t('memory.full') + ' · ' + t('memory.canArm'), short: t('memory.full') + ' · ' + t('memory.canArmShort') };
+          const full = merged ? t('memory.fullMerged') : t('memory.full');
+          return { long: full + ' · ' + t('memory.canArm'), short: full + ' · ' + t('memory.canArmShort') };
         }
         return progress(count);
       }
@@ -943,7 +950,6 @@ window.__ModuleLoader__.load({
       const parts = [];
       if (chip.pre !== undefined) parts.push(h('span', { className: 'ah-chip-pre', key: 'pre' }, chip.pre + ' · '));
       parts.push(h('span', { className: 'ah-chip-decision', key: 'decision' }, chip.text));
-      if (typeof chip.merged === 'string' && chip.merged !== '') parts.push(h('span', { className: 'ah-chip-merged', key: 'merged' }, ' · ' + chip.merged));
       if (memory !== null) {
         const body = memory.parts !== undefined
           ? [
@@ -1908,10 +1914,9 @@ window.__ModuleLoader__.load({
       '.ah-chip-short{display:none}',
       // A right sidebar halves this pane; the tool name and the date must never lose.
       '@container (max-width:560px){.ah-chip-long{display:none}.ah-chip-short{display:inline}}',
-      // Narrower than the sidebar itself: drop the merge note, then the reviewer verdict,
-      // then the memory sentence — the decision stays on screen the longest because it is
-      // the only group that says what actually happened.
-      '@container (max-width:620px){.ah-chip-merged{display:none}}',
+      // Narrower than the sidebar itself: drop the reviewer verdict, then the unit word,
+      // then the whole memory sentence — the decision stays on screen the longest because
+      // it is the only group that says what actually happened.
       '@container (max-width:560px){.ah-chip-pre{display:none}}',
       '@container (max-width:480px){.ah-chip-mem-unit{display:none}}',
       '@container (max-width:400px){.ah-chip-mem{display:none}}',
@@ -2986,7 +2991,7 @@ window.__ModuleLoader__.load({
         if (toAt > 0 && ts > toAt) return false;
         if (needle === '') return true;
         const chip = chipOf(entry, t);
-        const haystack = [entry.toolName, chip.text, typeof chip.merged === 'string' ? chip.merged : '', commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
+        const haystack = [entry.toolName, chip.text, commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
         return haystack.indexOf(needle) >= 0;
       });
 
@@ -4255,6 +4260,7 @@ window.__ModuleLoader__.load({
         aiEscalated: aiEscalated,
         chipOf: chipOf,
         memoryText: memoryText,
+        isMerged: isMerged,
         memoryBucketId: memoryBucketId,
         rowFingerprintOf: rowFingerprintOf,
         riskLabel: riskLabel,

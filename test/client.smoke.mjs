@@ -287,21 +287,22 @@ export const cases = [
 			assertEqual(bag.riskLabel('medium', (k) => k), 'risk.medium');
 			assertEqual(bag.riskLabel('weird', (k) => k), 'weird', '不认识的等级原样显示');
 			// 徽章拆组：同类合并、AI 打回、记忆句各自成组（窄栏可整组隐藏）
-			const mergedRow = { decidedBy: 'memory', outcome: 'allowed-once', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 2 };
-			const memoryChip = bag.chipOf(mergedRow, (k) => k);
-			assertEqual(memoryChip.text, 'chip.memory', '合并那段不再拼进决定文字');
-			assertEqual(memoryChip.merged, 'chip.merged', '第二次起才说「合并记忆 n/N 次」');
-			// 第一次出现时还没有任何东西被合并，不该挂这个徽章
-			assertEqual(bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 1 }, (k) => k).merged, '', '第一次不显示合并');
-			assertEqual(bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once' }, (k) => k).merged, '');
+			// 合并是「记忆 n/N 次」的前缀，不再单独成一个徽章
+			assertEqual(bag.isMerged({ fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 1 }), false, '第一次出现时还什么都没合并');
+			assertEqual(bag.isMerged({ fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 2 }), true);
+			assertEqual(bag.isMerged({ memoryCount: 3 }), false, '没剥旋钮就不算合并');
+			const mergedText = bag.memoryText({ memoryCount: 3, fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
+			assertEqual(mergedText.parts.lead, 'memory.progressLeadMerged', '「合并」加在记忆句前面');
+			assertEqual(mergedText.parts.frac, '3/3');
+			const plainText = bag.memoryText({ memoryCount: 1, fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
+			assertEqual(plainText.parts.lead, 'memory.progressLead', '第一次不写合并');
+			// 记忆句拆成三段，窄栏只丢「次」这一小段
+			assertEqual(plainText.parts.unit, 'memory.progressUnit');
+			const memoryChip = bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once' }, (k) => k);
+			assertEqual(memoryChip.text, 'chip.memory');
+			assertEqual(memoryChip.merged, undefined, '徽章不再自带合并段');
 			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 3 }, (k) => k);
 			assertEqual(escalatedChip.pre, 'chip.aiRejected');
-			assertEqual(escalatedChip.merged, 'chip.merged');
-			// 记忆句拆成三段，窄栏只丢「次」这一小段
-			const memText = bag.memoryText({ memoryCount: 1 }, (k) => k);
-			assertEqual(memText.parts.frac, '1/3');
-			assertEqual(memText.parts.lead, 'memory.progressLead');
-			assertEqual(memText.parts.unit, 'memory.progressUnit');
 			// 记忆页分桶：文件是共同主体；没有文件就按指纹各算各的（否则两条无关命令会被加在一起）
 			assertEqual(bag.memoryBucketId('pwsh', '', 'aaa'), bag.memoryBucketId('pwsh', '', 'aaa'));
 			assertTrue(bag.memoryBucketId('pwsh', '', 'aaa') !== bag.memoryBucketId('pwsh', '', 'bbb'), '同工具不同指纹不能并成一桶');
