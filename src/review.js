@@ -28,6 +28,13 @@ const SYSTEM_PROMPT = [
 	'- "allow" only when the action is clearly reversible, scoped, and matches the stated reason.',
 	'- "ask" whenever you are unsure, the evidence is missing, or the action is destructive.',
 	'- You may never deny. If you would deny, answer "ask".',
+	'Risk levels — pick the level of the *effects*, not of the wording:',
+	'- "low": reads or lists; writes inside the workspace; a plain build/test command.',
+	'- "medium": writes outside the workspace, asks for a wider sandbox, installs packages,',
+	'  touches git history in a recoverable way, or runs a command whose target is unclear.',
+	'- "high": deletes or discards data, touches credentials, executes remote code, changes',
+	'  system settings, or does something batch-wide and irreversible.',
+	'Write "reason" in the language of "reason on the request" (Chinese when it is Chinese).',
 ].join('\n');
 
 function textOf(value) {
