@@ -79,6 +79,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// session can run unattended while every other session keeps the reviewer on.
 	aiEnabledLocal: {},
 	reviewerLocale: '',
+	// What the panel itself is showing; only used when reviewerLocale is 'follow the UI'.
+	panelLocale: '',
 	reviewerModel: '',
 	/**
 	 * `{ "<sessionId>": "provider/model" }`: a session named here ignores the global
@@ -232,7 +234,10 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	// String settings need their own branch: the boolean loop and the numeric bounds both
 	// ignore them, so without this they would be silently dropped on save.
 	if (typeof patch.promptAppend === 'string') next.promptAppend = patch.promptAppend.slice(0, 2000);
-	if (patch.reviewerLocale === '' || patch.reviewerLocale === 'zh' || patch.reviewerLocale === 'en') next.reviewerLocale = patch.reviewerLocale;
+	// Any short BCP-47-ish tag is allowed, so a language nobody hard-coded still works.
+	const langOk = (value) => value === '' || (typeof value === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value));
+	if (langOk(patch.reviewerLocale)) next.reviewerLocale = patch.reviewerLocale;
+	if (langOk(patch.panelLocale)) next.panelLocale = patch.panelLocale;
 	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}

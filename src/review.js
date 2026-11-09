@@ -54,11 +54,30 @@ const PROMPT_LINES = [
  * The reviewer's system prompt. Two knobs, both user-facing settings: how long the reason
  * may be, and which language it must be written in (the panel's language, not the request's).
  */
+const LANG_NAMES = {
+	zh: 'Chinese',
+	en: 'English',
+	ja: 'Japanese',
+	ko: 'Korean',
+	de: 'German',
+	fr: 'French',
+	es: 'Spanish',
+	ru: 'Russian',
+	pt: 'Portuguese',
+	'zh-Hant': 'Traditional Chinese',
+};
+function langNameOf(code) {
+	const key = typeof code === 'string' ? code.trim() : '';
+	if (key === '') return '';
+	if (LANG_NAMES[key] !== undefined) return LANG_NAMES[key];
+	const base = key.split('-')[0];
+	return LANG_NAMES[base] !== undefined ? LANG_NAMES[base] : key;
+}
 export function systemPromptFor(options = {}) {
 	const raw = Number(options.reasonChars);
 	const cap = Number.isFinite(raw) ? Math.max(40, Math.min(400, Math.round(raw))) : 80;
-	const locale = options.locale === 'zh' || options.locale === 'en' ? options.locale : '';
-	const lang = locale === 'zh' ? 'Chinese' : (locale === 'en' ? 'English' : 'the language of "reason on the request"');
+	const forced = langNameOf(options.locale);
+	const lang = forced === '' ? 'the language of "reason on the request"' : forced;
 	const base = PROMPT_LINES.join('\n').replace('%CAP%', String(cap)).replace('%LANG%', lang);
 	// The append block is stated as a fact, not a plea: the rules above are enforced by
 	// code (deny is downgraded there), so anything conflicting here is simply ignored.
@@ -384,7 +403,12 @@ export function createReviewer(deps = {}) {
 		stats.calls += 1;
 		bumpLane(input.route, 'calls');
 		const prompt = Object.assign({}, buildMessages(input), {
-			system: systemPromptFor({ reasonChars: settings.aiReasonChars, locale: settings.reviewerLocale, append: settings.promptAppend }),
+			system: systemPromptFor({
+				reasonChars: settings.aiReasonChars,
+				// 'follow the UI' is the empty setting: fall back to the panel's own locale.
+				locale: settings.reviewerLocale === '' ? settings.panelLocale : settings.reviewerLocale,
+				append: settings.promptAppend,
+			}),
 		});
 		const timeoutMs = Math.max(1000, Number(settings.reviewTimeoutMs) || 8000);
 		let answer;

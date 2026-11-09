@@ -3535,7 +3535,9 @@ window.__ModuleLoader__.load({
       const save = async function () {
         setStatus('saving');
         try {
-          const body = await saveConfig(draft || {});
+          // Saving also records which language the panel is showing, so "follow the UI"
+        // resolves to something real instead of guessing from the request text.
+        const body = await saveConfig(Object.assign({}, draft || {}, { panelLocale: String(props?.locale ?? '') }));
           setDraft(body);
           setStatus('saved');
         } catch (error) {
@@ -3614,8 +3616,16 @@ window.__ModuleLoader__.load({
             onChange: function (event) { change('reviewerLocale', event.target.value); },
           }, [
             h('option', { key: 'auto', value: '' }, t('config.localeAuto')),
-            h('option', { key: 'zh', value: 'zh' }, '中文'),
+            h('option', { key: 'zh', value: 'zh' }, '中文（简体）'),
+            h('option', { key: 'zh-Hant', value: 'zh-Hant' }, '中文（繁體）'),
             h('option', { key: 'en', value: 'en' }, 'English'),
+            h('option', { key: 'ja', value: 'ja' }, '日本語'),
+            h('option', { key: 'ko', value: 'ko' }, '한국어'),
+            h('option', { key: 'de', value: 'de' }, 'Deutsch'),
+            h('option', { key: 'fr', value: 'fr' }, 'Français'),
+            h('option', { key: 'es', value: 'es' }, 'Español'),
+            h('option', { key: 'ru', value: 'ru' }, 'Русский'),
+            h('option', { key: 'pt', value: 'pt' }, 'Português'),
           ])
         ),
         numberField('aiBudgetPerTurn', t('config.budget')),
