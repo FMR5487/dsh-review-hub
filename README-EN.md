@@ -92,60 +92,31 @@ Versions below were checked on **2026-11-03 / 09** (`fetch('https://registry.npm
 
 Every package name above links to its npm page; `moon09300731/dsh-approval-gate` points at the GitHub repository (it was never published to npm).
 
-### Item-by-item against the two closest plugins
+### Head-to-head against the two closest plugins
 
-Only two plugins are genuinely compared with MingJing: the **official auto-review** answers “may the AI decide instead of you”, and **dsh-auto-approve** answers “how should learned memory work”. **Neither conflicts with MingJing and both can run alongside it** — they hook different places, which is exactly what needs saying.
+Two plugins are genuinely compared with MingJing: the **official auto-review** answers "may the AI decide instead of you", and **dsh-auto-approve** answers "how should learned memory work". **None of the three conflicts with the others — they can all run together**, because they hook different places, which is exactly what is worth spelling out.
 
 - MingJing is an **answerer on the approval chain** (`approval/request`): no preset is touched, and every tier that reaches an approval goes through the same chain.
-- The official plugin is a **gate in front of tool execution** (`tools/pre-execute`), and only sessions on the `AUTO` preset it registers are affected.
+- Official auto-review is a **gate in front of tool execution** (`tools/pre-execute`), and only sessions on the `AUTO` preset it registers are affected.
 - dsh-auto-approve is a **permission preset** (it adds `sandboxed-auto`), and only sessions that select it are affected.
 
-**① Official `@deepseek-ai/dsh-experimental-auto-review` (`next` = 0.2.2-rc.1)** — opposite power model:
+The official column was checked against `next` = **0.2.2-rc.1** (the version this host runs), file `lib/index.js`; the auto-approve column against its **0.7.1** npm package and README (2026-11-09).
 
-Checked against the official **`next` tag = 0.2.2-rc.1** (the version this host runs), file `lib/index.js`:
+| Dimension | **MingJing** (this plugin) | official `@deepseek-ai/dsh-experimental-auto-review` | `dsh-auto-approve` |
+|---|---|---|---|
+| Mount point | `approval/request` answerer, every preset, tiered per tool (AI / memory / straight to you) | `tools/pre-execute` gate, `AUTO` preset sessions only | permission preset `sandboxed-auto`, sessions that select it only |
+| Reach | every request that reaches an approval | every tool call in that session | only sandbox escalations (author estimates ~2%) |
+| Can the AI deny | **no**: `deny` is downgraded to `ask`; the human always decides | **yes**: `deny` plus session override `never` refuses execution outright | partly: a risk-list hit or an unsure classifier goes to a human; the `never` level may hard-refuse |
+| Review failure | goes to a human, with `aiSource` recording why | **fail-closed**: the call is refused | falls back to the human |
+| What the model sees | **a redacted summary** (≤240 chars; `sk-` / `Bearer` / secret field names redacted); credential paths never leave at all | **the whole visible session history + raw argument JSON + tool schemas**, no redaction | command + justification + sandbox target + the user's own words (≤2000 chars; longer goes to a human) |
+| Learning / memory | **persisted + threshold** (3 **human** approvals by default) + per-session + knob normalisation; every entry visible and deletable | **none**: the same command is re-reviewed and re-paid for every time | in memory with a 30-minute TTL, lost on restart; classifier approvals count too |
+| Which model | any `provider/model` (global default plus per-session override) | fixed to the session's own lane | a cheap classifier can be chosen |
+| Cost guards | 60-second window budget, 5-minute breaker after repeated failures, fingerprint verdict cache with a tunable TTL | no budget, no breaker, no cache | none (one classifier call per escalation) |
+| Audit and UI | own ledger (`decidedBy` / `agentKind` / `tier` / `aiSource` / frozen threshold) + approval, memory and statistics pages + diff·undo + CSV/JSON export | no UI, only approval events and error codes | no UI, an in-process report (the author says it is not a ledger) |
+| On teardown | only the answerer is removed; presets and data stay | sessions on `AUTO` are **switched to `danger-full-access`** | the preset is removed |
+| Size / known exposure | 12 server modules + ~4.3k-line client, 97 tests; credential paths hit L0 and their contents are never snapshotted | one 617-line file; top-level `run_code` calls are exempt from review | 11 files, ~180 KB; its README admits writes to `~/.dsh/profiles/` are allowed by default (runtime self-modification of the supply chain) |
 
-| Dimension | official auto-review 0.2.2-rc.1 | MingJing |
-|---|---|---|
-| Mount point | `tools/pre-execute`, `AUTO` preset only (`current(session) !== AUTO_PRESET` → `next()`) | `approval/request` answerer, every preset, tiered per tool |
-| Power of the AI | **it can deny**: `deny` plus session override `never` refuses execution outright | `allow` / `ask` only; `deny` is downgraded to `ask` in `review.js` |
-| Review failure | **fail-closed**: an LLM or protocol problem refuses the call | goes to a human; `aiSource` records why (`error` / `unparsed` / `breaker` / `budget` / `unavailable`) |
-| What the model sees | **the whole visible session history** (rendered by role) + raw tool argument JSON + tool schemas, no redaction | a ≤240-character redacted summary; credential paths never leave at all (L0 first) |
-| Learning | none; the same command is re-reviewed and re-paid for every time | persistent memory: after N **human** approvals it passes deterministically, counted per session |
-| Which model | fixed to the session's own lane | any `provider/model` (global default plus per-session override) |
-| Cost guards | no budget, no breaker, no cache | 60-second window budget, 5-minute breaker after repeated failures, fingerprint-level verdict cache with a tunable TTL |
-| UI / audit | no UI of its own, only approval events and error codes | approval page, memory page, statistics, right-sidebar diff and undo |
-| On teardown | sessions sitting in `AUTO` are **switched to `danger-full-access`** | only the answerer is removed; presets are untouched |
-
-Two details worth knowing: the official plugin **exempts top-level `run_code` calls** from review (`exec.parent === undefined` passes straight through), and its `allow` does not mean "approved" — it only means "do not escalate to a human", after which the sandbox and native permission checks still run.
-
-In one line: the official plugin **hands the decision to the model**; MingJing **lets the model propose and has a human or a deterministic rule decide**.
-
-**② `dsh-auto-approve` (0.7.1)** — opposite learning model:
-
-The left column was checked against its **0.7.1** npm package and README (2026-11-09); the right column is this repository's code.
-
-| Dimension | `dsh-auto-approve` 0.7.1 | MingJing |
-|---|---|---|
-| How it hooks in | adds a fifth permission preset; acts only when the preset matches | an answerer on the `approval/request` waterfall; applies to every preset |
-| What it reviews | only sandbox escalations (the author estimates ~2% of calls) | every request that reaches approval, routed by `tier` (AI / memory / human) |
-| AI veto | **yes**: a risk-list hit or an unsure classifier goes to the human, but the "never" tier can hard-refuse | **no**: a `deny` is downgraded to `ask` (`review.js`) |
-| Failure semantics | falls back to the human when classification fails | same direction: any failure (no llm / breaker / over budget / timeout / unparsable) becomes `ask` |
-| Deterministic risk list | yes, runs before the classifier | yes, runs before memory and the AI (L0: delete / discard work / credentials / remote exec / system-level / bulk destruction) |
-| Memory | tool + raw args byte-level hash, **in-process with a 30-minute TTL**, lost on restart, no UI | **persisted on disk with a threshold** (3 human approvals by default), per session, knob-normalised (`limit` / `offset` / `description` excluded from the fingerprint), visible in the memory tab — delete per row, arm auto-pass per file |
-| What counts as evidence | classifier approvals count too | **human approvals only** — AI or memory passes never advance the counter, so the learning cannot reinforce itself |
-| What the model sees | command + justification + sandbox target + workspace + **the full user message** (up to 2000 chars; longer goes straight to the human) | **a redacted summary only** (≤240 chars; `sk-` / `Bearer` / secret-looking keys are redacted; secret-like paths get no summary at all) |
-| Audit | host-native approval events plus an in-process report (lost on restart; the author says it is not an audit ledger) | an own ledger (`decidedBy` / `agentKind` / `tier` / `aiSource` / frozen `threshold`) plus approval, memory and stats tabs, and CSV/JSON export that survives restarts |
-| UI | none (its README says so) | a complete approval/memory record scoped to the conversation, a hint card above the composer, a floating AI-advice card, diff and undo |
-| Model cost | one classifier call per escalation | one call per AI-tier request, plus a 60-second window budget, a breaker and a persisted verdict cache (a replay inside the TTL is free) |
-| Known exposure | its README admits the default prompt approves writes to `~/.dsh/profiles/` — a runtime self-modification path left open until you close it | none of that shape: secret-like paths hit the L0 wall, and the write-ahead snapshot stores no body for them |
-| Size | 11 files / ~180 KB | 12 server modules plus a single-file client, 96 tests |
-
-**The two can coexist** (it narrows escalations, MingJing owns the whole approval chain), so this is not an either/or. If you do have to choose, look at three things: ① **who holds the veto** — its AI can refuse, MingJing's AI can only say "pass" or "yours"; ② **whether the learning is auditable** — a 30-minute in-memory hash versus a persisted, human-only, row-by-row list you can inspect and delete; ③ **the data boundary** — it sends your full message text to a model, MingJing sends a redacted summary.
-The per-plugin breakdown (mechanism, what was borrowed, versions, download counts) is in [RESEARCH.md](RESEARCH.md) §4, together with its collection date.
-
-> ⚠️ A conflict only exists between plugins that **also answer `approval/request`**: two answerers mean decisions get recorded as `external` and may be answered before you see them. Remove those from the profile, and verify `/health` `counters.external` stays 0.
-
----
+**How to choose**: none of the three is a zero-sum choice, so compare three things — ① **who holds the veto** (the official one lets the AI refuse you; MingJing's AI can only suggest or hand it back); ② **whether learning is auditable** (a 30-minute in-memory hash vs cross-restart, human-only, per-entry deletable); ③ **the data boundary** (full history and raw arguments vs a ≤240-character redacted summary).
 
 ## Install
 
