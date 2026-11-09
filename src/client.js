@@ -146,6 +146,10 @@ window.__ModuleLoader__.load({
       'setting.fpIgnoreJustificationNote': '关闭（默认）：每次填写的理由算作操作的一部分——理由不同就当作不同操作、分开累计次数，因为提权理由是你批准前要读的证据。开启：同一条命令不管理由怎么写都算同一个操作、可累计放行。不确定就保持关闭。',
       'setting.hintNote': '在输入框上方显示提示卡',
       'setting.pendingNote': '等待审批时显示提示卡',
+      'setting.aiAdviceCard': '启用 AI 建议卡',
+      'setting.aiAdviceCardNote': 'AI 给出理由时，在审批卡上方显示「AI 建议人工」的悬浮卡（关掉后只剩等待提示）',
+      'setting.dangerCard': '启用高危提示卡',
+      'setting.dangerCardNote': '命中 L0 硬风险、且 AI 没有理由时，用浅红卡片提醒这是危险操作',
       'setting.hintAi': 'AI 卡时长（毫秒）',
       'setting.hintAiNote': 'AI 审批通过的卡片持续时间；到点自动收起',
       'setting.hintMemory': '记忆卡时长（毫秒）',
@@ -401,6 +405,10 @@ window.__ModuleLoader__.load({
       'setting.fpIgnoreJustificationNote': 'Off (default): the reason you type counts as part of the operation, so different reasons are different operations with separate counts — the escalation reason is the evidence you read before granting. On: the same command counts as one operation no matter what the reason says, so it can reach the auto-approve threshold. Leave it off if unsure.',
       'setting.hintNote': 'Show hint cards above the input',
       'setting.pendingNote': 'Show a hint card while waiting',
+      'setting.aiAdviceCard': 'Show the AI advice card',
+      'setting.aiAdviceCardNote': 'When the reviewer gives a reason, float an “AI suggests a human” card above the approval card (off = only the waiting hint remains)',
+      'setting.dangerCard': 'Show the high-risk card',
+      'setting.dangerCardNote': 'When L0 hard risk hits and the reviewer has no reason, flag it with a pale red card',
       'setting.hintAi': 'AI card lifetime (ms)',
       'setting.hintAiNote': 'How long the “AI passed” card stays; it collapses when the time is up',
       'setting.hintMemory': 'Memory card lifetime (ms)',
@@ -2390,6 +2398,11 @@ window.__ModuleLoader__.load({
             ? t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason })
             : t('dock.pendingLine', { time: stampOf(row.startedAt) });
           const dangerous = row.riskLevel === 'high';
+          // Two independent switches: the advice card and the high-risk card can each be
+          // silenced without turning off the plain "waiting for you" line.
+          const hasAdvice = typeof row.aiReason === 'string' && row.aiReason !== '';
+          if (hasAdvice === true && view.config.aiAdviceCard === false) continue;
+          if (hasAdvice === false && dangerous === true && view.config.dangerCard === false) continue;
           cards.push(cardNode({
             key: 'p-' + row.id,
             kind: 'pending',
@@ -2816,6 +2829,8 @@ window.__ModuleLoader__.load({
         row('hideKnobs', t('setting.hideKnobs'), t('setting.hideKnobsNote'), config.hideKnobs !== false, flip('hideKnobs')),
         row('hint', t('setting.hint'), t('setting.hintNote'), config.composerHint === true, flip('composerHint')),
         row('pendingCard', t('setting.pendingCard'), t('setting.pendingNote'), config.pendingCard === true, flip('pendingCard')),
+        row('aiAdviceCard', t('setting.aiAdviceCard'), t('setting.aiAdviceCardNote'), config.aiAdviceCard !== false, flip('aiAdviceCard')),
+        row('dangerCard', t('setting.dangerCard'), t('setting.dangerCardNote'), config.dangerCard !== false, flip('dangerCard')),
         numRow('hintAi', t('setting.hintAi'), t('setting.hintAiNote'), hintMsValue('ai', 30000), function (value) { void patchHintMs('ai', value); }, 2000, 600000),
         numRow('hintMemory', t('setting.hintMemory'), t('setting.hintMemoryNote'), hintMsValue('memory', 8000), function (value) { void patchHintMs('memory', value); }, 2000, 600000),
         numRow('hintPending', t('setting.hintPending'), t('setting.hintPendingNote'), hintMsValue('pending', 0), function (value) { void patchHintMs('pending', value); }, 0, 600000),

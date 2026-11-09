@@ -67,6 +67,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// How long the reviewer's reason may be, and which language it must use ('' = follow
 	// the request's own language). Both are prompt knobs, not behaviour knobs.
 	aiReasonChars: 80,
+	// Two card switches, default on: users who find the floating card noisy can silence
+	// one without silencing the plain waiting hint.
+	aiAdviceCard: true,
+	dangerCard: true,
 	reviewerLocale: '',
 	reviewerModel: '',
 	/**
@@ -217,7 +221,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		reviewerModelLocal: { ...(base?.reviewerModelLocal ?? {}) },
 	};
 	if (patch === null || typeof patch !== 'object') return next;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {
