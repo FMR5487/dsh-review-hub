@@ -280,6 +280,20 @@ export const cases = [
 			assertEqual(allowed.label, 'row.aiAllow', '放行与打回用不同标签');
 			assertEqual(bag.reasonBlockOf({ decidedBy: 'human', aiSource: 'ai', reason: 'a', aiReason: 'b' }).label, 'row.aiReject');
 			assertEqual(bag.reasonBlockOf({ decidedBy: 'memory', reason: 'only mine' }).label, '', '没有评审那段就没有标签');
+			// 风险等级跟着评审那段走：aiRisk 优先，回落到行的 riskLevel
+			assertEqual(bag.reasonBlockOf({ decidedBy: 'human', aiSource: 'ai', reason: 'a', aiReason: 'b', riskLevel: 'medium' }).risk, 'medium');
+			assertEqual(bag.reasonBlockOf({ decidedBy: 'human', aiSource: 'ai', reason: 'a', aiReason: 'b', aiRisk: 'high', riskLevel: 'low' }).risk, 'high', 'aiRisk 优先');
+			assertEqual(bag.reasonBlockOf({ decidedBy: 'memory', reason: 'a', riskLevel: 'high' }).risk, '', '没有评审那段就不显示风险');
+			assertEqual(bag.riskLabel('medium', (k) => k), 'risk.medium');
+			assertEqual(bag.riskLabel('weird', (k) => k), 'weird', '不认识的等级原样显示');
+			// 徽章拆组：同类合并、AI 打回、记忆句各自成组（窄栏可整组隐藏）
+			const memoryChip = bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once', fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
+			assertEqual(memoryChip.text, 'chip.memory', '同类合并不再是决定文字的一部分');
+			assertEqual(memoryChip.merged, true);
+			assertEqual(bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once' }, (k) => k).merged, false, '没合并就没有那段');
+			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
+			assertEqual(escalatedChip.pre, 'chip.aiRejected');
+			assertEqual(escalatedChip.merged, true);
 			// 日期左边的模型名：评审车道优先于会话车道
 			assertEqual(bag.rowModelOf({ decidedBy: 'human', aiModel: 'p/reviewer', routeModel: 'p/lane' }).text, 'p/reviewer');
 			assertEqual(bag.rowModelOf({ decidedBy: 'ai', routeModel: 'p/lane' }).text, 'p/lane');

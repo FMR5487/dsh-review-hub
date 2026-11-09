@@ -166,6 +166,11 @@ window.__ModuleLoader__.load({
       'row.hideReason': '收起详情',
       'row.aiReject': 'AI 打回理由',
       'row.aiAllow': 'AI 通过理由',
+      'row.risk': '风险',
+      'risk.high': '高',
+      'risk.medium': '中',
+      'risk.low': '低',
+      'risk.unknown': '未知',
       'row.copy': '复制命令',
       'row.waiting': '正在等待人工审批…',
       'row.highRisk': '高危',
@@ -402,6 +407,11 @@ window.__ModuleLoader__.load({
       'row.hideReason': 'Hide details',
       'row.aiReject': 'Reviewer reason',
       'row.aiAllow': 'Reviewer passed it',
+      'row.risk': 'risk',
+      'risk.high': 'high',
+      'risk.medium': 'medium',
+      'risk.low': 'low',
+      'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
       'row.waiting': 'Waiting for you…',
       'row.highRisk': 'High risk',
@@ -817,10 +827,13 @@ window.__ModuleLoader__.load({
       const denied = entry && entry.outcome === 'rejected';
       const cancelled = entry && entry.outcome === 'cancelled';
       const pre = aiEscalated(entry) === true && cancelled === false ? t('chip.aiRejected') : undefined;
+      // "同类合并" is its own group, not part of the decision text: a narrow pane drops it
+      // whole (see the chip container queries) instead of trimming the decision mid-word.
+      const merged = mergedMark(entry, t) !== '';
       if (cancelled) return { text: t('chip.cancelled'), tone: 'muted' };
-      if (by === 'memory') return { text: t('chip.memory') + mergedMark(entry, t), tone: 'learn' };
+      if (by === 'memory') return { text: t('chip.memory'), tone: 'learn', merged: merged };
       if (by === 'ai') return { text: denied ? t('chip.aiDeny') : t('chip.ai'), tone: denied ? 'danger' : 'ok' };
-      if (by === 'human') return { text: (denied ? t('chip.humanDeny') : t('chip.human')) + mergedMark(entry, t), tone: denied ? 'danger' : 'warn', pre: pre };
+      if (by === 'human') return { text: denied ? t('chip.humanDeny') : t('chip.human'), tone: denied ? 'danger' : 'warn', pre: pre, merged: merged };
       if (by === 'external') return { text: t('chip.external'), tone: 'muted', pre: pre };
       return { text: denied ? t('chip.rejected') : t('chip.fallback'), tone: denied ? 'danger' : 'muted', pre: pre };
     }
@@ -896,17 +909,27 @@ window.__ModuleLoader__.load({
       return { long: t('memory.progress', { count: count, threshold: threshold }), short: null };
     }
 
-    /** The chip body: the decision, then the memory sentence in whichever form fits. */
-    function chipBody(chip, memory) {
-      const head = chip.pre === undefined ? [] : [h('span', { className: 'ah-chip-pre', key: 'pre' }, chip.pre + ' · ')];
-      if (memory === null) return head.length === 0 ? chip.text : head.concat([chip.text]);
-      const body = memory.short === null
-        ? memory.long
-        : [
-          h('span', { className: 'ah-chip-long', key: 'long' }, memory.long),
-          h('span', { className: 'ah-chip-short', key: 'short' }, memory.short),
-        ];
-      return head.concat([chip.text + ' · ', h('span', { className: 'ah-chip-mem', key: 'mem' }, body)]);
+    /**
+     * The chip body as separate groups — reviewer verdict, decision, merge note, memory
+     * sentence — each carrying its own separators. A narrow pane hides whole groups by
+     * container query, so the chip degrades one fact at a time instead of showing an
+     * ellipsis in the middle of "AI 打回 · 人工通过".
+     */
+    function chipBody(chip, memory, t) {
+      const parts = [];
+      if (chip.pre !== undefined) parts.push(h('span', { className: 'ah-chip-pre', key: 'pre' }, chip.pre + ' · '));
+      parts.push(h('span', { className: 'ah-chip-decision', key: 'decision' }, chip.text));
+      if (chip.merged === true) parts.push(h('span', { className: 'ah-chip-merged', key: 'merged' }, ' · ' + t('chip.merged')));
+      if (memory !== null) {
+        const body = memory.short === null
+          ? memory.long
+          : [
+            h('span', { className: 'ah-chip-long', key: 'long' }, memory.long),
+            h('span', { className: 'ah-chip-short', key: 'short' }, memory.short),
+          ];
+        parts.push(h('span', { className: 'ah-chip-mem', key: 'mem' }, ' · ', body));
+      }
+      return parts;
     }
 
     /**
@@ -1013,13 +1036,30 @@ window.__ModuleLoader__.load({
      * "let it through" are both worth reading and they are *different* facts, so the caller's
      * line is never sacrificed to make room for the reviewer's.
      */
+    const RISK_WORDS = { high: 'risk.high', medium: 'risk.medium', low: 'risk.low', unknown: 'risk.unknown' };
+
+    /** The reviewer's own risk word, in the reader's language; anything else is printed as-is. */
+    function riskLabel(risk, t) {
+      const key = RISK_WORDS[String(risk)];
+      return key === undefined ? String(risk) : t(key);
+    }
+
+    /** The risk the reviewer attached to its verdict (falling back to the row's own level). */
+    function riskOf(entry) {
+      if (entry === null || entry === undefined) return '';
+      if (typeof entry.aiRisk === 'string' && entry.aiRisk !== '') return entry.aiRisk;
+      if (typeof entry.riskLevel === 'string' && entry.riskLevel !== '') return entry.riskLevel;
+      return '';
+    }
+
     function reasonBlockOf(entry) {
       const own = isDescription(entry.reason) ? entry.reason : '';
       const ai = isDescription(entry.aiReason) ? entry.aiReason : '';
-      if (ai === '' || ai === own) return { own: own !== '' ? own : ai, ai: '', label: '' };
-      if (aiEscalated(entry) === true) return { own: own, ai: ai, label: 'row.aiReject' };
-      if (entry !== null && entry !== undefined && entry.decidedBy === 'ai') return { own: own, ai: ai, label: 'row.aiAllow' };
-      return { own: own !== '' ? own : ai, ai: '', label: '' };
+      const risk = riskOf(entry);
+      if (ai === '' || ai === own) return { own: own !== '' ? own : ai, ai: '', label: '', risk: '' };
+      if (aiEscalated(entry) === true) return { own: own, ai: ai, label: 'row.aiReject', risk: risk };
+      if (entry !== null && entry !== undefined && entry.decidedBy === 'ai') return { own: own, ai: ai, label: 'row.aiAllow', risk: risk };
+      return { own: own !== '' ? own : ai, ai: '', label: '', risk: '' };
     }
 
     /** The payload keys that are worth showing on their own, most specific first. */
@@ -1821,6 +1861,12 @@ window.__ModuleLoader__.load({
       // The reviewer's reason is its own paragraph: a hairline separates "what the caller
       // said" from "why the reviewer stopped it", so neither can be mistaken for the other.
       '.ah-row-reason-ai{margin-top:5px;padding-top:5px;border-top:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.22))}',
+      '.ah-row-reason-head{display:flex;align-items:center;gap:6px}',
+      '.ah-risk{font-size:10.5px;line-height:15px;padding:0 5px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}',
+      '.ah-risk-high{color:var(--dsw-alias-state-error-primary,#d93a3a)}',
+      '.ah-risk-medium{color:var(--ah-human-fg,#f7ad31)}',
+      '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
+      '.ah-risk-unknown{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-row-reason-ai-solo{margin-top:0;padding-top:0;border-top:0}',
       '.ah-row-reason-label{font-weight:600;color:var(--dsw-alias-label-primary,#fff)}',
       '.ah-row-model{flex:0 1 auto;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
@@ -1832,6 +1878,12 @@ window.__ModuleLoader__.load({
       '.ah-chip-short{display:none}',
       // A right sidebar halves this pane; the tool name and the date must never lose.
       '@container (max-width:560px){.ah-chip-long{display:none}.ah-chip-short{display:inline}}',
+      // Narrower than the sidebar itself: drop the merge note, then the reviewer verdict,
+      // then the memory sentence — the decision stays on screen the longest because it is
+      // the only group that says what actually happened.
+      '@container (max-width:520px){.ah-chip-merged{display:none}}',
+      '@container (max-width:460px){.ah-chip-pre{display:none}}',
+      '@container (max-width:400px){.ah-chip-mem{display:none}}',
       '.ah-tone-warn{color:var(--ah-human-fg,#f7ad31);background:var(--ah-human-bg,rgba(247,173,49,.14));border-color:transparent}',
       '.ah-tone-ok{color:var(--ah-ai-fg,#2fa84f);background:var(--ah-ai-bg,rgba(47,168,79,.12));border-color:transparent}',
       '.ah-tone-learn{color:var(--ah-memory-fg,#2f6fd0);background:var(--ah-memory-bg,rgba(47,111,208,.12));border-color:transparent}',
@@ -2903,7 +2955,7 @@ window.__ModuleLoader__.load({
         if (toAt > 0 && ts > toAt) return false;
         if (needle === '') return true;
         const chip = chipOf(entry, t);
-        const haystack = [entry.toolName, chip.text, commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
+        const haystack = [entry.toolName, chip.text, chip.merged === true ? t('chip.merged') : '', commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
         return haystack.indexOf(needle) >= 0;
       });
 
@@ -2953,7 +3005,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'ah-main', key: 'main' },
               h('div', { className: 'ah-line' },
                 h('span', { className: 'ah-tool' }, String(entry.toolName || '—')),
-                h('span', { className: 'ah-chip ah-tone-' + chip.tone }, chipBody(chip, memory)),
+                h('span', { className: 'ah-chip ah-tone-' + chip.tone }, chipBody(chip, memory, t)),
                 // Lane then date as ONE right-aligned group: "lane · 11-06 08:32:42".
                 // Two separately right-aligned spans put a gap between them (the date
                 // owns `margin-left:auto`), so the pair is wrapped instead.
@@ -3005,8 +3057,12 @@ window.__ModuleLoader__.load({
                 reason.ai === ''
                   ? null
                   : h('div', { className: 'ah-row-reason-ai' + (reason.own === '' ? ' ah-row-reason-ai-solo' : ''), key: 'ai' },
-                    h('span', { className: 'ah-row-reason-label' }, t(reason.label) + ' · '),
-                    reason.ai))
+                    h('div', { className: 'ah-row-reason-head', key: 'head' },
+                      h('span', { className: 'ah-row-reason-label', key: 'label' }, t(reason.label)),
+                      reason.risk === ''
+                        ? null
+                        : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, t('row.risk') + ' · ' + riskLabel(reason.risk, t))),
+                    h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
               : null,
             view.diff !== null && view.diff.callId === entry.callId && view.diff.inline === true ? renderDiff(t, view) : null,
           ),
@@ -4145,6 +4201,8 @@ window.__ModuleLoader__.load({
         knobKeys: KNOB_KEYS,
         configCard: ConfigCard,
         aiEscalated: aiEscalated,
+        chipOf: chipOf,
+        riskLabel: riskLabel,
         reasonBlockOf: reasonBlockOf,
         rowModelOf: rowModelOf,
       },
