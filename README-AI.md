@@ -2,7 +2,7 @@
 
 > 人类读者请回 [README.md](README.md)（中文）或 [README-EN.md](README-EN.md)（英文）。
 > 本文是**实现规格**：红线、结构、数据契约、协议、状态机、失败模式。改代码前必须读完 §2；想动手改功能再读 [AGENT.md](AGENT.md)。
-> 版本：**1.0.0**（与 `package.json` 的 `version` 同步；发版时一并改这里）。所有结论都有代码位置或测试作为依据，不要凭"看起来合理"去改行为。
+> 版本：**1.0.1**（与 `package.json` 的 `version` 同步；发版时一并改这里）。所有结论都有代码位置或测试作为依据，不要凭"看起来合理"去改行为。
 > 同类插件的逐个拆解（机制、版本号、下载量）在 `RESEARCH.md` §4，**采集于 2026-11-03**，引用前先按其中的刷新方式复核版本。
 
 ---
@@ -55,6 +55,7 @@ L0 硬风险（classify/hardRisk）→ 记忆（decideMemory）→ 文件级（f
 src/index.js        唯一 answerer / 归属判定 / 记忆计数 / pending 广播 / 路由装配 / SSE 数据源
 src/policy.js       L0 硬风险 6 类正则、per-tool 策略表、tier 计算、DEFAULT_AI_TOOLS（写死的 AI 基线）与 toolsPolicyOf({aiTools, aiToolsDeny})（追加/黑名单，黑名单优先，记忆档不受两者影响）
 src/agentPolicy.js  按请求方分档（default|subagent|scheduled|task_board|unknown → full|strict|off）
+src/catalog.js      宿主真实模型目录（`/models` 的 providers；单 provider 1.5s 超时、60s 缓存、llm 缺失当常态不抛）
 src/evidence.js     PTC 感知取参（tool/ptc-dispatch-start → tool/call → reason）、脱敏、240 字符摘要
 src/review.js       L3：llm.stream 调用、timeout/熔断/预算、裁决缓存（落盘）、按车道统计
 src/store.js        entries/memory/settings 持久化（原子写）、指纹 v2、subscribe/announce 实时订阅
@@ -189,7 +190,7 @@ event: other     {"sessionId","title","decidedBy","ts","toolName","id","outcome"
 
 ```bash
 node --check src/*.js        # 语法（client.js 是字符串 bundle，语法错误会炸整个 web boot）
-node test/run.mjs            # 71 用例，必须全绿
+node test/run.mjs            # 96 用例，必须全绿
 ```
 
 测试覆盖（摘要）：

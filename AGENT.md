@@ -29,7 +29,7 @@ node --check src/<你改的文件>.js
 
 ```bash
 node --check src/*.js
-node test/run.mjs        # 目前 71 用例
+node test/run.mjs        # 目前 96 用例
 ```
 
 再按影响面重启宿主，肉眼过一遍：
