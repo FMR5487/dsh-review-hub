@@ -33,6 +33,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	autoExpandDescription: false,
 	/** Hide knob arguments (limit/offset/…) in the displayed command; copy stays verbatim. */
 	hideKnobs: true,
+	/**
+	 * Header forensics for the HTTP fence: record every request's header *names* (never
+	 * values) so a proof cookie/header can be chosen from evidence instead of a guess.
+	 */
+	debugHeaders: false,
 	/** Days to keep snapshots/ on disk; 0 = keep until the session cap evicts them. */
 	snapshotRetentionDays: 0,
 	/**
@@ -200,7 +205,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		reviewerModelLocal: { ...(base?.reviewerModelLocal ?? {}) },
 	};
 	if (patch === null || typeof patch !== 'object') return next;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {

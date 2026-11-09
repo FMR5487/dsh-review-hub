@@ -29,7 +29,7 @@ const CONFIG_FIELDS = [
 	'aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'toastQuietMs',
 	'threshold', 'aiFailurePolicy', 'reviewTimeoutMs', 'aiBudgetPerTurn', 'aiBreakerFails',
 	'aiCacheTtlMs', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
-	'exportScope', 'agentPolicy', 'hintMs', 'fpIgnoreJustification', 'autoExpandDescription', 'hideKnobs', 'snapshotRetentionDays', 'fileAutoPass', 'fileFingerprint', 'aiTools', 'aiToolsDeny',
+	'exportScope', 'agentPolicy', 'hintMs', 'fpIgnoreJustification', 'autoExpandDescription', 'hideKnobs', 'snapshotRetentionDays', 'fileAutoPass', 'fileFingerprint', 'aiTools', 'aiToolsDeny', 'debugHeaders',
 ];
 
 function isLoopback(host) {
@@ -348,6 +348,9 @@ function modelView(catalog, settings, session) {
 export function createRoutes(deps) {
 	const store = deps.store;
 	const probe = typeof deps.probeFile === 'string' && deps.probeFile !== '' ? createProbe(deps.probeFile) : undefined;
+	// The probe is a setting now, so it can be flipped from the panel without a restart:
+	// the log file only grows while it is on, and turning it off leaves the old log as-is.
+	const probeOn = () => (typeof deps.debugHeaders === 'function' ? deps.debugHeaders() === true : deps.debugHeaders === true);
 	const settings = () => (typeof deps.settings === 'function' ? deps.settings() : {});
 	const pendingView = typeof deps.pendingView === 'function' ? deps.pendingView : () => [];
 
@@ -358,7 +361,7 @@ export function createRoutes(deps) {
 			// readable and writable, so "this route is a GET route" would let their POST
 			// halves through.
 			const mode = method === 'GET' || method === 'HEAD' ? 'read' : 'write';
-			probe?.note(req, { mode });
+			if (probeOn() === true) probe?.note(req, { mode });
 			if (isTrusted(req, { strictOrigin: deps.strictOrigin === true, mode, proof: deps.proof }) === false) {
 				probe?.note(req, { mode, denied: 'fence' });
 				sendJson(res, 403, { error: 'forbidden' });
@@ -780,7 +783,7 @@ export function createRoutes(deps) {
 				} catch {
 					report = undefined;
 				}
-				probe.note({ method: 'POST', url: ROUTES.probe, headers: {} }, { source: 'client', report: clipReport(report) });
+				if (probeOn() === true) probe.note({ method: 'POST', url: ROUTES.probe, headers: {} }, { source: 'client', report: clipReport(report) });
 				sendJson(res, 200, { ok: true });
 			}, ['POST']),
 		});

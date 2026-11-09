@@ -464,7 +464,7 @@ async function answerer(request, next) {
 export function apply(ctx, rawConfig = {}) {
 	const debugHeaders = rawConfig?.debugHeaders === true;
 	if (rawConfig?.log === true) console.log('review-hub: mounting ' + VERSION);
-	if (debugHeaders === true) console.log('review-hub: header probe ON → http-probe.log');
+	if (debugHeaders === true) console.log('review-hub: header probe forced ON by config → http-probe.log');
 	const root = typeof rawConfig?.root === 'string' ? rawConfig.root : undefined;
 	const store = createStore({ root });
 	const snapshot = createSnapshot({ root });
@@ -570,9 +570,12 @@ export function apply(ctx, rawConfig = {}) {
 			// Opt-in hardening: reject requests that carry neither Origin nor Sec-Fetch-Site.
 			// Off by default — the desktop shell sends neither, so this would brick the panel.
 			strictOrigin: rawConfig?.strictOrigin === true,
-			// Header forensics for the write fence: when on, every request's header *names*
+			// Header forensics for the write fence: while on, every request's header *names*
 			// (plus cookie names) go to <root>/http-probe.log. Nothing secret is recorded.
-			probeFile: debugHeaders === true ? join(store.root, 'http-probe.log') : undefined,
+			// Live predicate, not a mount-time flag: the switch lives in the panel, so it has
+			// to take effect without a restart.
+			probeFile: join(store.root, 'http-probe.log'),
+			debugHeaders: () => debugHeaders === true || store.settingsSnapshot().debugHeaders === true,
 			// The fence itself is data: name the cookie/header the panel sends and curl does
 			// not. Both empty = off, which is exactly today's behaviour.
 			proof: {

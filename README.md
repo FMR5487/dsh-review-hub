@@ -110,7 +110,7 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 | 计数来源 | 分类器批过的也计入 | **只计人工批准**——AI 或记忆自己放行的不推进计数器，避免自我强化 |
 | 给模型看什么 | 命令 + justification + 沙箱目标 + 工作区 + **完整用户消息全文**（≤2000 字符，超长直接转人工） | **只给脱敏摘要**（≤240 字符，`sk-` / `Bearer` / 密钥字段名全部 redact），凭据类路径连摘要都不给 |
 | 审计 | 宿主原生 approval 事件 + 进程内报告（重启即清，作者自述不是审计账本） | 自有台账（`decidedBy` / `agentKind` / `tier` / `aiSource` / `threshold` 冻结）+ 审批页 / 记忆页 / 统计页 + CSV/JSON 导出，跨重启 |
-| UI | 无（README 自述） | 侧栏四个 Tab + 输入框上方提示卡 + 悬浮 AI 建议卡 + diff / 撤销 |
+| UI | 无（README 自述） | 对话隔离的完整审批/记忆记录 + 输入框上方提示卡 + 悬浮 AI 建议卡 + diff / 撤销 |
 | 模型成本 | 每次 escalation 一次分类调用 | 每次 AI 档一次调用，另有 60 秒窗口预算、熔断、持久化裁决缓存（TTL 内重放零成本） |
 | 已知敞口 | 对方 README 自述：默认提示词会放行写 `~/.dsh/profiles/`，等于运行时自改供应链路径敞开，需手工关 | 无同类：凭据类路径落 L0 硬拦，写前快照对这些路径不存正文 |
 | 规模 | 11 文件 / ~180 KB | 12 个服务端模块 + 单文件客户端，96 条测试 |
@@ -133,7 +133,7 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 5. **检查 `cordis.patch.yml`**：任何带 `name:` 的旧补丁行都会在 bundle 行删掉后继续把插件挂回来；
 6. 重启宿主（服务端半身加载时绑定；客户端半身刷新页面即可）。
 
-详细步骤与踩坑见 [README-AI.md](README-AI.md) 与 [docs/PLAN.md](docs/PLAN.md)。
+详细步骤与踩坑见 [README-AI.md](README-AI.md) 与 [AGENT.md](AGENT.md)。
 
 ---
 
@@ -209,5 +209,5 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 | [AGENT.md](AGENT.md) | 想自己改的人/AI：改设置、加策略、加席位、加测试的逐条配方 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更 |
 | [UX.md](UX.md) | 界面取舍记录：每处 UI 为什么长这样，含**被否掉**的方案和原因 |
-| [docs/FEEDBACK.md](docs/FEEDBACK.md) | 问题复盘与工单（§1–§9 指纹被分页参数劈开；§10 起第二批体验工单） |
-| [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | 调研与实施计划（历史） |
+| [RESEARCH.md](RESEARCH.md) | 竞品调研与设计笔记（历史，带采集日期） |
+| `docs/PLAN.md`、`docs/FEEDBACK.md`、`docs/ISSUES.md` | **仅本地留档，不随仓库 / npm 发布**（含开发过程与私域细节） |

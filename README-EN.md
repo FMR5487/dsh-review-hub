@@ -109,7 +109,7 @@ The left column was checked against its **0.7.1** npm package and README (2026-1
 | What counts as evidence | classifier approvals count too | **human approvals only** — AI or memory passes never advance the counter, so the learning cannot reinforce itself |
 | What the model sees | command + justification + sandbox target + workspace + **the full user message** (up to 2000 chars; longer goes straight to the human) | **a redacted summary only** (≤240 chars; `sk-` / `Bearer` / secret-looking keys are redacted; secret-like paths get no summary at all) |
 | Audit | host-native approval events plus an in-process report (lost on restart; the author says it is not an audit ledger) | an own ledger (`decidedBy` / `agentKind` / `tier` / `aiSource` / frozen `threshold`) plus approval, memory and stats tabs, and CSV/JSON export that survives restarts |
-| UI | none (its README says so) | four sidebar tabs, a hint card above the composer, a floating AI-advice card, diff and undo |
+| UI | none (its README says so) | a complete approval/memory record scoped to the conversation, a hint card above the composer, a floating AI-advice card, diff and undo |
 | Model cost | one classifier call per escalation | one call per AI-tier request, plus a 60-second window budget, a breaker and a persisted verdict cache (a replay inside the TTL is free) |
 | Known exposure | its README admits the default prompt approves writes to `~/.dsh/profiles/` — a runtime self-modification path left open until you close it | none of that shape: secret-like paths hit the L0 wall, and the write-ahead snapshot stores no body for them |
 | Size | 11 files / ~180 KB | 12 server modules plus a single-file client, 96 tests |
@@ -132,7 +132,7 @@ Into a profile (`~/.dsh/profiles/desktop`), not via `npm install`:
 5. **check `cordis.patch.yml`**: any leftover patch row with `name:` re-mounts a plugin even after its bundle row is deleted;
 6. restart the host (the server half binds at load; the client half only needs a page reload).
 
-Details and pitfalls: [README-AI.md](README-AI.md) and [docs/PLAN.md](docs/PLAN.md).
+Details and pitfalls: [README-AI.md](README-AI.md) and [AGENT.md](AGENT.md).
 
 ---
 
@@ -207,5 +207,5 @@ Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). 
 | [AGENT.md](AGENT.md) | Humans or AIs who want to modify it: recipes for settings, policies, seats, tests |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 | [UX.md](UX.md) | UI decision log: why each screen looks the way it does, **including the options that were rejected** and why |
-| [docs/FEEDBACK.md](docs/FEEDBACK.md) | Post-mortems and work tickets (§1–§9: fingerprints split by paging knobs; §10 on: the second batch) |
-| [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | Research notes and the implementation plan |
+| [RESEARCH.md](RESEARCH.md) | Competitor research and design notes (history, with collection dates) |
+| `docs/PLAN.md`, `docs/FEEDBACK.md`, `docs/ISSUES.md` | **local only, never published** (they carry the dev process and private details) |
