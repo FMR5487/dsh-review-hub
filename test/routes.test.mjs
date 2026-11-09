@@ -49,6 +49,9 @@ export const cases = [
 			assertEqual(isTrusted({ headers: { ...base } }, { mode: 'write', proof }), false, '写：没有 cookie 拒绝');
 			assertEqual(isTrusted({ headers: { ...base, cookie: 'other=1' } }, { mode: 'write', proof }), false, '写：别的 cookie 不算');
 			assertEqual(isTrusted({ headers: { ...base, cookie: 'dsh-auth=abc; other=1' } }, { mode: 'write', proof }), true, '写：带对 cookie 放行');
+			// 宿主的 cookie 名带每实例随机后缀，所以按前缀认（实测 dsh-auth-<random>）
+			assertEqual(isTrusted({ headers: { ...base, cookie: 'dsh-auth-ND41oPpTux0zw=1' } }, { mode: 'write', proof }), true, '写：带后缀的 cookie 也认');
+			assertEqual(isTrusted({ headers: { ...base, cookie: 'xdsh-auth=1' } }, { mode: 'write', proof }), false, '写：只认同名前缀，不吃 xdsh-auth');
 			assertEqual(isTrusted({ headers: { ...base } }, { mode: 'read', proof }), true, '读：不带也放行（EventSource 依赖这条）');
 			// header 形式同理
 			const headerProof = { cookie: '', header: 'x-dsh-panel' };

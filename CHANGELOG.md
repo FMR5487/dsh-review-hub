@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 未发版 · S2 取证结论 + 写围栏启用
+
+**取证结果**（`http-probe.log`，2026-11-09 实测 59 行 / 面板 56 条 + curl 2 条 + 面板自报 1 条）：
+
+| 信号 | 面板（Electron 渲染进程） | curl |
+|---|---|---|
+| `cookie` | `dsh-auth-<每实例随机后缀>=…` | **无** |
+| `sec-fetch-mode` | `cors` | **无** |
+| `sec-fetch-site` | 无 | 无 |
+| `origin` / `referer` | 无 | 无 |
+| `user-agent` | `@deepseek-ai/dsh-desktop/0.2.2-rc.1 … Electron/44` | `curl/8.21.0` |
+
+- 结论：桌面壳**确实不发** `Sec-Fetch-Site`（这解释了 11-09 的全 403 事故），但它发 **`Sec-Fetch-Mode: cors`** 和宿主自己的 `dsh-auth-*` cookie。后者是唯一真正的秘密（curl 拿不到，页面 JS 也读不到——面板自报的 `document.cookie` 为空，说明它是 httpOnly），所以写围栏键在 cookie 上。
+- **cookie 名带每实例随机后缀**（两次宿主启动分别是 `dsh-auth-_clExhUOq…` 与 `dsh-auth-ND41oPpT…`），所以 `carriesProof` 改成**前缀匹配**，否则每次重启宿主围栏就失效。
+- 被围栏拒绝时写一行 `denied:"fence"` 到探针日志，避免下次「设置存不下」时还要猜是不是围栏干的。
+- 测试 96 passed（新增：带随机后缀的 cookie 认、`xdsh-auth` 不认）。
+
 ## 未发版 · S2 取证与写围栏
 
 - **新增请求头取证**（插件配置 `debugHeaders: true`，默认关）：每个请求把 header **名**列表、cookie **名**列表、`sec-fetch-*` 取值、`origin`/`referer` 追加到 `<root>/http-probe.log`，**绝不记录值**，最多 400 行；同时新增 `POST /api/review-hub/probe` 让面板上报它自己 `document.cookie` 能看到的键名（探针关时该路由不存在）。用途：上次 S2 靠猜「浏览器会发某个头」把面板打成全 403，这次先取证再设计。

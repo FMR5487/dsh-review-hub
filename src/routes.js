@@ -54,7 +54,14 @@ export function carriesProof(req, proof) {
 	if (cookieName !== '') {
 		const cookie = headers.cookie;
 		if (typeof cookie !== 'string') return false;
-		if (cookie.split(';').some((part) => part.split('=')[0].trim() === cookieName) === false) return false;
+		// Prefix match on purpose: the host mints its cookie as `dsh-auth-<random>`, and
+		// that suffix changes with every host start, so an exact name would only work
+		// until the next restart. The probe log is what showed this (2026-11-09).
+		const hit = cookie.split(';').some((part) => {
+			const name = part.split('=')[0].trim();
+			return name !== '' && name.startsWith(cookieName);
+		});
+		if (hit === false) return false;
 	}
 	if (headerName !== '' && headers[headerName.toLowerCase()] === undefined) return false;
 	return true;
@@ -353,6 +360,7 @@ export function createRoutes(deps) {
 			const mode = method === 'GET' || method === 'HEAD' ? 'read' : 'write';
 			probe?.note(req, { mode });
 			if (isTrusted(req, { strictOrigin: deps.strictOrigin === true, mode, proof: deps.proof }) === false) {
+				probe?.note(req, { mode, denied: 'fence' });
 				sendJson(res, 403, { error: 'forbidden' });
 				return;
 			}
