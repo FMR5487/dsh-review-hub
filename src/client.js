@@ -162,9 +162,10 @@ window.__ModuleLoader__.load({
       'setting.secCard': '卡片与提示',
       'setting.secData': '数据',
       'list.divider': '以上为新增审批',
-      'row.showReason': '展开描述',
-      'row.hideReason': '收起描述',
+      'row.showReason': '展开详情',
+      'row.hideReason': '收起详情',
       'row.aiReject': 'AI 打回理由',
+      'row.aiAllow': 'AI 通过理由',
       'row.copy': '复制命令',
       'row.waiting': '正在等待人工审批…',
       'row.highRisk': '高危',
@@ -397,9 +398,10 @@ window.__ModuleLoader__.load({
       'setting.secCard': 'Cards and hints',
       'setting.secData': 'Data',
       'list.divider': 'New approvals above',
-      'row.showReason': 'Show the description',
-      'row.hideReason': 'Hide the description',
+      'row.showReason': 'Show details',
+      'row.hideReason': 'Hide details',
       'row.aiReject': 'Reviewer reason',
+      'row.aiAllow': 'Reviewer passed it',
       'row.copy': 'Copy the command',
       'row.waiting': 'Waiting for you…',
       'row.highRisk': 'High risk',
@@ -1006,16 +1008,18 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The description panel once the reviewer stepped in. `reason` is what the caller
-     * said it was doing; `aiReason` is the reviewer's own words when it sent the call
-     * back. A row the reviewer never touched keeps the single stored description, so
-     * nothing that used to show disappears.
+     * The description panel, split into what the caller said and what the reviewer said.
+     * `reason` is the request's own words; `aiReason` is the verdict's. "Sent it back" and
+     * "let it through" are both worth reading and they are *different* facts, so the caller's
+     * line is never sacrificed to make room for the reviewer's.
      */
     function reasonBlockOf(entry) {
       const own = isDescription(entry.reason) ? entry.reason : '';
       const ai = isDescription(entry.aiReason) ? entry.aiReason : '';
-      if (aiEscalated(entry) === false) return { own: ai !== '' ? ai : own, ai: '' };
-      return { own: own, ai: ai !== '' && ai !== own ? ai : '' };
+      if (ai === '' || ai === own) return { own: own !== '' ? own : ai, ai: '', label: '' };
+      if (aiEscalated(entry) === true) return { own: own, ai: ai, label: 'row.aiReject' };
+      if (entry !== null && entry !== undefined && entry.decidedBy === 'ai') return { own: own, ai: ai, label: 'row.aiAllow' };
+      return { own: own !== '' ? own : ai, ai: '', label: '' };
     }
 
     /** The payload keys that are worth showing on their own, most specific first. */
@@ -3001,7 +3005,7 @@ window.__ModuleLoader__.load({
                 reason.ai === ''
                   ? null
                   : h('div', { className: 'ah-row-reason-ai' + (reason.own === '' ? ' ah-row-reason-ai-solo' : ''), key: 'ai' },
-                    h('span', { className: 'ah-row-reason-label' }, t('row.aiReject') + ' · '),
+                    h('span', { className: 'ah-row-reason-label' }, t(reason.label) + ' · '),
                     reason.ai))
               : null,
             view.diff !== null && view.diff.callId === entry.callId && view.diff.inline === true ? renderDiff(t, view) : null,
