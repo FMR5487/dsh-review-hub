@@ -412,8 +412,12 @@ export function createRoutes(deps) {
 			handler: guard(async (req, res) => {
 				const tally = await store.stats({ session: urlOf(req).searchParams.get('session') ?? undefined });
 				// The lane breakdown rides along so the panel can show "which reviewer
-				// allowed what" without a second request.
-				sendJson(res, 200, { ...tally, reviewer: deps.answererState?.()?.reviewer });
+				// allowed what" without a second request. Row-derived numbers win: they cover
+				// every call this session ever made, while the live counters start again with
+				// each host boot. Live still contributes what rows cannot know (cache size,
+				// breaker state, whether the model takes maxTokens).
+				const live = deps.answererState?.()?.reviewer;
+				sendJson(res, 200, { ...tally, reviewer: live === undefined ? tally.reviewer : { ...live, ...tally.reviewer } });
 			}, ['GET', 'HEAD']),
 		},
 		{

@@ -72,6 +72,29 @@ export const cases = [
 		},
 	},
 	{
+		name: 'stats：审查器合计按台账行派生（重启不丢、缓存不算调用）',
+		async fn() {
+			const store = createStore({ root: await freshRoot('store-stats-reviewer') });
+			// 三条审批都经过 AI：两条被打回（人工裁决）、一条 AI 直接放行。
+			await store.record(row({ id: 'r1', ts: 1, decidedBy: 'human', aiSource: 'ai', aiModel: 'p/rev', aiReason: 'needs a human' }));
+			await store.record(row({ id: 'r2', ts: 2, decidedBy: 'human', aiSource: 'ai', aiModel: 'p/rev', aiReason: 'also' }));
+			await store.record(row({ id: 'r3', ts: 3, decidedBy: 'ai', aiSource: 'ai', aiModel: 'p/rev', aiReason: 'safe' }));
+			await store.record(row({ id: 'r4', ts: 4, decidedBy: 'human', aiSource: 'cache', aiModel: 'p/rev' }));
+			await store.record(row({ id: 'r5', ts: 5, decidedBy: 'human', aiSource: 'error' }));
+			await store.record(row({ id: 'r6', ts: 6, decidedBy: 'memory' }));
+			const stats = await store.stats({ session: 's1' });
+			assertEqual(stats.reviewer.calls, 3, '只有 ai 来源算模型调用（cache 不算）');
+			assertEqual(stats.reviewer.allows, 1);
+			assertEqual(stats.reviewer.asks, 3, '打回两条 + 缓存打回一条');
+			assertEqual(stats.reviewer.cacheHits, 1);
+			assertEqual(stats.reviewer.fallbacks, 1, 'error 是兜底');
+			assertEqual(stats.reviewer.byModel['p/rev'].calls, 3, '按车道分组');
+			assertEqual(stats.reviewer.byModel['(unknown)'].fallbacks, 1, '没有车道信息的行归到 unknown');
+			assertEqual(stats.reviewer.byModel['p/rev'].lastTs, 4, '车道最后活跃时间');
+			assertEqual((await store.stats({ session: 'other-session' })).reviewer.calls, 0, '按会话隔离');
+		},
+	},
+	{
 		name: 'memory：计数、读取、按会话隔离、清空',
 		async fn() {
 			const store = createStore({ root: await freshRoot('store-memory') });

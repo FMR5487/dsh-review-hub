@@ -537,6 +537,11 @@ export function createStore(options = {}) {
 		const out = { total: rows.length, allow: 0, deny: 0, cancelled: 0, unavailable: 0, ai: 0, memory: 0, human: 0, external: 0, fallback: 0, avgDecisionMs: 0 };
 		let sum = 0;
 		let counted = 0;
+		// The reviewer tally is derived from the rows, not from the reviewer's in-memory
+		// counters: those reset with the host, and the panel prints them directly under
+		// row-derived totals, so a restart made "3 approvals · 3 allowed" sit next to
+		// "1 call · ask 1" and read as "the AI only saw one of them".
+		const reviewer = { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, byModel: {} };
 		for (const row of rows) {
 			if (row.outcome === 'allowed-once') out.allow += 1;
 			else if (row.outcome === 'rejected') out.deny += 1;
@@ -548,8 +553,40 @@ export function createStore(options = {}) {
 				sum += ms;
 				counted += 1;
 			}
+			const source = typeof row.aiSource === 'string' ? row.aiSource : '';
+			if (source !== '') {
+				const lane = typeof row.aiModel === 'string' && row.aiModel !== '' ? row.aiModel : '(unknown)';
+				const bucket = reviewer.byModel[lane] ?? { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, lastTs: 0 };
+				// A cache hit is a verdict *without* a model call, so it is counted apart —
+				// exactly how review.js counts it live.
+				if (source === 'ai') {
+					reviewer.calls += 1;
+					bucket.calls += 1;
+				}
+				if (source === 'cache') {
+					reviewer.cacheHits += 1;
+					bucket.cacheHits += 1;
+				}
+				if (source === 'ai' || source === 'cache') {
+					if (row.decidedBy === 'ai') {
+						reviewer.allows += 1;
+						bucket.allows += 1;
+					} else {
+						reviewer.asks += 1;
+						bucket.asks += 1;
+					}
+				} else {
+					// error / unparsed / breaker / budget / unavailable: the reviewer was asked
+					// and could not answer, which is what "兜底" means.
+					reviewer.fallbacks += 1;
+					bucket.fallbacks += 1;
+				}
+				bucket.lastTs = Math.max(bucket.lastTs, Number(row.ts) || 0);
+				reviewer.byModel[lane] = bucket;
+			}
 		}
 		out.avgDecisionMs = counted === 0 ? 0 : Math.round(sum / counted);
+		out.reviewer = reviewer;
 		return out;
 	}
 
