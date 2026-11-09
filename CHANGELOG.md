@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.0.12 — 严格裁决协议（可选）+ 官方对照口径入 README-AI
+
+- **新开关「严格裁决协议」**（`strictVerdict`，默认**关**）：开启后模型回复必须是 `{decision, risk, reason}` 这一种形状——字段名叫 `decision`、取值是 allow/ask/deny、`risk` 是 low/medium/high，任一不合规 → `unparsed` 转人工（理由带着模型原话落盘）。默认关的理由写进代码注释：中文小模型用宽松同义词时转人工率更低，严格化等于「更安全但更吵」。
+- 严格模式**不影响否决权**：`deny` 依旧降级成 `ask`；大小写不敏感（只严格字段名与风险等级）——这是有意的，capitals 不改变语义。
+- **P2 探测已埋点**（`review-probe.log`）：取证开关（`debugHeaders`）打开时，`review.js` 把每个 llm chunk 的 **type 与字段名**写进 `~/.dsh/storages/review-hub/review-probe.log`（只记名字，绝不记值）。目的：确认宿主是否透出 prompt-cache / usage 计数，再决定要不要做「提示词前缀稳定化」。
+- README（中英）把「和官方 auto-review」「和 dsh-auto-approve」两节**合并成一节**「和两个最接近的插件的逐项差异」：共用一段定位说明（三者的挂载点各在哪），下面两个小标题分别是权力模型与学习模型的对照表。
+- README-AI 增补「与官方 auto-review 的关系」：钩子、`allow` 语义、fail-closed、卸载副作用、两者可共存，并写明改判定语义时不要照它那套。
+
 ## 1.0.11 — 官方 auto-review 对照入 README；缓存过期时间进高级设置
 
 - **README（中英）新增「和官方 `@deepseek-ai/dsh-experimental-auto-review` 的差异」**：按官方 `next` = **0.2.2-rc.1**（与本机宿主同版）的 `lib/index.js` 逐处核对——挂载点（`tools/pre-execute` + `AUTO` 预设专享）、AI 能否决（`override=never` 下 `deny` 直接拒绝执行）、审查失败 fail-closed、把**整个会话可见历史 + 原始参数**送模型且无脱敏、无记忆/无预算/无熔断/无缓存、模型固定用会话车道、卸载时把 `AUTO` 会话切成 `danger-full-access`、顶层 `run_code` 豁免审查。表里同时写明两者**不冲突可共存**。

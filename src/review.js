@@ -77,8 +77,13 @@ const DENY_WORDS = new Set(['deny', 'denied', 'reject', 'rejected', 'block', 'bl
 /**
  * Turn whatever the model said into a verdict, or undefined when it is unusable.
  * `deny` is deliberately downgraded: the reviewer cannot overrule the human.
+ *
+ * With `opts.strict` the published protocol is the only accepted shape — the field must
+ * be named `decision`, the value must be a word we know, and `risk` must be a real level.
+ * Synonyms and a missing risk are what let "a string that looks like JSON" reach the pass
+ * path; strict mode turns those into `unparsed` → a human.
  */
-export function parseVerdict(raw) {
+export function parseVerdict(raw, opts = {}) {
 	const text = typeof raw === 'string' ? raw : textOf(raw);
 	const body = firstJsonObject(text);
 	if (body === null || typeof body !== 'object' || Array.isArray(body)) return undefined;
@@ -89,6 +94,11 @@ export function parseVerdict(raw) {
 	if (word === '') return undefined;
 	const risk = typeof body.risk === 'string' && RISKS.has(body.risk.toLowerCase()) ? body.risk.toLowerCase() : 'unknown';
 	const reason = typeof body.reason === 'string' ? body.reason.slice(0, MAX_REASON) : '';
+	if (opts.strict === true) {
+		if (typeof body.decision !== 'string') return undefined;
+		if (risk === 'unknown') return undefined;
+		if (body.reason !== undefined && typeof body.reason !== 'string') return undefined;
+	}
 	// A reviewer still has no veto: "deny" keeps its reasoning but lands as an ask.
 	if (DENY_WORDS.has(word)) return { decision: 'ask', risk, reason };
 	if (ALLOW_WORDS.has(word)) return { decision: 'allow', risk, reason };
@@ -119,7 +129,7 @@ export function buildMessages(input) {
  * Chunks are block events; the terminal one is `{ type:'finish', reason:{ kind } }`.
  * @returns {Promise<{text?:string, reason?:string}>}
  */
-async function collect(llm, prompt, timeoutMs, route, extra) {
+async function collect(llm, prompt, timeoutMs, route, extra, onChunk) {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	const tail = extra !== null && typeof extra === 'object' ? extra : {};
@@ -134,6 +144,9 @@ async function collect(llm, prompt, timeoutMs, route, extra) {
 				let text = '';
 				let blockText = '';
 				for await (const chunk of stream) {
+					// Names only, and only when the caller asked: this answers "does the host
+					// hand us usage / prompt-cache counters at all?" without guessing.
+					if (typeof onChunk === 'function' && chunk !== null && typeof chunk === 'object') onChunk(String(chunk.type ?? '?'), Object.keys(chunk).sort());
 					if (chunk?.type === 'finish') {
 						const kind = chunk.reason?.kind;
 						if (kind !== undefined && kind !== 'stop') return { reason: 'reviewer ended with ' + String(kind) };
@@ -173,6 +186,17 @@ export function createReviewer(deps = {}) {
 	let cacheTimer = null;
 	/** Set false the first time a seam rejects the cap, so we stop asking for it. */
 	let maxTokensSupported = true;
+
+	/** Diagnostics hook (set only when the forensics switch is on); never throws. */
+	function noteShape(kind, keys) {
+		const sink = typeof deps.noteShape === 'function' ? deps.noteShape : null;
+		if (sink === null) return;
+		try {
+			sink(kind, keys);
+		} catch (error) {
+			/* a diagnostic must never break a review */
+		}
+	}
 
 	function laneOf(route) {
 		const provider = typeof route?.provider === 'string' && route.provider !== '' ? route.provider : '';
@@ -318,7 +342,7 @@ export function createReviewer(deps = {}) {
 		const timeoutMs = Math.max(1000, Number(settings.reviewTimeoutMs) || 8000);
 		let answer;
 		try {
-			answer = await collect(llm, prompt, timeoutMs, input.route, maxTokensSupported ? { maxTokens: MAX_TOKENS } : undefined);
+			answer = await collect(llm, prompt, timeoutMs, input.route, maxTokensSupported ? { maxTokens: MAX_TOKENS } : undefined, noteShape);
 			if (answer.reason !== undefined && maxTokensSupported === true) {
 				// The seam may not know this option. Ask once more without it and stop
 				// asking, rather than letting the cap disable the reviewer for good.
@@ -340,7 +364,7 @@ export function createReviewer(deps = {}) {
 			bumpLane(input.route, 'fallbacks');
 			return fallback('error', answer.reason);
 		}
-		const verdict = parseVerdict(answer.text);
+		const verdict = parseVerdict(answer.text, { strict: settings.strictVerdict === true });
 		if (verdict === undefined) {
 			noteFailure(sessionId, settings);
 			stats.fallbacks += 1;

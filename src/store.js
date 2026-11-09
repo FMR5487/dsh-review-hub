@@ -57,6 +57,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	aiBudgetPerTurn: 20,
 	aiBreakerFails: 3,
 	aiCacheTtlMs: 600000,
+	// Off by default: the strict protocol catches "looks like JSON" replies by turning them
+	// into unparsed → human, which is safer but asks the human more often.
+	strictVerdict: false,
 	reviewerModel: '',
 	/**
 	 * `{ "<sessionId>": "provider/model" }`: a session named here ignores the global
@@ -205,7 +208,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		reviewerModelLocal: { ...(base?.reviewerModelLocal ?? {}) },
 	};
 	if (patch === null || typeof patch !== 'object') return next;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {

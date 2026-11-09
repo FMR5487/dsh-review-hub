@@ -27,6 +27,14 @@ export const cases = [
 			assertEqual(parseVerdict('{"decision":"ask","risk":"weird"}').risk, 'unknown', '非法风险值归一');
 			assertEqual(parseVerdict('{"decision":"ALLOW"}').decision, 'allow', '大小写不敏感');
 			assertEqual(parseVerdict('{"verdict":"allow"}').decision, 'allow', 'verdict 别名');
+			// 严格模式：只认 {decision, risk, reason} 这一种形状，其余一律 unparsed
+			assertEqual(parseVerdict('{"decision":"ALLOW","risk":"low"}', { strict: true }).decision, 'allow', '大小写不影响判定：严格只针对字段名与风险等级');
+			assertEqual(parseVerdict('{"verdict":"allow","risk":"low"}', { strict: true }), undefined, '别名不合规');
+			assertEqual(parseVerdict('{"decision":"allow"}', { strict: true }), undefined, '缺 risk 不合规');
+			assertEqual(parseVerdict('{"decision":"allow","risk":"weird"}', { strict: true }), undefined, 'fake 风险等级不合规');
+			assertEqual(parseVerdict('{"decision":"allow","risk":"low"}', { strict: true }).decision, 'allow', '规范形状通过');
+			assertEqual(parseVerdict('{"decision":"deny","risk":"high","reason":"x"}', { strict: true }).decision, 'ask', '严格模式下 deny 仍然降级成 ask');
+			assertEqual(parseVerdict('{"verdict":"allow","risk":"low"}').decision, 'allow', '宽松模式保持不变');
 			assertEqual(parseVerdict('{"action":"approve"}').decision, 'allow', 'approve 也是 allow');
 			assertEqual(parseVerdict('{"result":"escalate"}').decision, 'ask', 'escalate 也是 ask');
 		},

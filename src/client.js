@@ -124,6 +124,8 @@ window.__ModuleLoader__.load({
       'setting.threshold': '放行阈值（次）',
       'setting.thresholdNote': '人工批准这么多次之后自动放行',
       'setting.fpIgnoreJustification': '允许记忆忽略「理由」',
+      'config.strictVerdict': '严格裁决协议',
+      'config.strictVerdictNote': '只接受 {decision, risk, reason} 这一种形状：字段名、取值、风险等级有一个不合规就转人工（记为 unparsed）。默认关——中文小模型更容易因此多问人',
       'config.debugHeaders': '记录请求头（取证）',
     'config.debugHeadersNote': '把每个请求的 header 名与 cookie 名写进 http-probe.log（只记名字，不记值，最多 400 行）。用来确认写围栏该用哪个 cookie，平时保持关闭',
     'setting.hideKnobs': '隐藏无用旋钮',
@@ -368,6 +370,8 @@ window.__ModuleLoader__.load({
       'setting.threshold': 'Auto-approve after (times)',
       'setting.thresholdNote': 'Human approvals needed before the operation passes on its own',
       'setting.fpIgnoreJustification': 'Let memory ignore the reason',
+      'config.strictVerdict': 'Strict verdict protocol',
+      'config.strictVerdictNote': 'Accepts one shape only — {decision, risk, reason}: a wrong field name, value or risk level goes to a human (recorded as unparsed). Off by default; small models end up asking more often',
       'config.debugHeaders': 'Record request headers (forensics)',
     'config.debugHeadersNote': 'Writes each request\'s header and cookie names into http-probe.log (names only, never values, 400-line cap). Use it to pick the write-fence cookie; leave it off otherwise',
     'setting.hideKnobs': 'Hide knob arguments',
@@ -3498,6 +3502,17 @@ window.__ModuleLoader__.load({
           );
         })),
         numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
+        h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
+          h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
+          h('button', {
+            type: 'button',
+            className: 'ah-switch' + (draft.strictVerdict === true ? ' ah-switch-on' : ''),
+            role: 'switch',
+            'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
+            title: t('config.strictVerdict'),
+            onClick: function () { change('strictVerdict', draft.strictVerdict !== true); },
+          }, h('span', { className: 'ah-switch-knob' }))
+        ),
         h('div', { className: 'ah-settings-row', key: 'debug-headers' },
           h('span', { className: 'ah-settings-label' }, t('config.debugHeaders'), h('span', { className: 'ah-settings-note' }, t('config.debugHeadersNote'))),
           h('button', {

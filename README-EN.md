@@ -92,9 +92,15 @@ Versions below were checked on **2026-11-03 / 09** (`fetch('https://registry.npm
 
 Every package name above links to its npm page; `moon09300731/dsh-approval-gate` points at the GitHub repository (it was never published to npm).
 
-### How it differs from the official `@deepseek-ai/dsh-experimental-auto-review`
+### Item-by-item against the two closest plugins
 
-The official plugin is a **gate in front of tool execution** (`tools/pre-execute`), and it only acts for sessions whose permission preset is the `AUTO` one it registers; every other request passes straight through. MingJing is an **answerer on the approval chain** (`approval/request`): it changes no preset and applies at every level. **The two do not conflict and can be installed together**, but their power models are opposites:
+Only two plugins are genuinely compared with MingJing: the **official auto-review** answers “may the AI decide instead of you”, and **dsh-auto-approve** answers “how should learned memory work”. **Neither conflicts with MingJing and both can run alongside it** — they hook different places, which is exactly what needs saying.
+
+- MingJing is an **answerer on the approval chain** (`approval/request`): no preset is touched, and every tier that reaches an approval goes through the same chain.
+- The official plugin is a **gate in front of tool execution** (`tools/pre-execute`), and only sessions on the `AUTO` preset it registers are affected.
+- dsh-auto-approve is a **permission preset** (it adds `sandboxed-auto`), and only sessions that select it are affected.
+
+**① Official `@deepseek-ai/dsh-experimental-auto-review` (`next` = 0.2.2-rc.1)** — opposite power model:
 
 Checked against the official **`next` tag = 0.2.2-rc.1** (the version this host runs), file `lib/index.js`:
 
@@ -114,9 +120,7 @@ Two details worth knowing: the official plugin **exempts top-level `run_code` ca
 
 In one line: the official plugin **hands the decision to the model**; MingJing **lets the model propose and has a human or a deterministic rule decide**.
 
-### How it differs from `dsh-auto-approve`, item by item
-
-That plugin is a **permission preset**: it adds a `sandboxed-auto` level, only sessions that select it are affected, and every other request passes through untouched. MingJing is an **answerer on the approval chain**: it changes no preset, and any tier that reaches an approval goes through the same chain. That positioning difference drives every row below.
+**② `dsh-auto-approve` (0.7.1)** — opposite learning model:
 
 The left column was checked against its **0.7.1** npm package and README (2026-11-09); the right column is this repository's code.
 

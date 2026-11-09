@@ -14,6 +14,7 @@
  * the request and it fails closed as unavailable.
  */
 import { randomUUID } from 'node:crypto';
+import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { createStore, fileFingerprintOf, filePathOf, fingerprintOf, splitRoute } from './store.js';
@@ -520,6 +521,13 @@ export function apply(ctx, rawConfig = {}) {
 		// Verdicts outlive the process: this host restarts often, and every restart
 		// would otherwise re-buy the same first batch of reviews.
 		cachePath: join(store.root, 'ai-cache.json'),
+		// Names-only shape of each llm chunk, so "does the host hand us usage / prompt-cache
+		// counters?" is answered by evidence instead of a guess. Gated by the same forensics
+		// switch as the HTTP probe, and values are never recorded.
+		noteShape: (kind, keys) => {
+			if (store.settingsSnapshot().debugHeaders !== true) return;
+			void appendFile(join(store.root, 'review-probe.log'), JSON.stringify({ at: Date.now(), kind, keys }) + '\n').catch(() => undefined);
+		},
 	});
 
 	ctx.effect(() => {
