@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.0.1 — 首个 npm 发布版
+
+- **engine 放宽**：`engines.dsh` 从 `>=0.2.1-rc.1 <0.3.0-0` 改为 `>=0.2.1-rc.1 <1.0.0-0`。原上界会在宿主进入 0.3.x 时把插件挡在声明范围外；本插件的真实耦合面是宿主的席位名、右侧栏 API 与 `--dsh-composer-*` 变量（已在「已知限制」写明），而不是 0.2/0.3 这个大版本号，所以按「装了再说、坏了就修」处理。
+- **发 npm**：去掉 `private: true`，加 `publishConfig.access = public`，keywords 补 `approval-gate` / `audit` / `diff` / `memory`（registry 关键词索引是发现渠道）。
+- **README 新增「和 `dsh-auto-approve` 的逐项差异」**（中英）：13 行对照表（挂载方式 / 审查范围 / 否决权 / 失败语义 / 危险清单 / 记忆 / 计数来源 / 给模型看什么 / 审计 / UI / 成本 / 已知敞口 / 规模），并给出三条选择建议。左列按其 0.7.1 的 npm 包与 README 核对，右列是本仓库代码事实。
+- 含上一轮未发版的 S2 改动：请求头探针（`debugHeaders`）+ 写方法围栏（`writeProofCookie` / `writeProofHeader`，按请求动词判、只拦 POST、读与 SSE 永不拦）。
+
 ## 未发版 · S2 取证结论 + 写围栏启用
 
 **取证结果**（`http-probe.log`，2026-11-09 实测 59 行 / 面板 56 条 + curl 2 条 + 面板自报 1 条）：

@@ -1,9 +1,11 @@
 {
   "name": "dsh-review-hub",
   "displayName": "明镜",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "明镜 (MingJing) — an approval brain for DSH: deterministic hard-risk layer, per-session memory learning, an AI that may only pass or ask, exact attribution, composer hints, right-sidebar diff/undo, and an exportable ledger.",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -12,7 +14,11 @@
     "dsh-plugin",
     "approval",
     "ai-review",
-    "human-in-the-loop"
+    "human-in-the-loop",
+    "approval-gate",
+    "audit",
+    "diff",
+    "memory"
   ],
   "repository": {
     "type": "git",
@@ -57,7 +63,7 @@
     }
   },
   "engines": {
-    "dsh": ">=0.2.1-rc.1 <0.3.0-0",
+    "dsh": ">=0.2.1-rc.1 <1.0.0-0",
     "node": ">=22.13"
   }
 }
