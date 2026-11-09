@@ -143,7 +143,9 @@ Details and pitfalls: [README-AI.md](README-AI.md) and [AGENT.md](AGENT.md).
 
 ## FAQ
 
-- **Unattended runs**: switch on "per-session" in the session you want to leave alone, then turn AI review off — that stops the reviewer for that session only, while every other session keeps it.
+**Q: how do I leave one session unattended, without the reviewer pestering it?**
+Stop it for that session only: turn on "per-session" inside it, then switch AI review off. Every other session keeps its reviewer — this is a per-session switch, not a global one.
+
 **Why did the AI never show up?**
 Hard risk (6 classes) never reaches it; or there is no model service, the call timed out, or the breaker is open. The row records `aiSource`.
 

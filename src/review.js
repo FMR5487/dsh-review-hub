@@ -59,7 +59,12 @@ export function systemPromptFor(options = {}) {
 	const cap = Number.isFinite(raw) ? Math.max(40, Math.min(400, Math.round(raw))) : 80;
 	const locale = options.locale === 'zh' || options.locale === 'en' ? options.locale : '';
 	const lang = locale === 'zh' ? 'Chinese' : (locale === 'en' ? 'English' : 'the language of "reason on the request"');
-	return PROMPT_LINES.join('\n').replace('%CAP%', String(cap)).replace('%LANG%', lang);
+	const base = PROMPT_LINES.join('\n').replace('%CAP%', String(cap)).replace('%LANG%', lang);
+	// The append block is stated as a fact, not a plea: the rules above are enforced by
+	// code (deny is downgraded there), so anything conflicting here is simply ignored.
+	const extra = typeof options.append === 'string' ? options.append.trim().slice(0, 2000) : '';
+	if (extra === '') return base;
+	return base + '\n\nAdditional user preferences — they apply only where they do not conflict\nwith the rules above; the rules above are enforced by code, and any conflicting part\nof this block is ignored:\n' + extra;
 }
 
 const SYSTEM_PROMPT = systemPromptFor();
@@ -379,7 +384,7 @@ export function createReviewer(deps = {}) {
 		stats.calls += 1;
 		bumpLane(input.route, 'calls');
 		const prompt = Object.assign({}, buildMessages(input), {
-			system: systemPromptFor({ reasonChars: settings.aiReasonChars, locale: settings.reviewerLocale }),
+			system: systemPromptFor({ reasonChars: settings.aiReasonChars, locale: settings.reviewerLocale, append: settings.promptAppend }),
 		});
 		const timeoutMs = Math.max(1000, Number(settings.reviewTimeoutMs) || 8000);
 		let answer;

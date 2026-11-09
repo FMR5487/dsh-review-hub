@@ -67,6 +67,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// How long the reviewer's reason may be, and which language it must use ('' = follow
 	// the request's own language). Both are prompt knobs, not behaviour knobs.
 	aiReasonChars: 80,
+	// User-supplied extra instructions, appended after the fixed rules with an explicit
+	// precedence note: the built-in red lines are enforced in code, so this can only add
+	// preference, never remove a rule.
+	promptAppend: '',
 	// Two card switches, default on: users who find the floating card noisy can silence
 	// one without silencing the plain waiting hint.
 	aiAdviceCard: true,
@@ -225,6 +229,10 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		aiEnabledLocal: { ...(base?.aiEnabledLocal ?? {}) },
 	};
 	if (patch === null || typeof patch !== 'object') return next;
+	// String settings need their own branch: the boolean loop and the numeric bounds both
+	// ignore them, so without this they would be silently dropped on save.
+	if (typeof patch.promptAppend === 'string') next.promptAppend = patch.promptAppend.slice(0, 2000);
+	if (patch.reviewerLocale === '' || patch.reviewerLocale === 'zh' || patch.reviewerLocale === 'en') next.reviewerLocale = patch.reviewerLocale;
 	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
