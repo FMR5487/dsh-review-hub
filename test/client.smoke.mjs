@@ -304,6 +304,19 @@ export const cases = [
 			assertEqual(memoryChip.merged, undefined, '徽章不再自带合并段');
 			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 3 }, (k) => k);
 			assertEqual(escalatedChip.pre, 'chip.aiRejected');
+			// 行渲染器从 ApprovalPage 里提出来了：它只吃 opts，缺一个字段就会当场红
+			const rowOpts = {
+				t: (k) => k,
+				view: { diff: null },
+				copiedId: '',
+				isReasonOpen: function () { return false; },
+				openDiff: function () {},
+				copyRow: function () {},
+				toggleReason: function () {},
+			};
+			const rowNode = bag.approvalRowNode({ id: 'r1', ts: 1700000000000, toolName: 'pwsh', decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', reason: 'escalate', aiReason: 'needs a human', riskLevel: 'medium', memoryCount: 2, fpMode: 'normalized', droppedKeys: ['limit'] }, rowOpts);
+			assertEqual(rowNode.props.className, 'ah-row');
+			assertTrue(bag.approvalRowNode({ id: 'r2', ts: 1, toolName: 'ops_bash', decidedBy: 'memory', outcome: 'allowed-once', memoryCount: 3 }, rowOpts).props.className === 'ah-row', '记忆行同样能独立渲染');
 			// 记忆页分桶：文件是共同主体；没有文件就按指纹各算各的（否则两条无关命令会被加在一起）
 			assertEqual(bag.memoryBucketId('pwsh', '', 'aaa'), bag.memoryBucketId('pwsh', '', 'aaa'));
 			assertTrue(bag.memoryBucketId('pwsh', '', 'aaa') !== bag.memoryBucketId('pwsh', '', 'bbb'), '同工具不同指纹不能并成一桶');

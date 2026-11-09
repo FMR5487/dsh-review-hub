@@ -60,6 +60,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// Off by default: the strict protocol catches "looks like JSON" replies by turning them
 	// into unparsed → human, which is safer but asks the human more often.
 	strictVerdict: false,
+	// Names-only shape of the llm chunks, written to review-probe.log. Separate from
+	// debugHeaders on purpose: one answers "which cookie may write", the other
+	// "does the host expose prompt-cache counters" — they are used months apart.
+	debugReview: false,
 	reviewerModel: '',
 	/**
 	 * `{ "<sessionId>": "provider/model" }`: a session named here ignores the global
@@ -208,7 +212,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		reviewerModelLocal: { ...(base?.reviewerModelLocal ?? {}) },
 	};
 	if (patch === null || typeof patch !== 'object') return next;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {

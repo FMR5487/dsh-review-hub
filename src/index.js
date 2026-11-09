@@ -525,7 +525,7 @@ export function apply(ctx, rawConfig = {}) {
 		// counters?" is answered by evidence instead of a guess. Gated by the same forensics
 		// switch as the HTTP probe, and values are never recorded.
 		noteShape: (kind, keys) => {
-			if (store.settingsSnapshot().debugHeaders !== true) return;
+			if (store.settingsSnapshot().debugReview !== true) return;
 			void appendFile(join(store.root, 'review-probe.log'), JSON.stringify({ at: Date.now(), kind, keys }) + '\n').catch(() => undefined);
 		},
 	});

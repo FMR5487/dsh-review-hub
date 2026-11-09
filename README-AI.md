@@ -2,7 +2,7 @@
 
 > 人类读者请回 [README.md](README.md)（中文）或 [README-EN.md](README-EN.md)（英文）。
 > 本文是**实现规格**：红线、结构、数据契约、协议、状态机、失败模式。改代码前必须读完 §2；想动手改功能再读 [AGENT.md](AGENT.md)。
-> 版本：**1.0.12**（与 `package.json` 的 `version` 同步；发版时一并改这里）。所有结论都有代码位置或测试作为依据，不要凭"看起来合理"去改行为。
+> 版本：**1.0.13**（与 `package.json` 的 `version` 同步；发版时一并改这里）。所有结论都有代码位置或测试作为依据，不要凭"看起来合理"去改行为。
 > 同类插件的逐个拆解（机制、版本号、下载量）在 `RESEARCH.md` §4，**采集于 2026-11-03**，引用前先按其中的刷新方式复核版本。
 
 ---
@@ -72,6 +72,11 @@ src/diff.js         纯函数 unified diff（双行号；行对象是 {kind,noOl
 src/routes.js       HTTP 面（含 SSE /stream）
 src/export.js       CSV(RFC4180 + BOM + CRLF) / JSON 台账
 src/client.js       浏览器半身：三席位 + 右侧栏 diff tab + 设置 UI + 实时中枢 + body 级 AI 建议浮层（单文件 bundle）
+                    ↑ 必须保持**单文件**：宿主只给 `react` 一个 `require`，拆开就要构建步骤拼回去。
+                    内部顺序固定，文件顶部有区块索引：01 常量与语言字典 / 02 纯函数 / 03 状态与接口 /
+                    04 样式 / 05 组件（HintBar · SettingsPanel · ApprovalPage · ConfigCard · MemoryBody · StatsPanel）
+                    / 06 导出（loader 契约 + `__test`）。审批行渲染器 `approvalRowNode(entry, opts)` 在
+                    factory 作用域，靠显式 `opts` 取依赖，所以能被 `__test` 单独渲染。
 test/               run.mjs 汇总；units / pipeline / p3 / client.smoke 四组
 ```
 

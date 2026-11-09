@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.0.13 — client.js 站内分区（不拆文件）+ 行渲染器提出组件 + 取证开关拆开
+
+- **为什么还是不拆文件**：客户端半身是字符串 bundle，宿主只给它 `react` 一个 `require`，拆开必须有构建步骤把文件拼回一段；而构建步骤会漏、也与你自己的「装插件先查 `prepack` 是否跑构建」铁律相冲突。所以选**站内分区**：文件顶部加区块索引（01 常量与语言字典 / 02 纯函数 / 03 状态与接口 / 04 样式 / 05 组件 / 06 导出），每个区块前有段标。
+- **把行渲染器从 `ApprovalPage` 里提出来**：`approvalRowNode(entry, opts)` 现在挂在 factory 作用域，靠显式 `opts`（t / view / copiedId / isReasonOpen / openDiff / copyRow / toggleReason）取外部依赖，组件里只剩一个 `rowOpts` 袋子 + 一行 map。收益：这 85 行不再埋在组件闭包里，可以独立渲染与测试。
+- **新增渲染测试**（这是这次重构的安全网）：`__test.approvalRowNode` 用桩 `opts` 渲染一条打回行与一条记忆行，断言出 `ah-row`。缺任何一个 `opts` 字段都会当场红——`t is not defined` 就是这个测试在重构中途抓到的（当时我只替换了 `t(` 的调用，漏了把 `t` 当实参传的 `chipBody(chip, memory, t)`）。
+- **评审探针拆成独立开关** `debugReview`（默认关）：原来借用 `debugHeaders`，但两者回答的是不同问题——一个是「哪个 cookie 能写」，一个是「宿主给不给 prompt-cache / 用量计数」，用同一个开关会让取证互相干扰。输出仍在 `review-probe.log`（只记 chunk 的 type 与字段名）。
+- README-AI §3 补上客户端的内部区块顺序与「必须保持单文件」这条约束。
+
 ## 1.0.12 — 严格裁决协议（可选）+ 官方对照口径入 README-AI
 
 - **新开关「严格裁决协议」**（`strictVerdict`，默认**关**）：开启后模型回复必须是 `{decision, risk, reason}` 这一种形状——字段名叫 `decision`、取值是 allow/ask/deny、`risk` 是 low/medium/high，任一不合规 → `unparsed` 转人工（理由带着模型原话落盘）。默认关的理由写进代码注释：中文小模型用宽松同义词时转人工率更低，严格化等于「更安全但更吵」。

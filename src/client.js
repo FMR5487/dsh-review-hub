@@ -7,6 +7,15 @@ window.__ModuleLoader__.load({
     const React = require('react');
     const h = React.createElement;
 
+    // ─── 区块索引（改代码前先定位区块，再改；顺序即依赖顺序）────────────
+    // 01 · 常量与语言字典   NS / 确认时长 / 中英两份 locale 文案
+    // 02 · 纯函数           指纹展示、记忆文案、理由分段、车道拆词、时间戳…（无 DOM、无 React）
+    // 03 · 状态与接口       store 单例、HTTP/SSE、load* 系列、订阅与通知
+    // 04 · 样式             单一 <style> 文本数组（颜色一律走宿主变量）
+    // 05 · 组件            HintBar / SettingsPanel / ApprovalPage / ConfigCard / MemoryBody / StatsPanel
+    // 06 · 导出             loader 契约（id 必须等于包名）+ __test 钩子
+    // ────────────────────────────────────────────────────────────────
+
     const NS = 'dsh-review-hub';
     const CONFIRM_RESET_MS = 6000;
     /** Undo arms on the first click and gives up on its own: a stray click must not lose a file. */
@@ -124,6 +133,8 @@ window.__ModuleLoader__.load({
       'setting.threshold': '放行阈值（次）',
       'setting.thresholdNote': '人工批准这么多次之后自动放行',
       'setting.fpIgnoreJustification': '允许记忆忽略「理由」',
+      'config.debugReview': '记录评审流（取证）',
+      'config.debugReviewNote': '把模型返回的每个数据块的类型与字段名写进 review-probe.log（只记名字，不记值）。用来确认宿主是否透出 prompt-cache / token 用量，从而决定要不要做提示词前缀稳定化',
       'config.strictVerdict': '严格裁决协议',
       'config.strictVerdictNote': '只接受 {decision, risk, reason} 这一种形状：字段名、取值、风险等级有一个不合规就转人工（记为 unparsed）。默认关——中文小模型更容易因此多问人',
       'config.debugHeaders': '记录请求头（取证）',
@@ -370,6 +381,8 @@ window.__ModuleLoader__.load({
       'setting.threshold': 'Auto-approve after (times)',
       'setting.thresholdNote': 'Human approvals needed before the operation passes on its own',
       'setting.fpIgnoreJustification': 'Let memory ignore the reason',
+      'config.debugReview': 'Record the review stream (forensics)',
+      'config.debugReviewNote': 'Writes the type and field names of every model chunk into review-probe.log (names only, never values). It answers whether the host exposes prompt-cache or token usage, which decides if prompt-prefix stabilisation is worth doing',
       'config.strictVerdict': 'Strict verdict protocol',
       'config.strictVerdictNote': 'Accepts one shape only — {decision, risk, reason}: a wrong field name, value or risk level goes to a human (recorded as unparsed). Off by default; small models end up asking more often',
       'config.debugHeaders': 'Record request headers (forensics)',
@@ -1774,6 +1787,7 @@ window.__ModuleLoader__.load({
       return true;
     }
 
+    // ─── 04 · 样式 ─────────────────────────────────────────────────
     const CSS = [
       // The dock now sits in conversation.input.dock, the row above the input:
       // same width as the composer, so it reads as part of it instead of floating.
@@ -2057,6 +2071,7 @@ window.__ModuleLoader__.load({
         return h('span', { className: 'ah-bar-chunk', key: 'chunk-' + String(index) }, text);
       }));
     }
+    // ─── 05 · 组件 · HintBar：输入框上方提示卡 + 实时中枢 ─────────
     function HintBar(props) {
       const t = translator(props);
       const view = useStore();
@@ -2568,6 +2583,7 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    // ─── 05 · 组件 · SettingsPanel：审批页里的日常设置 ────────────
     function SettingsPanel(props) {
       const t = translator(props);
       const view = useStore();
@@ -2838,6 +2854,97 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    // ─── 05 · 组件 · ApprovalPage：审批时间线 ─────────────────────
+    /**
+     * One approval row. Everything it needs arrives in `opts`, so it reads no
+     * component state and can be rendered (and tested) on its own — the reason it lives
+     * outside ApprovalPage instead of being an 85-line body inside its .map().
+     */
+    function approvalRowNode(entry, opts) {
+        const chip = chipOf(entry, opts.t);
+        const memory = memoryText(entry, opts.t);
+        const laneTag = rowModelOf(entry);
+        const stamp = stampOf(entry.ts);
+        const reason = reasonBlockOf(entry);
+        const reasonOpen = opts.isReasonOpen(entry.id);
+        const mark = entry.outcome === 'rejected' ? '×' : (entry.outcome === 'allowed-once' ? '✓' : '·');
+        return h('div', { className: 'ah-row', key: entry.id },
+          // Left rail: the decision mark plus a connector, so a dense list still reads
+          // as a timeline rather than a table.
+          h('div', { className: 'ah-rail', key: 'rail' },
+            h('span', { className: 'ah-rail-glyph ah-ink-' + chip.tone }, mark),
+            h('span', { className: 'ah-rail-line' })
+          ),
+          h('div', { className: 'ah-body' },
+            // The two text lines and the actions share one box: the buttons hang off
+            // the *command*, so opening the description below does not move them.
+            h('div', { className: 'ah-main', key: 'main' },
+              h('div', { className: 'ah-line' },
+                h('span', { className: 'ah-tool' }, String(entry.toolName || '—')),
+                h('span', { className: 'ah-chip ah-tone-' + chip.tone }, chipBody(chip, memory, opts.t)),
+                // Lane then date as ONE right-aligned group: "lane · 11-06 08:32:42".
+                // Two separately right-aligned spans put a gap between them (the date
+                // owns `margin-left:auto`), so the pair is wrapped instead.
+                laneTag === null && stamp === '' ? null : h('span', { className: 'ah-row-stamp', key: 'stamp' },
+                  // Structured degradation instead of one ellipsis: the multiplier goes
+                  // first, then the provider, then the model's trailing qualifier. The
+                  // full lane stays in the tooltip, so nothing is lost for good.
+                  laneTag === null ? null : (function () {
+                    const parts = laneParts(laneTag.text);
+                    return h('span', { className: 'ah-lane', title: laneTag.title },
+                      parts.provider === '' ? null : h('span', { className: 'ah-lane-provider' }, parts.provider),
+                      h('span', { className: 'ah-lane-model' },
+                        h('span', { className: 'ah-lane-model-long' }, parts.model),
+                        h('span', { className: 'ah-lane-model-short' }, parts.short)),
+                      parts.price === ' · ' ? null : h('span', { className: 'ah-lane-price' }, parts.price));
+                  })(),
+                  laneTag !== null && stamp !== '' ? h('span', { className: 'ah-row-sep', key: 'sep' }, ' · ') : null,
+                  stamp === '' ? null : h('span', { className: 'ah-time-stamp' }, stamp))
+              ),
+              // Every line of the command is shown: an approval you cannot read is an
+              // approval you are rubber-stamping.
+              h('div', { className: 'ah-line' },
+                h('span', { className: 'ah-args' }, commandOf(entry) === '' ? '—' : displayCommand(commandOf(entry))),
+                deltaChip(rowDelta(entry), 'delta')
+              ),
+              // Description, then the change, then the one-click copy of the command.
+              h('div', { className: 'ah-row-actions', key: 'actions' },
+                entry.hasSnapshot === true
+                  ? iconButton('pencil', opts.t('diff.change'), function () { void opts.openDiff(entry.callId); })
+                  : null,
+                reason.own === '' && reason.ai === ''
+                  ? null
+                  : iconButton(
+                    reasonOpen ? 'chevronUp' : 'chevronDown',
+                    reasonOpen ? opts.t('row.hideReason') : opts.t('row.showReason'),
+                    function () { opts.toggleReason(entry.id); },
+                  ),
+                iconButton(
+                  'copy',
+                  opts.copiedId === entry.id ? opts.t('dock.copied') : opts.t('row.copy'),
+                  function () { opts.copyRow(entry); },
+                  opts.copiedId === entry.id ? 'ah-row-copy ah-icon-ok' : 'ah-row-copy',
+                )
+              )
+            ),
+            reasonOpen && (reason.own !== '' || reason.ai !== '')
+              ? h('div', { className: 'ah-row-reason', key: 'reason' },
+                reason.own === '' ? null : h('div', { className: 'ah-row-reason-own', key: 'own' }, reason.own),
+                reason.ai === ''
+                  ? null
+                  : h('div', { className: 'ah-row-reason-ai' + (reason.own === '' ? ' ah-row-reason-ai-solo' : ''), key: 'ai' },
+                    h('div', { className: 'ah-row-reason-head', key: 'head' },
+                      h('span', { className: 'ah-row-reason-label', key: 'label' }, opts.t(reason.label)),
+                      reason.risk === ''
+                        ? null
+                        : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, opts.t('row.risk') + ' · ' + riskLabel(reason.risk, opts.t))),
+                    h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
+              : null,
+            opts.view.diff !== null && opts.view.diff.callId === entry.callId && opts.view.diff.inline === true ? renderDiff(opts.t, opts.view) : null,
+          ),
+        );
+    }
+
     function ApprovalPage(props) {
       const t = translator(props);
       const view = useStore();
@@ -3026,90 +3133,18 @@ window.__ModuleLoader__.load({
           );
         });
 
-      const rows = visible.map(function (entry) {
-        const chip = chipOf(entry, t);
-        const memory = memoryText(entry, t);
-        const laneTag = rowModelOf(entry);
-        const stamp = stampOf(entry.ts);
-        const reason = reasonBlockOf(entry);
-        const reasonOpen = isReasonOpen(entry.id);
-        const mark = entry.outcome === 'rejected' ? '×' : (entry.outcome === 'allowed-once' ? '✓' : '·');
-        return h('div', { className: 'ah-row', key: entry.id },
-          // Left rail: the decision mark plus a connector, so a dense list still reads
-          // as a timeline rather than a table.
-          h('div', { className: 'ah-rail', key: 'rail' },
-            h('span', { className: 'ah-rail-glyph ah-ink-' + chip.tone }, mark),
-            h('span', { className: 'ah-rail-line' })
-          ),
-          h('div', { className: 'ah-body' },
-            // The two text lines and the actions share one box: the buttons hang off
-            // the *command*, so opening the description below does not move them.
-            h('div', { className: 'ah-main', key: 'main' },
-              h('div', { className: 'ah-line' },
-                h('span', { className: 'ah-tool' }, String(entry.toolName || '—')),
-                h('span', { className: 'ah-chip ah-tone-' + chip.tone }, chipBody(chip, memory, t)),
-                // Lane then date as ONE right-aligned group: "lane · 11-06 08:32:42".
-                // Two separately right-aligned spans put a gap between them (the date
-                // owns `margin-left:auto`), so the pair is wrapped instead.
-                laneTag === null && stamp === '' ? null : h('span', { className: 'ah-row-stamp', key: 'stamp' },
-                  // Structured degradation instead of one ellipsis: the multiplier goes
-                  // first, then the provider, then the model's trailing qualifier. The
-                  // full lane stays in the tooltip, so nothing is lost for good.
-                  laneTag === null ? null : (function () {
-                    const parts = laneParts(laneTag.text);
-                    return h('span', { className: 'ah-lane', title: laneTag.title },
-                      parts.provider === '' ? null : h('span', { className: 'ah-lane-provider' }, parts.provider),
-                      h('span', { className: 'ah-lane-model' },
-                        h('span', { className: 'ah-lane-model-long' }, parts.model),
-                        h('span', { className: 'ah-lane-model-short' }, parts.short)),
-                      parts.price === ' · ' ? null : h('span', { className: 'ah-lane-price' }, parts.price));
-                  })(),
-                  laneTag !== null && stamp !== '' ? h('span', { className: 'ah-row-sep', key: 'sep' }, ' · ') : null,
-                  stamp === '' ? null : h('span', { className: 'ah-time-stamp' }, stamp))
-              ),
-              // Every line of the command is shown: an approval you cannot read is an
-              // approval you are rubber-stamping.
-              h('div', { className: 'ah-line' },
-                h('span', { className: 'ah-args' }, commandOf(entry) === '' ? '—' : displayCommand(commandOf(entry))),
-                deltaChip(rowDelta(entry), 'delta')
-              ),
-              // Description, then the change, then the one-click copy of the command.
-              h('div', { className: 'ah-row-actions', key: 'actions' },
-                entry.hasSnapshot === true
-                  ? iconButton('pencil', t('diff.change'), function () { void openDiff(entry.callId); })
-                  : null,
-                reason.own === '' && reason.ai === ''
-                  ? null
-                  : iconButton(
-                    reasonOpen ? 'chevronUp' : 'chevronDown',
-                    reasonOpen ? t('row.hideReason') : t('row.showReason'),
-                    function () { toggleReason(entry.id); },
-                  ),
-                iconButton(
-                  'copy',
-                  copiedId === entry.id ? t('dock.copied') : t('row.copy'),
-                  function () { copyRow(entry); },
-                  copiedId === entry.id ? 'ah-row-copy ah-icon-ok' : 'ah-row-copy',
-                )
-              )
-            ),
-            reasonOpen && (reason.own !== '' || reason.ai !== '')
-              ? h('div', { className: 'ah-row-reason', key: 'reason' },
-                reason.own === '' ? null : h('div', { className: 'ah-row-reason-own', key: 'own' }, reason.own),
-                reason.ai === ''
-                  ? null
-                  : h('div', { className: 'ah-row-reason-ai' + (reason.own === '' ? ' ah-row-reason-ai-solo' : ''), key: 'ai' },
-                    h('div', { className: 'ah-row-reason-head', key: 'head' },
-                      h('span', { className: 'ah-row-reason-label', key: 'label' }, t(reason.label)),
-                      reason.risk === ''
-                        ? null
-                        : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, t('row.risk') + ' · ' + riskLabel(reason.risk, t))),
-                    h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
-              : null,
-            view.diff !== null && view.diff.callId === entry.callId && view.diff.inline === true ? renderDiff(t, view) : null,
-          ),
-        );
-      });
+      // One bag for the row renderer: its callbacks stay in the component, the row body
+      // stays testable without a component tree.
+      const rowOpts = {
+        t: t,
+        view: view,
+        copiedId: copiedId,
+        isReasonOpen: isReasonOpen,
+        openDiff: openDiff,
+        copyRow: copyRow,
+        toggleReason: toggleReason,
+      };
+      const rows = visible.map(function (entry) { return approvalRowNode(entry, rowOpts); });
 
 
 
@@ -3387,6 +3422,7 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    // ─── 05 · 组件 · ConfigCard：插件页「高级设置」卡 ────────────
     function ConfigCard(props) {
       const t = translator(props);
       const view = useStore();
@@ -3502,6 +3538,17 @@ window.__ModuleLoader__.load({
           );
         })),
         numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
+        h('div', { className: 'ah-settings-row', key: 'debug-review' },
+          h('span', { className: 'ah-settings-label' }, t('config.debugReview'), h('span', { className: 'ah-settings-note' }, t('config.debugReviewNote'))),
+          h('button', {
+            type: 'button',
+            className: 'ah-switch' + (draft.debugReview === true ? ' ah-switch-on' : ''),
+            role: 'switch',
+            'aria-checked': draft.debugReview === true ? 'true' : 'false',
+            title: t('config.debugReview'),
+            onClick: function () { change('debugReview', draft.debugReview !== true); },
+          }, h('span', { className: 'ah-switch-knob' }))
+        ),
         h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
           h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
           h('button', {
@@ -3690,6 +3737,7 @@ window.__ModuleLoader__.load({
       return tool + '\u0000fp:' + fp;
     }
 
+    // ─── 05 · 组件 · MemoryBody：记忆页 ───────────────────────────
     function MemoryBody(props) {
       const t = translator(props);
       const view = useStore();
@@ -3920,6 +3968,7 @@ window.__ModuleLoader__.load({
      * The reviewer's counters, on their own surface. They used to be two hint spans in
      * the toolbar, which is where a number nobody can act on goes to die.
      */
+    // ─── 05 · 组件 · StatsPanel：统计页 ───────────────────────────
     function StatsPanel(props) {
       const t = translator(props);
       const sessionId = props !== null && props !== undefined && typeof props.sessionId === 'string' ? props.sessionId : '';
@@ -4279,6 +4328,7 @@ window.__ModuleLoader__.load({
         rowFingerprintOf: rowFingerprintOf,
         riskLabel: riskLabel,
         reasonBlockOf: reasonBlockOf,
+        approvalRowNode: approvalRowNode,
         rowModelOf: rowModelOf,
       },
     };
