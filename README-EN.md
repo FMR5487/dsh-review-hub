@@ -143,9 +143,6 @@ Details and pitfalls: [README-AI.md](README-AI.md) and [AGENT.md](AGENT.md).
 
 ## FAQ
 
-**How do I leave one session unattended, without the reviewer pestering it?**
-Stop it for that session only: turn on "per-session" inside it, then switch AI review off. Every other session keeps its reviewer — this is a per-session switch, not a global one.
-
 **Why did the AI never show up?**
 Hard risk (6 classes) never reaches it; or there is no model service, the call timed out, or the breaker is open. The row records `aiSource`.
 
@@ -162,6 +159,9 @@ It follows the session's own model by default; you can pin a cheap lane in setti
 
 **Which model should I use?**
 Good enough is enough: expensive is not the same as good, but the smaller the model, the easier it gets things wrong.
+
+**How do I leave one session unattended, without the reviewer pestering it?**
+Stop it for that session only: turn on "per-session" inside it, then switch AI review off. Every other session keeps its reviewer — this is a per-session switch, not a global one.
 
 **Multiple windows?**
 Fine, but each window tracks its own seen/baseline watermark, so the badge can differ between them.

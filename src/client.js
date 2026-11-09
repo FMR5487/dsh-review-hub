@@ -265,6 +265,8 @@ window.__ModuleLoader__.load({
       'preview.recent': '本会话最近 6 条',
       'preview.pending': '待你审批',
       'preview.noPending': '当前没有待审',
+      'dock.pendingReviewing': 'AI 正在审阅… 已 {sec}s {spin}',
+      'dock.pendingFailed': 'AI 审批超时，未给出结论 —— 请你判断',
       'config.promptAppend': '追加提示词（可为空）',
       'config.promptAppendNote': '会接在固定提示词之后。固定规则由程序强制执行，与本段冲突的部分一律忽略——这里只能加偏好，改不掉红线',
       'config.reviewerLocale': 'AI 理由语言',
@@ -529,6 +531,8 @@ window.__ModuleLoader__.load({
       'preview.recent': 'Last 6 in this session',
       'preview.pending': 'Waiting for you',
       'preview.noPending': 'Nothing waiting right now',
+      'dock.pendingReviewing': 'the reviewer is thinking… {sec}s {spin}',
+      'dock.pendingFailed': 'the reviewer timed out without a verdict — please decide',
       'config.promptAppend': 'Extra prompt (optional)',
       'config.promptAppendNote': 'Appended after the fixed prompt. The fixed rules are enforced by code; anything here that conflicts is ignored — this adds preference, never removes a red line',
       'config.reviewerLocale': 'Reviewer reason language',
@@ -1316,6 +1320,10 @@ window.__ModuleLoader__.load({
      * context can cover.
      */
     const adviceOverlay = { node: null, signature: '', dismissed: new Set(), anchor: null };
+    // While the reviewer is still thinking, the card has nothing to report but must not look
+    // frozen: a 500ms tick cycles the spinner glyph. The timer is owned here and cleared the
+    // moment no pending row is being reviewed, so a re-mount cannot leak it.
+    const reviewSpin = { frame: 0, timer: null, glyphs: ['│', '/', '─', '\\'] };
 
     function removeAdviceOverlay() {
       if (adviceOverlay.node !== null && adviceOverlay.node.parentNode !== null) {
@@ -2400,14 +2408,32 @@ window.__ModuleLoader__.load({
       // Same rule for the approval list: if the human is looking at this session's rows,
       // a card repeating them is noise. Other sessions still get their card.
       const listIsOpen = view.pageVisible === true && (view.pageSid === ownSid || ownSid === '');
+      // Own the spinner tick here: one timer for as long as any pending row is still being
+      // reviewed, cleared as soon as none is — a re-mount can never leave it running.
+      const anyReviewing = view.pending.some(function (row) { return belongsHere(row) && row.aiReviewed !== true; });
+      if (anyReviewing === true && reviewSpin.timer === null) {
+        reviewSpin.timer = setInterval(function () { reviewSpin.frame += 1; notify(); }, 500);
+      } else if (anyReviewing === false && reviewSpin.timer !== null) {
+        clearInterval(reviewSpin.timer);
+        reviewSpin.timer = null;
+      }
       if (view.config !== null && view.config.pendingCard === true && listIsOpen === false && adviceOverlay.node === null) {
         for (const row of view.pending) {
           if (belongsHere(row) === false) continue;
           if (dismissed.has(String(row.id))) continue;
-          const advice = typeof row.aiReason === 'string' && row.aiReason !== ''
-            ? t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason })
-            : t('dock.pendingLine', { time: stampOf(row.startedAt) });
-          const dangerous = row.riskLevel === 'high';
+          // Three states, not two: the reviewer is still thinking / it answered / it never
+          // answered. The last one must say so plainly instead of spinning forever.
+          const reviewing = row.aiReviewed !== true;
+          const failed = reviewing === false && (typeof row.aiReason !== 'string' || row.aiReason === '');
+          const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
+          const glyph = reviewSpin.glyphs[reviewSpin.frame % reviewSpin.glyphs.length];
+          const advice = reviewing === true
+            ? t('dock.pendingReviewing', { sec: waited, spin: glyph })
+            : (failed === true
+              ? t('dock.pendingFailed')
+              : t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason }));
+          // A failed review is as serious as a hard risk: both get the red card.
+          const dangerous = row.riskLevel === 'high' || failed === true;
           // Two independent switches: the advice card and the high-risk card can each be
           // silenced without turning off the plain "waiting for you" line.
           const hasAdvice = typeof row.aiReason === 'string' && row.aiReason !== '';
