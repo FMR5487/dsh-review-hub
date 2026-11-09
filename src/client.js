@@ -164,6 +164,7 @@ window.__ModuleLoader__.load({
       'list.divider': '以上为新增审批',
       'row.showReason': '展开描述',
       'row.hideReason': '收起描述',
+      'row.aiReject': 'AI 打回理由',
       'row.copy': '复制命令',
       'row.waiting': '正在等待人工审批…',
       'row.highRisk': '高危',
@@ -398,6 +399,7 @@ window.__ModuleLoader__.load({
       'list.divider': 'New approvals above',
       'row.showReason': 'Show the description',
       'row.hideReason': 'Hide the description',
+      'row.aiReject': 'Reviewer reason',
       'row.copy': 'Copy the command',
       'row.waiting': 'Waiting for you…',
       'row.highRisk': 'High risk',
@@ -1001,6 +1003,19 @@ window.__ModuleLoader__.load({
       if (isDescription(entry.aiReason)) return entry.aiReason;
       if (isDescription(entry.reason)) return entry.reason;
       return '';
+    }
+
+    /**
+     * The description panel once the reviewer stepped in. `reason` is what the caller
+     * said it was doing; `aiReason` is the reviewer's own words when it sent the call
+     * back. A row the reviewer never touched keeps the single stored description, so
+     * nothing that used to show disappears.
+     */
+    function reasonBlockOf(entry) {
+      const own = isDescription(entry.reason) ? entry.reason : '';
+      const ai = isDescription(entry.aiReason) ? entry.aiReason : '';
+      if (aiEscalated(entry) === false) return { own: ai !== '' ? ai : own, ai: '' };
+      return { own: own, ai: ai !== '' && ai !== own ? ai : '' };
     }
 
     /** The payload keys that are worth showing on their own, most specific first. */
@@ -1799,6 +1814,11 @@ window.__ModuleLoader__.load({
       '.ah-main .ah-line + .ah-line{padding-right:78px}',
       '.ah-row-actions{position:absolute;right:0;bottom:-7px;display:flex;align-items:center;gap:2px}',
       '.ah-row-reason{margin-top:4px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.12));font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary,#b6bcc4);white-space:pre-wrap;overflow-wrap:anywhere}',
+      // The reviewer's reason is its own paragraph: a hairline separates "what the caller
+      // said" from "why the reviewer stopped it", so neither can be mistaken for the other.
+      '.ah-row-reason-ai{margin-top:5px;padding-top:5px;border-top:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.22))}',
+      '.ah-row-reason-ai-solo{margin-top:0;padding-top:0;border-top:0}',
+      '.ah-row-reason-label{font-weight:600;color:var(--dsw-alias-label-primary,#fff)}',
       '.ah-row-model{flex:0 1 auto;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       // "AI 打回" is a property of the row, not of the AI lane: the chip already carries the
       // row's tone (warn / muted / danger), so the prefix inherits that colour instead of
@@ -2913,7 +2933,7 @@ window.__ModuleLoader__.load({
         const memory = memoryText(entry, t);
         const laneTag = rowModelOf(entry);
         const stamp = stampOf(entry.ts);
-        const reason = reasonOf(entry);
+        const reason = reasonBlockOf(entry);
         const reasonOpen = isReasonOpen(entry.id);
         const mark = entry.outcome === 'rejected' ? '×' : (entry.outcome === 'allowed-once' ? '✓' : '·');
         return h('div', { className: 'ah-row', key: entry.id },
@@ -2960,7 +2980,7 @@ window.__ModuleLoader__.load({
                 entry.hasSnapshot === true
                   ? iconButton('pencil', t('diff.change'), function () { void openDiff(entry.callId); })
                   : null,
-                reason === ''
+                reason.own === '' && reason.ai === ''
                   ? null
                   : iconButton(
                     reasonOpen ? 'chevronUp' : 'chevronDown',
@@ -2975,7 +2995,15 @@ window.__ModuleLoader__.load({
                 )
               )
             ),
-            reasonOpen && reason !== '' ? h('div', { className: 'ah-row-reason', key: 'reason' }, reason) : null,
+            reasonOpen && (reason.own !== '' || reason.ai !== '')
+              ? h('div', { className: 'ah-row-reason', key: 'reason' },
+                reason.own === '' ? null : h('div', { className: 'ah-row-reason-own', key: 'own' }, reason.own),
+                reason.ai === ''
+                  ? null
+                  : h('div', { className: 'ah-row-reason-ai' + (reason.own === '' ? ' ah-row-reason-ai-solo' : ''), key: 'ai' },
+                    h('span', { className: 'ah-row-reason-label' }, t('row.aiReject') + ' · '),
+                    reason.ai))
+              : null,
             view.diff !== null && view.diff.callId === entry.callId && view.diff.inline === true ? renderDiff(t, view) : null,
           ),
         );
@@ -4113,6 +4141,7 @@ window.__ModuleLoader__.load({
         knobKeys: KNOB_KEYS,
         configCard: ConfigCard,
         aiEscalated: aiEscalated,
+        reasonBlockOf: reasonBlockOf,
         rowModelOf: rowModelOf,
       },
     };

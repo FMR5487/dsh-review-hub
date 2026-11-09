@@ -268,6 +268,13 @@ export const cases = [
 			assertEqual(bag.aiEscalated({ decidedBy: 'ai', aiSource: 'ai' }), false, 'AI 自己放行不算打回');
 			assertEqual(bag.aiEscalated({ decidedBy: 'human' }), false, '没被审过的人工作业');
 			assertEqual(bag.aiEscalated({ decidedBy: 'memory', aiSource: 'ai' }), false, '记忆在 AI 之前，不可能既是记忆又被 AI 打回');
+			// 展开描述：AI 打回的条目两块都留（调用方的说法 + 评审自己的理由），其余一块
+			const two = bag.reasonBlockOf({ decidedBy: 'human', aiSource: 'ai', reason: 'escalate sandbox', aiReason: '脚本来自临时目录未经审核' });
+			assertEqual(two.own, 'escalate sandbox', '调用方的说法不能被 AI 的理由顶掉');
+			assertEqual(two.ai, '脚本来自临时目录未经审核', 'AI 打回理由要显示');
+			assertEqual(bag.reasonBlockOf({ decidedBy: 'human', aiSource: 'ai', reason: 'same', aiReason: 'same' }).ai, '', '两块同文不重复');
+			assertEqual(bag.reasonBlockOf({ decidedBy: 'human', reason: 'manual note' }).ai, '', '没被 AI 看过就没有 AI 理由');
+			assertEqual(bag.reasonBlockOf({ decidedBy: 'ai', aiSource: 'ai', aiReason: 'looks safe' }).own, 'looks safe', 'AI 放行的行仍显示放行理由');
 			// 日期左边的模型名：评审车道优先于会话车道
 			assertEqual(bag.rowModelOf({ decidedBy: 'human', aiModel: 'p/reviewer', routeModel: 'p/lane' }).text, 'p/reviewer');
 			assertEqual(bag.rowModelOf({ decidedBy: 'ai', routeModel: 'p/lane' }).text, 'p/lane');

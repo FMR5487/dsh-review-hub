@@ -350,7 +350,7 @@ async function answerer(request, next) {
 				// Only a real verdict carries an advice line. "reviewer reply was not a
 				// verdict" and friends are diagnostics (aiSource says which), not something
 				// a human should read as the AI's opinion.
-				if (aiNote.source === 'ai' && typeof aiNote.reason === 'string' && aiNote.reason !== '') row.aiReason = aiNote.reason.slice(0, 160);
+				if ((aiNote.source === 'ai' || aiNote.source === 'cache') && typeof aiNote.reason === 'string' && aiNote.reason !== '') row.aiReason = aiNote.reason.slice(0, 160);
 			}
 			// The card is already on screen: push the advice into it the moment it exists.
 			activeStore?.announce?.({ kind: 'pending' });
@@ -444,7 +444,9 @@ async function answerer(request, next) {
 		finished.aiSource = aiNote.source;
 		// Which lane judged it: a pinned reviewer can differ from the session's own lane.
 		if (typeof aiNote.model === 'string' && aiNote.model !== '') finished.aiModel = aiNote.model;
-		if (aiNote.source === 'ai' && typeof aiNote.reason === 'string' && aiNote.reason !== '') finished.aiReason = aiNote.reason;
+		// A cached verdict is the same verdict, so it carries the same reason; dropping it
+		// left every cache-served escalation with nothing to show under "AI 打回理由".
+		if ((aiNote.source === 'ai' || aiNote.source === 'cache') && typeof aiNote.reason === 'string' && aiNote.reason !== '') finished.aiReason = aiNote.reason;
 	}
 	if (store !== undefined) await store.record(finished).catch(() => undefined);
 
