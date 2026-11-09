@@ -553,7 +553,7 @@ export function createStore(options = {}) {
 		// counters: those reset with the host, and the panel prints them directly under
 		// row-derived totals, so a restart made "3 approvals · 3 allowed" sit next to
 		// "1 call · ask 1" and read as "the AI only saw one of them".
-		const reviewer = { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, byModel: {} };
+		const reviewer = { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0, byModel: {} };
 		for (const row of rows) {
 			if (row.outcome === 'allowed-once') out.allow += 1;
 			else if (row.outcome === 'rejected') out.deny += 1;
@@ -568,7 +568,7 @@ export function createStore(options = {}) {
 			const source = typeof row.aiSource === 'string' ? row.aiSource : '';
 			if (source !== '') {
 				const lane = typeof row.aiModel === 'string' && row.aiModel !== '' ? row.aiModel : '(unknown)';
-				const bucket = reviewer.byModel[lane] ?? { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, lastTs: 0 };
+				const bucket = reviewer.byModel[lane] ?? { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, lastTs: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0 };
 				// A cache hit is a verdict *without* a model call, so it is counted apart —
 				// exactly how review.js counts it live.
 				if (source === 'ai') {
@@ -592,6 +592,18 @@ export function createStore(options = {}) {
 					// and could not answer, which is what "兜底" means.
 					reviewer.fallbacks += 1;
 					bucket.fallbacks += 1;
+				}
+				const usage = row.aiUsage === null || typeof row.aiUsage !== 'object' ? null : row.aiUsage;
+				if (usage !== null) {
+					const prompt = Number(usage.promptTokens) || 0;
+					const completion = Number(usage.completionTokens) || 0;
+					const cached = Number(usage.cacheRead) || 0;
+					reviewer.promptTokens += prompt;
+					reviewer.completionTokens += completion;
+					reviewer.cacheReadTokens += cached;
+					bucket.promptTokens += prompt;
+					bucket.completionTokens += completion;
+					bucket.cacheReadTokens += cached;
 				}
 				bucket.lastTs = Math.max(bucket.lastTs, Number(row.ts) || 0);
 				reviewer.byModel[lane] = bucket;

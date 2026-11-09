@@ -164,6 +164,9 @@ window.__ModuleLoader__.load({
       'stats.lanes': 'AI 调用情况',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / 兜底 {fallback}',
       'stats.cacheLine': '审批缓存 {total} 条 · 命中 {hits} 次',
+      'stats.tokensLine': 'Token 总用量 输入 {input} · 输出 {output} · 缓存读取 {cached}',
+      'stats.tokens': 'Token',
+      'stats.hitRate': '缓存命中',
       'stats.lane': '车道',
       'stats.calls': '调用',
       'stats.allow': 'allow',
@@ -256,6 +259,8 @@ window.__ModuleLoader__.load({
       'preview.recent': '本会话最近 6 条',
       'preview.pending': '待你审批',
       'preview.noPending': '当前没有待审',
+      'config.reasonChars': 'AI 理由长度上限（字符）',
+      'config.reasonCharsNote': '40–400，默认 80。中文理由通常比英文长，嫌理由太短就调大',
       'config.cacheTtl': 'AI 缓存过期（毫秒）',
       'config.cacheTtlNote': '600000 = 10 分钟；0 = 关闭缓存（每次都调模型）。缓存键跨会话共用：请求方档位 + 参数指纹。',
       'config.snapshotDays': '快照保留天数',
@@ -412,6 +417,9 @@ window.__ModuleLoader__.load({
       'stats.lanes': 'AI calls',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / fallback {fallback}',
       'stats.cacheLine': 'approval cache {total} entries · {hits} hits',
+      'stats.tokensLine': 'tokens: input {input} · output {output} · cache read {cached}',
+      'stats.tokens': 'tokens',
+      'stats.hitRate': 'cache hit',
       'stats.lane': 'Lane',
       'stats.calls': 'calls',
       'stats.allow': 'allow',
@@ -504,6 +512,8 @@ window.__ModuleLoader__.load({
       'preview.recent': 'Last 6 in this session',
       'preview.pending': 'Waiting for you',
       'preview.noPending': 'Nothing waiting right now',
+      'config.reasonChars': 'Reviewer reason length cap (chars)',
+      'config.reasonCharsNote': '40-400, default 80. Chinese reasons run longer than English ones — raise it if they feel cut off',
       'config.cacheTtl': 'AI verdict cache TTL (ms)',
       'config.cacheTtlNote': '600000 = 10 minutes; 0 disables the cache (every call reaches the model). Keys are shared across sessions: requester class + argument fingerprint.',
       'config.snapshotDays': 'Snapshot retention (days)',
@@ -3522,6 +3532,7 @@ window.__ModuleLoader__.load({
         numberField('maxEntriesPerSession', t('config.maxEntries')),
         numberField('reviewTimeoutMs', t('config.timeout')),
         numberField('aiCacheTtlMs', t('config.cacheTtl'), t('config.cacheTtlNote')),
+        numberField('aiReasonChars', t('config.reasonChars'), t('config.reasonCharsNote')),
         numberField('aiBudgetPerTurn', t('config.budget')),
         numberField('aiBreakerFails', t('config.breaker')),
         // The deltas on the built-in AI baseline. A textarea, not an input: a dozen tool
@@ -4017,6 +4028,11 @@ window.__ModuleLoader__.load({
         : [
           t('stats.reviewerInline', { allow: num(reviewer.allows), ask: num(reviewer.asks), fallback: num(reviewer.fallbacks) }),
           t('stats.cacheLine', { total: num(reviewer.cacheSize), hits: num(reviewer.cacheHits) }),
+          t('stats.tokensLine', {
+            input: num(reviewer.promptTokens),
+            output: num(reviewer.completionTokens),
+            cached: num(reviewer.cacheReadTokens),
+          }),
         ];
 
       return h('div', { className: 'ah-panel ah-stats-tab' }, [
@@ -4036,6 +4052,8 @@ window.__ModuleLoader__.load({
               ' · ' + t('stats.ask') + ' ' + num(bucket.asks),
               ' · ' + t('stats.fallback') + ' ' + num(bucket.fallbacks),
               ' · ' + t('stats.cache') + ' ' + num(bucket.cacheHits),
+              ' · ' + t('stats.tokens') + ' ' + num(bucket.promptTokens) + '/' + num(bucket.completionTokens),
+              ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
             ].join('')),
           ]);
         }),
