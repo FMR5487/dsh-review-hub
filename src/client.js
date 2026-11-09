@@ -1800,7 +1800,10 @@ window.__ModuleLoader__.load({
       '.ah-row-actions{position:absolute;right:0;bottom:-7px;display:flex;align-items:center;gap:2px}',
       '.ah-row-reason{margin-top:4px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.12));font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary,#b6bcc4);white-space:pre-wrap;overflow-wrap:anywhere}',
       '.ah-row-model{flex:0 1 auto;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
-      '.ah-chip-pre{color:var(--ah-ai-fg,#2fa84f);font-weight:600}',
+      // "AI 打回" is a property of the row, not of the AI lane: the chip already carries the
+      // row's tone (warn / muted / danger), so the prefix inherits that colour instead of
+      // pinning the AI green — otherwise "AI 打回 · 人工拒绝" paints green next to red.
+      '.ah-chip-pre{color:inherit;font-weight:600}',
       '.ah-chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;padding:1px 6px;border-radius:999px;border:1px solid currentColor}',
       '.ah-chip-short{display:none}',
       // A right sidebar halves this pane; the tool name and the date must never lose.

@@ -170,6 +170,7 @@ export const cases = [
 				assertTrue(css.indexOf('.ah-card-memory') > 0, '有记忆提示卡样式');
 				assertTrue(css.indexOf('.ah-time') > 0, '日期输入有样式');
 				assertTrue(css.indexOf('border-radius:8px') > 0, '日期输入圆角');
+				assertTrue(css.indexOf('.ah-chip-pre{color:inherit') > 0, '「AI 打回」前缀跟随所在条目的配色');
 			});
 		},
 	},
