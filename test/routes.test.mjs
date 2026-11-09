@@ -37,6 +37,47 @@ export const cases = [
 		},
 	},
 	{
+		name: '写围栏：proof 为空时行为与现在逐字一致，指定 cookie 后只挡写方法',
+		async fn() {
+			const base = { host: '127.0.0.1:12345' };
+			const off = { cookie: '', header: '' };
+			// 未指定 proof = 关：读和写都放行（今天的行为）
+			assertEqual(isTrusted({ headers: { ...base } }, { mode: 'write', proof: off }), true, 'proof 为空时写放行');
+			assertEqual(isTrusted({ headers: { ...base } }, { mode: 'read', proof: off }), true, 'proof 为空时读放行');
+			// 指定 cookie 后：写必须带、读不必带
+			const proof = { cookie: 'dsh-auth', header: '' };
+			assertEqual(isTrusted({ headers: { ...base } }, { mode: 'write', proof }), false, '写：没有 cookie 拒绝');
+			assertEqual(isTrusted({ headers: { ...base, cookie: 'other=1' } }, { mode: 'write', proof }), false, '写：别的 cookie 不算');
+			assertEqual(isTrusted({ headers: { ...base, cookie: 'dsh-auth=abc; other=1' } }, { mode: 'write', proof }), true, '写：带对 cookie 放行');
+			assertEqual(isTrusted({ headers: { ...base } }, { mode: 'read', proof }), true, '读：不带也放行（EventSource 依赖这条）');
+			// header 形式同理
+			const headerProof = { cookie: '', header: 'x-dsh-panel' };
+			assertEqual(isTrusted({ headers: { ...base } }, { mode: 'write', proof: headerProof }), false, '写：没有 header 拒绝');
+			assertEqual(isTrusted({ headers: { ...base, 'x-dsh-panel': '1' } }, { mode: 'write', proof: headerProof }), true, '写：带 header 放行');
+		},
+	},
+	{
+		name: '探针：记录 header 名与 cookie 名，绝不记录值；行数有上限',
+		async fn() {
+			const { mkdtemp } = await import('node:fs/promises');
+			const { tmpdir } = await import('node:os');
+			const { join } = await import('node:path');
+			const { readFile } = await import('node:fs/promises');
+			const dir = await mkdtemp(join(tmpdir(), 'rh-probe-'));
+			const file = join(dir, 'http-probe.log');
+			const { createProbe } = await import('../src/routes.js');
+			const probe = createProbe(file);
+			probe.note({ method: 'POST', url: '/x', headers: { host: '127.0.0.1:1', cookie: 'dsh-auth=SECRET; b=2', 'user-agent': 'UA' } }, { mode: 'write' });
+			probe.note({ method: 'POST', url: '/probe', headers: {} }, { source: 'client', report: { origin: 'http://127.0.0.1:1', cookieNames: ['dsh-auth'], globals: [] } });
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			const text = await readFile(file, 'utf8');
+			assertTrue(text.includes('dsh-auth'), '记录了 cookie 名');
+			assertTrue(text.includes('SECRET') === false, '绝不记录 cookie 值');
+			assertTrue(text.includes('"source":"client"'), '记录了面板自报');
+			assertTrue(text.split('\n').filter((line) => line.startsWith('{')).length === 2, '两行记录');
+		},
+	},
+	{
 		name: 'health：版本、answerer、pending 与 settings 都在',
 		async fn() {
 			const { byPath } = await harness('routes-health');

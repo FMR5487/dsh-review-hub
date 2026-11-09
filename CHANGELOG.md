@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 未发版 · S2 取证与写围栏
+
+- **新增请求头取证**（插件配置 `debugHeaders: true`，默认关）：每个请求把 header **名**列表、cookie **名**列表、`sec-fetch-*` 取值、`origin`/`referer` 追加到 `<root>/http-probe.log`，**绝不记录值**，最多 400 行；同时新增 `POST /api/review-hub/probe` 让面板上报它自己 `document.cookie` 能看到的键名（探针关时该路由不存在）。用途：上次 S2 靠猜「浏览器会发某个头」把面板打成全 403，这次先取证再设计。
+- **新增写围栏**（`writeProofCookie` / `writeProofHeader`，默认空 = 关）：围栏按**请求方法**判定而不是按路由——`/memory` 与 `/config` 既可读也可写，按路由判会把它们的 POST 漏出去。默认关闭时行为与 1.0.0 逐字一致；读与 SSE 永不拦（EventSource 既不发 Origin 也不带 proof）。
+- 新导出 `carriesProof()` / `createProbe()` 供测试直接断言；`test/routes.test.mjs` 新增 2 条用例（proof 为空/指定 cookie/指定 header × 读与写；探针只记名字不记值且有行数上限）。测试 94 → **96 passed**。
+
 ## 未发版 · 文档整理
 
 - **移除 README / README-EN 底部的 Star 趋势区块**（上一提交加的，按用户要求撤掉）。

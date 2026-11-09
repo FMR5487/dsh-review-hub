@@ -588,6 +588,31 @@ window.__ModuleLoader__.load({
       return api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
     }
 
+    /**
+     * One-shot header-probe self-report, so the server can tell what the panel's own
+     * JavaScript can see (cookie names) versus what only the shell sends. Inert unless
+     * the plugin config turns the probe on: the route is absent then and this 404s.
+     * Runs once per page load; any failure is ignored — forensics is not a feature.
+     */
+    let probeReported = false;
+    function reportProbe() {
+      if (probeReported === true) return;
+      probeReported = true;
+      try {
+        const cookieNames = String(document.cookie || '')
+          .split(';')
+          .map(function (part) { return part.split('=')[0].trim(); })
+          .filter(function (name) { return name !== ''; });
+        void api('/probe', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ origin: String(location.origin || ''), cookieNames: cookieNames, globals: [] }),
+        }).catch(function () {});
+      } catch (error) {
+        // No document, no cookies, no probe. Nothing to do.
+      }
+    }
+
     let revertArmTimer = null;
     /** The host re-reads a view's label only when the slot table changes, so the
      *  badge is applied by re-registering that one seat (id and order unchanged). */
@@ -2144,6 +2169,7 @@ window.__ModuleLoader__.load({
           document.addEventListener('visibilitychange', onVisibility);
         }
 
+        reportProbe();
         void loadOnce().then(function () {
           if (alive === true) openStream();
         });

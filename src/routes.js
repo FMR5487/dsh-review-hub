@@ -2,7 +2,7 @@
  * The hub's HTTP face. Read-only except for settings, memory removal and the
  * gated session clear — the panel never writes files or session events.
  */
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { toCsv, toJson, fileName } from './export.js';
 import { computeDiff } from './diff.js';
 import { splitRoute } from './store.js';
@@ -22,6 +22,7 @@ export const ROUTES = Object.freeze({
 	models: ROUTE_PREFIX + '/models',
 	files: ROUTE_PREFIX + '/files',
 	stream: ROUTE_PREFIX + '/stream',
+	probe: ROUTE_PREFIX + '/probe',
 });
 
 const CONFIG_FIELDS = [
@@ -35,6 +36,28 @@ function isLoopback(host) {
 	if (typeof host !== 'string' || host === '') return false;
 	const hostname = host.startsWith('[') ? host.slice(1, host.indexOf(']')) : host.split(':')[0];
 	return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+}
+
+/**
+ * Does the request carry the proof we settled on after the header probe?
+ *
+ * The rule is data, not code: the probe log tells us which signal the panel sends
+ * and curl does not, and `writeProofCookie` / `writeProofHeader` name it. Both
+ * empty (the default) means "no proof required" — the gate is off.
+ */
+export function carriesProof(req, proof) {
+	if (proof === undefined || proof === null) return true;
+	const cookieName = typeof proof.cookie === 'string' ? proof.cookie : '';
+	const headerName = typeof proof.header === 'string' ? proof.header : '';
+	if (cookieName === '' && headerName === '') return true;
+	const headers = req?.headers ?? {};
+	if (cookieName !== '') {
+		const cookie = headers.cookie;
+		if (typeof cookie !== 'string') return false;
+		if (cookie.split(';').some((part) => part.split('=')[0].trim() === cookieName) === false) return false;
+	}
+	if (headerName !== '' && headers[headerName.toLowerCase()] === undefined) return false;
+	return true;
 }
 
 /** Browser-only fence: loopback host, same-origin Origin, and a browser-set fetch context. */
@@ -61,6 +84,10 @@ export function isTrusted(req, options = {}) {
 		const site = req?.headers?.['sec-fetch-site'];
 		return site === 'same-origin' || site === 'same-site' || site === 'none';
 	}
+	// Write methods must carry the proof, once one has been chosen from the probe log.
+	// Reads stay open on purpose: EventSource sends neither Origin nor the proof, and a
+	// GET from this surface only ever returns JSON the browser will not execute.
+	if (options.mode === 'write') return carriesProof(req, options.proof);
 	return true;
 }
 
@@ -75,6 +102,53 @@ function sendText(res, code, body, headers = {}) {
 	res.statusCode = code;
 	for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
 	res.end(body);
+}
+
+const PROBE_MAX_LINES = 400;
+
+/**
+ * Header forensics for the HTTP fence. Records header *names* (plus the cookie names
+ * and the fetch-context values, which are what a fence would key on) — never values.
+ * Bounded and fire-and-forget: a probe must not be able to break or fill a request.
+ */
+export function createProbe(file) {
+	let written = 0;
+	let full = false;
+	function note(req, extra = {}) {
+		if (full === true) return;
+		try {
+			const headers = req?.headers ?? {};
+			const cookie = typeof headers.cookie === 'string' ? headers.cookie : '';
+			if (written === 0) {
+				void appendFile(file, '# review-hub http probe — header names and cookie names only\n').catch(() => undefined);
+			}
+			written += 1;
+			if (written > PROBE_MAX_LINES) {
+				full = true;
+				void appendFile(file, '# probe stopped (line cap reached)\n').catch(() => undefined);
+				return;
+			}
+			const line = JSON.stringify({
+				at: Date.now(),
+				source: extra.source ?? 'http',
+				method: req?.method ?? 'GET',
+				url: String(req?.url ?? ''),
+				mode: extra.mode,
+				headerNames: Object.keys(headers).sort(),
+				cookieNames: cookie === '' ? [] : cookie.split(';').map((part) => part.split('=')[0].trim()).filter((name) => name !== ''),
+				origin: headers.origin ?? null,
+				referer: headers.referer ?? null,
+				secFetchSite: headers['sec-fetch-site'] ?? null,
+				secFetchMode: headers['sec-fetch-mode'] ?? null,
+				userAgent: headers['user-agent'] ?? null,
+				report: extra.report,
+			});
+			void appendFile(file, line + '\n').catch(() => undefined);
+		} catch {
+			// Forensics is never allowed to be a failure mode of the API.
+		}
+	}
+	return { note, file };
 }
 
 async function readBody(req) {
@@ -266,12 +340,19 @@ function modelView(catalog, settings, session) {
  */
 export function createRoutes(deps) {
 	const store = deps.store;
+	const probe = typeof deps.probeFile === 'string' && deps.probeFile !== '' ? createProbe(deps.probeFile) : undefined;
 	const settings = () => (typeof deps.settings === 'function' ? deps.settings() : {});
 	const pendingView = typeof deps.pendingView === 'function' ? deps.pendingView : () => [];
 
 	const guard = (handler, methods) => async (req, res) => {
 		try {
-			if (isTrusted(req, { strictOrigin: deps.strictOrigin === true }) === false) {
+			const method = req?.method ?? 'GET';
+			// The fence keys on the verb, not the route: /memory and /config are both
+			// readable and writable, so "this route is a GET route" would let their POST
+			// halves through.
+			const mode = method === 'GET' || method === 'HEAD' ? 'read' : 'write';
+			probe?.note(req, { mode });
+			if (isTrusted(req, { strictOrigin: deps.strictOrigin === true, mode, proof: deps.proof }) === false) {
 				sendJson(res, 403, { error: 'forbidden' });
 				return;
 			}
@@ -287,7 +368,7 @@ export function createRoutes(deps) {
 
 	const urlOf = (req) => new URL(req?.url ?? '/', 'http://localhost');
 
-	return [
+	const routes = [
 		{
 			kind: 'exact',
 			path: ROUTES.health,
@@ -675,6 +756,40 @@ export function createRoutes(deps) {
 			}, ['GET', 'HEAD']),
 		},
 	];
+
+	if (probe !== undefined) {
+		routes.push({
+			kind: 'exact',
+			path: ROUTES.probe,
+			handler: guard(async (req, res) => {
+				if (req.method !== 'POST') {
+					sendJson(res, 405, { error: 'method not allowed' });
+					return;
+				}
+				let report;
+				try {
+					report = await readBody(req);
+				} catch {
+					report = undefined;
+				}
+				probe.note({ method: 'POST', url: ROUTES.probe, headers: {} }, { source: 'client', report: clipReport(report) });
+				sendJson(res, 200, { ok: true });
+			}, ['POST']),
+		});
+	}
+
+	return routes;
+}
+
+/** The panel's self-report is untrusted input: keep only the handful of fields we read. */
+function clipReport(report) {
+	if (report === null || typeof report !== 'object') return null;
+	const names = (value, cap) => (Array.isArray(value) ? value.filter((item) => typeof item === 'string').slice(0, cap) : []);
+	return {
+		origin: typeof report.origin === 'string' ? report.origin.slice(0, 120) : null,
+		cookieNames: names(report.cookieNames, 20),
+		globals: names(report.globals, 20),
+	};
 }
 
 export function registerRoutes(server, deps) {
