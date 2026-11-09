@@ -1,7 +1,7 @@
 {
   "name": "dsh-review-hub",
   "displayName": "明镜",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "明镜 (MingJing) — an approval brain for DSH: deterministic hard-risk layer, per-session memory learning, an AI that may only pass or ask, exact attribution, composer hints, right-sidebar diff/undo, and an exportable ledger.",
   "publishConfig": {
     "access": "public"

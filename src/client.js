@@ -3447,6 +3447,13 @@ window.__ModuleLoader__.load({
         return function () { alive = false; };
       }, []);
 
+      // A switch that only edits the draft *looks* saved and is not: the forensic and
+      // safety toggles are diagnostics, so they persist on the spot like the everyday ones.
+      const toggleNow = function (field, next) {
+        const merged = Object.assign({}, draft || {}, { [field]: next });
+        change(field, next);
+        void saveConfig(merged);
+      };
       const change = function (field, value) {
         setDraft(function (current) { return Object.assign({}, current || {}, { [field]: value }); });
       };
@@ -3546,7 +3553,7 @@ window.__ModuleLoader__.load({
             role: 'switch',
             'aria-checked': draft.debugHeaders === true ? 'true' : 'false',
             title: t('config.debugHeaders'),
-            onClick: function () { change('debugHeaders', draft.debugHeaders !== true); },
+            onClick: function () { toggleNow('debugHeaders', draft.debugHeaders !== true); },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
         h('div', { className: 'ah-settings-row', key: 'debug-review' },
@@ -3557,7 +3564,7 @@ window.__ModuleLoader__.load({
             role: 'switch',
             'aria-checked': draft.debugReview === true ? 'true' : 'false',
             title: t('config.debugReview'),
-            onClick: function () { change('debugReview', draft.debugReview !== true); },
+            onClick: function () { toggleNow('debugReview', draft.debugReview !== true); },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
         h('div', { className: 'ah-settings-row', key: 'clear-on' },
@@ -3579,7 +3586,7 @@ window.__ModuleLoader__.load({
             role: 'switch',
             'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
             title: t('config.strictVerdict'),
-            onClick: function () { change('strictVerdict', draft.strictVerdict !== true); },
+            onClick: function () { toggleNow('strictVerdict', draft.strictVerdict !== true); },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
         // Always on, and last: the preview is a looking glass, not a setting — it belongs
