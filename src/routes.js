@@ -28,7 +28,7 @@ export const ROUTES = Object.freeze({
 const CONFIG_FIELDS = [
 	'aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'toastQuietMs',
 	'threshold', 'aiFailurePolicy', 'reviewTimeoutMs', 'aiBudgetPerTurn', 'aiBreakerFails',
-	'aiCacheTtlMs', 'strictVerdict', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
+	'aiCacheTtlMs', 'aiReasonChars', 'reviewerLocale', 'strictVerdict', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
 	'exportScope', 'agentPolicy', 'hintMs', 'fpIgnoreJustification', 'autoExpandDescription', 'hideKnobs', 'snapshotRetentionDays', 'fileAutoPass', 'fileFingerprint', 'aiTools', 'aiToolsDeny', 'debugHeaders', 'debugReview',
 ];
 

@@ -343,7 +343,7 @@ async function answerer(request, next) {
 		} else {
 			const verdict = await maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp });
 			if (verdict !== undefined) {
-				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane };
+				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage };
 			}
 			row.aiReviewed = true;
 			if (aiNote !== undefined) {
@@ -448,6 +448,7 @@ async function answerer(request, next) {
 		// A cached verdict is the same verdict, so it carries the same reason; dropping it
 		// left every cache-served escalation with nothing to show under "AI 打回理由".
 		if ((aiNote.source === 'ai' || aiNote.source === 'cache') && typeof aiNote.reason === 'string' && aiNote.reason !== '') finished.aiReason = aiNote.reason;
+		if (aiNote.usage !== undefined) finished.aiUsage = aiNote.usage;
 	}
 	if (store !== undefined) await store.record(finished).catch(() => undefined);
 

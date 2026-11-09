@@ -64,6 +64,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// debugHeaders on purpose: one answers "which cookie may write", the other
 	// "does the host expose prompt-cache counters" — they are used months apart.
 	debugReview: false,
+	// How long the reviewer's reason may be, and which language it must use ('' = follow
+	// the request's own language). Both are prompt knobs, not behaviour knobs.
+	aiReasonChars: 80,
+	reviewerLocale: '',
 	reviewerModel: '',
 	/**
 	 * `{ "<sessionId>": "provider/model" }`: a session named here ignores the global
@@ -100,6 +104,7 @@ const BOUNDS = {
 	aiBudgetPerTurn: [1, 500],
 	aiBreakerFails: [1, 20],
 	aiCacheTtlMs: [0, 86400000],
+	aiReasonChars: [40, 400],
 	toastQuietMs: [0, 600000],
 	maxEntriesPerSession: [20, 2000],
 	pollMs: [250, 30000],
