@@ -149,7 +149,7 @@ window.__ModuleLoader__.load({
       'setting.aiAdviceCard': '启用 AI 建议卡',
       'setting.aiAdviceCardNote': 'AI 给出理由时，在审批卡上方显示「AI 建议人工」的悬浮卡（关掉后只剩等待提示）',
       'setting.dangerCard': '启用高危提示卡',
-      'setting.dangerCardNote': '命中 L0 硬风险、且 AI 没有理由时，用浅红卡片提醒这是危险操作',
+      'setting.dangerCardNote': '命中 L0 硬风险时，用浅红卡片提醒这是危险操作',
       'setting.hintAi': 'AI 卡时长（毫秒）',
       'setting.hintAiNote': 'AI 审批通过的卡片持续时间；到点自动收起',
       'setting.hintMemory': '记忆卡时长（毫秒）',
@@ -1869,7 +1869,7 @@ window.__ModuleLoader__.load({
       '.ah-switch-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform 140ms ease}',
       '.ah-switch-on .ah-switch-knob{transform:translateX(14px)}',
       // Body-level, so no host surface can cover it.
-      '.ah-float{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:min(calc(var(--dsh-chat-content-width,920px) + (var(--dsh-composer-side-clearance,16px) + 16px) * 2),calc(100vw - 36px));display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb, var(--ah-human-fg,#d9a521) 60%, transparent);background:var(--dsw-alias-bg-layer-1,#17181a);box-shadow:0 8px 24px rgba(0,0,0,.32);font-size:12px;line-height:17px;color:var(--dsw-alias-label-primary)}',
+      '.ah-float{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:min(calc(var(--dsh-chat-content-width,920px) + (var(--dsh-composer-side-clearance,16px) + 16px) * 2),calc(100vw - 36px));display:flex;flex-direction:column;gap:4px;padding:8px calc(var(--dsh-composer-side-clearance,16px) + 16px);border-radius:10px;border:1px solid color-mix(in srgb, var(--ah-human-fg,#d9a521) 60%, transparent);background:var(--dsw-alias-bg-layer-1,#17181a);box-shadow:0 8px 24px rgba(0,0,0,.32);font-size:12px;line-height:17px;color:var(--dsw-alias-label-primary)}',
       '.ah-float.ah-float-danger{border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 70%, transparent)}',
       '.ah-float-head{display:flex;align-items:center;gap:8px}',
       '.ah-float-close{margin-left:auto;font-size:14px}',
