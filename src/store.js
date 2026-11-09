@@ -71,6 +71,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// one without silencing the plain waiting hint.
 	aiAdviceCard: true,
 	dangerCard: true,
+	// Per-session AI switch: a key here wins over the global aiEnabled, which is how one
+	// session can run unattended while every other session keeps the reviewer on.
+	aiEnabledLocal: {},
 	reviewerLocale: '',
 	reviewerModel: '',
 	/**
@@ -219,6 +222,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		agentPolicy: { ...DEFAULT_SETTINGS.agentPolicy, ...(base?.agentPolicy ?? {}) },
 		hintMs: { ...DEFAULT_SETTINGS.hintMs, ...(base?.hintMs ?? {}) },
 		reviewerModelLocal: { ...(base?.reviewerModelLocal ?? {}) },
+		aiEnabledLocal: { ...(base?.aiEnabledLocal ?? {}) },
 	};
 	if (patch === null || typeof patch !== 'object') return next;
 	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {

@@ -2676,6 +2676,9 @@ window.__ModuleLoader__.load({
       const localTable = isPlainObject(config.reviewerModelLocal) ? config.reviewerModelLocal : {};
       const localPinned = typeof sid === 'string' && sid !== '' && Object.prototype.hasOwnProperty.call(localTable, sid);
       const localValue = localPinned === true && typeof localTable[sid] === 'string' ? localTable[sid] : '';
+      // Same idea for the AI switch: a per-session entry wins over the global one.
+      const aiLocalTable = config.aiEnabledLocal !== null && typeof config.aiEnabledLocal === 'object' ? config.aiEnabledLocal : {};
+      const aiLocalOn = Object.prototype.hasOwnProperty.call(aiLocalTable, sid) ? aiLocalTable[sid] === true : config.aiEnabled === true;
       const globalValue = typeof config.reviewerModel === 'string' ? config.reviewerModel : '';
       const writeModel = async function (patch) {
         await savePatch(patch);
@@ -2810,7 +2813,13 @@ window.__ModuleLoader__.load({
             role: 'switch',
             'aria-checked': config.aiEnabled === true ? 'true' : 'false',
             title: t('setting.ai'),
-            onClick: flip('aiEnabled'),
+            onClick: async function () {
+            if (localPinned === true && sid !== '') {
+              await saveConfig(Object.assign({}, config, { aiEnabledLocal: Object.assign({}, aiLocalTable, { [sid]: aiLocalOn !== true }) }));
+              return;
+            }
+            await flip('aiEnabled')();
+          },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
         h('div', { className: 'ah-settings-row', key: 'model' },

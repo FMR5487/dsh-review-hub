@@ -348,7 +348,11 @@ export function createReviewer(deps = {}) {
 		const started = now();
 		const settings = settingsOf();
 		const sessionId = String(input.sessionId ?? '');
-		if (settings.aiEnabled !== true) return fallback('disabled', 'ai disabled');
+		// A per-session entry wins over the global switch: that is how one session runs
+		// unattended (AI off) while every other session keeps the reviewer on.
+		const local = settings.aiEnabledLocal === null || typeof settings.aiEnabledLocal !== 'object' ? {} : settings.aiEnabledLocal;
+		const aiOn = Object.prototype.hasOwnProperty.call(local, sessionId) ? local[sessionId] === true : settings.aiEnabled === true;
+		if (aiOn !== true) return fallback('disabled', 'ai disabled');
 		await loadCache();
 
 		const open = breakerOf(sessionId);

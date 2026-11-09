@@ -226,7 +226,10 @@ export function routeOf(request, settings, providerIds = []) {
 async function maybeReview(input) {
 	if (activeReviewer === undefined) return undefined;
 	if (input.tier !== 'ai') return undefined;
-	if (input.settings?.aiEnabled !== true) return undefined;
+	const settingsNow = input.settings ?? {};
+	const localAi = settingsNow.aiEnabledLocal === null || typeof settingsNow.aiEnabledLocal !== 'object' ? {} : settingsNow.aiEnabledLocal;
+	const aiOn = Object.prototype.hasOwnProperty.call(localAi, String(input.sessionId ?? '')) ? localAi[String(input.sessionId ?? '')] === true : settingsNow.aiEnabled === true;
+	if (aiOn !== true) return undefined;
 	let prior = 0;
 	if (input.fp !== undefined && input.store !== undefined) {
 		const entry = await input.store.memoryEntry(input.sessionId, input.fp).catch(() => undefined);
