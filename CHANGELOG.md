@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.0.9 — 徽章退化顺序（先丢「合并」）+ 统计页合并口径
+
+- **窄栏先丢「合并」再丢「次」**：合并现在是记忆句前面独立的一段（`.ah-chip-mem-pre`，`@container (max-width:560px)` 隐藏），480px 才丢单位词，400px 才丢整句。窄栏读作「记忆 3/3 次」——次数是事实，「合并」是注脚。
+- **统计页不再有三套口径**：删掉「审查器合计」板块，`allow / ask / 兜底 · AI 缓存 0/3` 直接接到「审批合计」那行后面；「按车道」改名「**使用过的模型**」（它列的就是台账里出现过的车道，叫「车道」没人知道是什么）。`stats.reviewer`、`stats.empty`、`bar.reviewer`、`bar.cache` 四个 locale 键随之删除，新增 `stats.reviewerInline`、`stats.cacheInline`。
+
 ## 1.0.8 — 「合并」并入记忆句；UX / CHANGELOG 按轮次重排
 
 - **「合并」不再是独立徽章**：1.0.7 把它做成旁边一个「合并记忆 3/3 次」，紧挨着又一句「记忆 3/3 次」——同一个数字说两遍。现在它只是记忆句的前缀：合并记忆 3/3 次；判定不变（fpMode=normalized + droppedKeys 非空 + memoryCount 至少 2，即同一条命令第二次起）。chipOf() 不再返回 merged，isMerged() 独立成纯函数。

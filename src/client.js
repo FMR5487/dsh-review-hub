@@ -58,7 +58,7 @@ window.__ModuleLoader__.load({
       'chip.external': '外部裁决',
       'memory.progress': '记忆 {count}/{threshold} 次',
       'memory.progressLead': '记忆',
-      'memory.progressLeadMerged': '合并记忆',
+      'memory.mergedPrefix': '合并',
       'memory.progressUnit': '次',
       'memory.fullMerged': '合并记忆已满',
       'memory.count': '记忆 {n} 次',
@@ -148,9 +148,9 @@ window.__ModuleLoader__.load({
       'stats.tabTitle': '明镜 · 统计',
       'bar.stats': '审批统计',
       'stats.totals': '审批合计',
-      'stats.reviewer': '审查器合计',
-      'stats.lanes': '按车道',
-      'stats.empty': '这个进程里还没有走过 AI 审查（计数存在内存里，重启即清零）',
+      'stats.lanes': '使用过的模型',
+      'stats.reviewerInline': 'allow {allow} / ask {ask} / 兜底 {fallback}',
+      'stats.cacheInline': 'AI 缓存 {hits}/{calls}',
       'stats.lane': '车道',
       'stats.calls': '调用',
       'stats.allow': 'allow',
@@ -243,8 +243,6 @@ window.__ModuleLoader__.load({
       'preview.recent': '本会话最近 6 条',
       'preview.pending': '待你审批',
       'preview.noPending': '当前没有待审',
-      'bar.reviewer': '审查器 {lane} · allow {allow} / ask {ask} / 兜底 {fallback}',
-      'bar.cache': 'AI 缓存 {hits}/{calls}',
       'config.snapshotDays': '快照保留天数',
       'config.snapshotDaysNote': '0 = 一直保留（受每会话 64 条、最多 64 个会话的限制）；设成 N 天后，过期快照在下次启动时清理',
       'config.aiTools': '额外先交给 AI 的工具',
@@ -302,7 +300,7 @@ window.__ModuleLoader__.load({
       'chip.external': 'External',
       'memory.progress': 'memory {count}/{threshold}',
       'memory.progressLead': 'memory',
-      'memory.progressLeadMerged': 'merged memory',
+      'memory.mergedPrefix': 'merged ',
       'memory.progressUnit': '',
       'memory.fullMerged': 'merged memory full',
       'memory.count': 'memory {n}',
@@ -392,9 +390,9 @@ window.__ModuleLoader__.load({
       'stats.tabTitle': 'MingJing · Statistics',
       'bar.stats': 'Review statistics',
       'stats.totals': 'Approvals',
-      'stats.reviewer': 'Reviewer',
-      'stats.lanes': 'By lane',
-      'stats.empty': 'No AI review has run in this process yet (counters live in memory and reset on restart)',
+      'stats.lanes': 'Models used',
+      'stats.reviewerInline': 'allow {allow} / ask {ask} / fallback {fallback}',
+      'stats.cacheInline': 'AI cache {hits}/{calls}',
       'stats.lane': 'Lane',
       'stats.calls': 'calls',
       'stats.allow': 'allow',
@@ -487,8 +485,6 @@ window.__ModuleLoader__.load({
       'preview.recent': 'Last 6 in this session',
       'preview.pending': 'Waiting for you',
       'preview.noPending': 'Nothing waiting right now',
-      'bar.reviewer': 'reviewer {lane} · allow {allow} / ask {ask} / fallback {fallback}',
-      'bar.cache': 'AI cache {hits}/{calls}',
       'config.snapshotDays': 'Snapshot retention (days)',
       'config.snapshotDaysNote': '0 = keep (bounded by 64 entries per session and 64 sessions); set N days and expired snapshots are swept on the next start',
       'config.aiTools': 'Extra tools to send to the AI',
@@ -910,17 +906,17 @@ window.__ModuleLoader__.load({
       // Three pieces, because a narrow pane drops the unit word ("次") while keeping the
       // fraction — "记忆 1/3 次" → "记忆 1/3".
       const merged = isMerged(entry);
+      // 合并 is a separate word on purpose: a narrow pane drops it first and keeps
+      // "记忆 n/N 次" — the count is the fact, "merged" is the footnote.
       const progress = function (count) {
+        const pre = merged ? t('memory.mergedPrefix') : '';
+        const lead = t('memory.progressLead');
+        const frac = count + '/' + threshold;
+        const unit = t('memory.progressUnit');
         return {
-          long: merged
-            ? t('memory.progressLeadMerged') + ' ' + count + '/' + threshold + ' ' + t('memory.progressUnit')
-            : t('memory.progress', { count: count, threshold: threshold }),
+          long: [pre === '' ? lead : pre + lead, frac, unit].filter(function (part) { return part !== ''; }).join(' '),
           short: null,
-          parts: {
-            lead: merged ? t('memory.progressLeadMerged') : t('memory.progressLead'),
-            frac: count + '/' + threshold,
-            unit: t('memory.progressUnit'),
-          },
+          parts: { pre: pre, lead: lead, frac: frac, unit: unit },
         };
       };
       const file = fileCountOf(entry);
@@ -953,6 +949,7 @@ window.__ModuleLoader__.load({
       if (memory !== null) {
         const body = memory.parts !== undefined
           ? [
+            memory.parts.pre === '' ? null : h('span', { className: 'ah-chip-mem-pre', key: 'pre' }, memory.parts.pre),
             h('span', { className: 'ah-chip-mem-lead', key: 'lead' }, memory.parts.lead + ' '),
             h('span', { className: 'ah-chip-mem-frac', key: 'frac' }, memory.parts.frac),
             memory.parts.unit === '' ? null : h('span', { className: 'ah-chip-mem-unit', key: 'unit' }, ' ' + memory.parts.unit),
@@ -1918,6 +1915,7 @@ window.__ModuleLoader__.load({
       // then the whole memory sentence — the decision stays on screen the longest because
       // it is the only group that says what actually happened.
       '@container (max-width:560px){.ah-chip-pre{display:none}}',
+      '@container (max-width:560px){.ah-chip-mem-pre{display:none}}',
       '@container (max-width:480px){.ah-chip-mem-unit{display:none}}',
       '@container (max-width:400px){.ah-chip-mem{display:none}}',
       '.ah-tone-warn{color:var(--ah-human-fg,#f7ad31);background:var(--ah-human-bg,rgba(247,173,49,.14));border-color:transparent}',
@@ -3927,34 +3925,25 @@ window.__ModuleLoader__.load({
       const laneNames = Object.keys(lanes);
       const num = function (value) { return Number(value) || 0; };
 
+      // The reviewer numbers are a suffix of the approval totals, not a second box: they
+      // answer "of these approvals, how many did the AI pass / hand back / fail to judge",
+      // which only makes sense next to the total.
       const totals = [
         t('bar.strip', {
           total: num(tally.total), allow: num(tally.allow), deny: num(tally.deny),
           cancelled: num(tally.cancelled), unavailable: num(tally.unavailable),
         }),
-      ].filter(function (line) { return line !== ''; });
-
-      const reviewerLine = reviewer === null
-        ? null
-        : t('bar.reviewer', {
-          lane: laneNames.length === 0 ? '—' : laneNames[0],
+        reviewer === null ? '' : t('stats.reviewerInline', {
           allow: num(reviewer.allows),
           ask: num(reviewer.asks),
           fallback: num(reviewer.fallbacks),
-        });
+        }),
+        reviewer === null ? '' : t('stats.cacheInline', { hits: num(reviewer.cacheHits), calls: num(reviewer.calls) }),
+      ].filter(function (line) { return line !== ''; });
 
       return h('div', { className: 'ah-panel ah-stats-tab' }, [
         h('div', { className: 'ah-section', key: 'sec-totals' }, t('stats.totals')),
         h('div', { className: 'ah-stat-line', key: 'totals' }, totals.join(' · ')),
-        h('div', { className: 'ah-section', key: 'sec-rev' }, t('stats.reviewer')),
-        reviewerLine === null
-          ? h('div', { className: 'ah-hint', key: 'rev-none' }, t('stats.empty'))
-          : null,
-        reviewerLine === null ? null : h('div', { className: 'ah-stat-line', key: 'rev' }, reviewerLine),
-        reviewerLine === null ? null : h('div', { className: 'ah-hint', key: 'rev-extra' }, t('bar.cache', {
-          hits: num(reviewer.cacheHits),
-          calls: num(reviewer.calls),
-        })),
         laneNames.length === 0 ? null : h('div', { className: 'ah-section', key: 'sec-lanes' }, t('stats.lanes')),
         ...laneNames.map(function (name) {
           const bucket = lanes[name] || {};

@@ -292,10 +292,11 @@ export const cases = [
 			assertEqual(bag.isMerged({ fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 2 }), true);
 			assertEqual(bag.isMerged({ memoryCount: 3 }), false, '没剥旋钮就不算合并');
 			const mergedText = bag.memoryText({ memoryCount: 3, fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
-			assertEqual(mergedText.parts.lead, 'memory.progressLeadMerged', '「合并」加在记忆句前面');
+			assertEqual(mergedText.parts.pre, 'memory.mergedPrefix', '「合并」是记忆句前面单独的一段，窄栏先丢它');
+			assertEqual(mergedText.parts.lead, 'memory.progressLead');
 			assertEqual(mergedText.parts.frac, '3/3');
 			const plainText = bag.memoryText({ memoryCount: 1, fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
-			assertEqual(plainText.parts.lead, 'memory.progressLead', '第一次不写合并');
+			assertEqual(plainText.parts.pre, '', '第一次不写合并');
 			// 记忆句拆成三段，窄栏只丢「次」这一小段
 			assertEqual(plainText.parts.unit, 'memory.progressUnit');
 			const memoryChip = bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once' }, (k) => k);
