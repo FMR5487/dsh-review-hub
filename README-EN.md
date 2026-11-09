@@ -143,6 +143,7 @@ Details and pitfalls: [README-AI.md](README-AI.md) and [AGENT.md](AGENT.md).
 
 ## FAQ
 
+- **Unattended runs**: switch on "per-session" in the session you want to leave alone, then turn AI review off — that stops the reviewer for that session only, while every other session keeps it.
 **Why did the AI never show up?**
 Hard risk (6 classes) never reaches it; or there is no model service, the call timed out, or the breaker is open. The row records `aiSource`.
 
@@ -188,7 +189,6 @@ Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). 
 
 ## Known limitations
 
-- **Unattended runs**: switch on "per-session" in the session you want to leave alone, then turn AI review off — that stops the reviewer for that session only, while every other session keeps it.
 - Tightly coupled to DSH internals (seat names, the right-sidebar API, `--dsh-composer-*` CSS variables); a major host bump may need work.
 - The client half is a single ~4100-line bundle (no build step).
 - The approval tab is per session; there is no "all sessions" view.
