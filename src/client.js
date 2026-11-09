@@ -57,6 +57,8 @@ window.__ModuleLoader__.load({
       'chip.fallback': '不可用',
       'chip.external': '外部裁决',
       'memory.progress': '记忆 {count}/{threshold} 次',
+      'memory.progressLead': '记忆',
+      'memory.progressUnit': '次',
       'memory.count': '记忆 {n} 次',
       'memory.remove': '删除',
       'memory.clear': '清空记忆',
@@ -86,7 +88,7 @@ window.__ModuleLoader__.load({
       'diff.change': '改动',
       'diff.title': '明镜 · 改动',
       'diff.none': '在审批列表里点「改动」，这里会显示那一次调用的 diff',
-      'chip.merged': '同类合并',
+      'chip.merged': '合并记忆 {count}/{threshold} 次',
       'diff.stats': '+{add} / -{del} 行变更 · {unchanged} 行未变',
       'diff.loading': '正在读取改动…',
       'diff.noSnapshot': '这次审批没有留下快照（插件安装前、或该工具不建快照）',
@@ -298,6 +300,8 @@ window.__ModuleLoader__.load({
       'chip.fallback': 'Unavailable',
       'chip.external': 'External',
       'memory.progress': 'memory {count}/{threshold}',
+      'memory.progressLead': 'memory',
+      'memory.progressUnit': '',
       'memory.count': 'memory {n}',
       'memory.remove': 'Remove',
       'memory.clear': 'Clear memory',
@@ -327,7 +331,7 @@ window.__ModuleLoader__.load({
       'diff.change': 'Diff',
       'diff.title': 'MingJing · Change',
       'diff.none': 'Pick "Change" on a row: the diff of that call shows up here',
-      'chip.merged': 'merged',
+      'chip.merged': 'merged memory {count}/{threshold}',
       'diff.stats': '+{add} / -{del} changed · {unchanged} unchanged',
       'diff.loading': 'Reading the change…',
       'diff.noSnapshot': 'No snapshot for this approval (older than the plugin, or the tool keeps none)',
@@ -800,12 +804,24 @@ window.__ModuleLoader__.load({
       }, ttl);
     }
 
-    /** Only a row whose knobs were actually cut may claim "同类合并". */
+    /** The session's live threshold, for rows that never froze one. */
+    function liveThreshold() {
+      const raw = Number(settings().threshold);
+      return Number.isFinite(raw) && raw > 0 ? raw : 3;
+    }
+
+    /**
+     * "合并记忆 n/N 次": this call's knobs were cut before fingerprinting, and it is the n-th
+     * time that merged operation has been approved. Only the **second** occurrence onward
+     * says it — on the first one nothing has been merged yet, so the badge would be a lie.
+     */
     function mergedMark(entry, t) {
       if (entry === null || typeof entry !== 'object') return '';
       if (entry.fpMode !== 'normalized') return '';
       if (Array.isArray(entry.droppedKeys) === false || entry.droppedKeys.length === 0) return '';
-      return ' · ' + t('chip.merged');
+      const count = Number(entry.memoryCount);
+      if (Number.isFinite(count) === false || count < 2) return '';
+      return t('chip.merged', { count: count, threshold: rowThreshold(entry, liveThreshold()) });
     }
 
     /**
@@ -827,9 +843,9 @@ window.__ModuleLoader__.load({
       const denied = entry && entry.outcome === 'rejected';
       const cancelled = entry && entry.outcome === 'cancelled';
       const pre = aiEscalated(entry) === true && cancelled === false ? t('chip.aiRejected') : undefined;
-      // "同类合并" is its own group, not part of the decision text: a narrow pane drops it
-      // whole (see the chip container queries) instead of trimming the decision mid-word.
-      const merged = mergedMark(entry, t) !== '';
+      // "合并记忆 n/N 次" is its own group, not part of the decision text: a narrow pane
+      // drops it whole (see the chip container queries) instead of trimming the decision.
+      const merged = mergedMark(entry, t);
       if (cancelled) return { text: t('chip.cancelled'), tone: 'muted' };
       if (by === 'memory') return { text: t('chip.memory'), tone: 'learn', merged: merged };
       if (by === 'ai') return { text: denied ? t('chip.aiDeny') : t('chip.ai'), tone: denied ? 'danger' : 'ok' };
@@ -890,9 +906,17 @@ window.__ModuleLoader__.load({
      * a span per width, so a sidebar opening can never clip the date off the right edge.
      */
     function memoryText(entry, t) {
-      const thresholdRaw = Number(settings().threshold);
-      const live = Number.isFinite(thresholdRaw) ? thresholdRaw : 3;
+      const live = liveThreshold();
       const threshold = rowThreshold(entry, live);
+      // Three pieces, because a narrow pane drops the unit word ("次") while keeping the
+      // fraction — "记忆 1/3 次" → "记忆 1/3".
+      const progress = function (count) {
+        return {
+          long: t('memory.progress', { count: count, threshold: threshold }),
+          short: null,
+          parts: { lead: t('memory.progressLead'), frac: count + '/' + threshold, unit: t('memory.progressUnit') },
+        };
+      };
       const file = fileCountOf(entry);
       if (file !== null) {
         const running = fileRunningCount(entry, file.path);
@@ -902,11 +926,11 @@ window.__ModuleLoader__.load({
         if (count > threshold) {
           return { long: t('memory.full') + ' · ' + t('memory.canArm'), short: t('memory.full') + ' · ' + t('memory.canArmShort') };
         }
-        return { long: t('memory.progress', { count: count, threshold: threshold }), short: null };
+        return progress(count);
       }
       const count = Number(entry && entry.memoryCount);
       if (Number.isFinite(count) === false || count <= 0) return null;
-      return { long: t('memory.progress', { count: count, threshold: threshold }), short: null };
+      return progress(count);
     }
 
     /**
@@ -919,14 +943,20 @@ window.__ModuleLoader__.load({
       const parts = [];
       if (chip.pre !== undefined) parts.push(h('span', { className: 'ah-chip-pre', key: 'pre' }, chip.pre + ' · '));
       parts.push(h('span', { className: 'ah-chip-decision', key: 'decision' }, chip.text));
-      if (chip.merged === true) parts.push(h('span', { className: 'ah-chip-merged', key: 'merged' }, ' · ' + t('chip.merged')));
+      if (typeof chip.merged === 'string' && chip.merged !== '') parts.push(h('span', { className: 'ah-chip-merged', key: 'merged' }, ' · ' + chip.merged));
       if (memory !== null) {
-        const body = memory.short === null
-          ? memory.long
-          : [
-            h('span', { className: 'ah-chip-long', key: 'long' }, memory.long),
-            h('span', { className: 'ah-chip-short', key: 'short' }, memory.short),
-          ];
+        const body = memory.parts !== undefined
+          ? [
+            h('span', { className: 'ah-chip-mem-lead', key: 'lead' }, memory.parts.lead + ' '),
+            h('span', { className: 'ah-chip-mem-frac', key: 'frac' }, memory.parts.frac),
+            memory.parts.unit === '' ? null : h('span', { className: 'ah-chip-mem-unit', key: 'unit' }, ' ' + memory.parts.unit),
+          ]
+          : (memory.short === null
+            ? memory.long
+            : [
+              h('span', { className: 'ah-chip-long', key: 'long' }, memory.long),
+              h('span', { className: 'ah-chip-short', key: 'short' }, memory.short),
+            ]);
         parts.push(h('span', { className: 'ah-chip-mem', key: 'mem' }, ' · ', body));
       }
       return parts;
@@ -1882,7 +1912,8 @@ window.__ModuleLoader__.load({
       // then the memory sentence — the decision stays on screen the longest because it is
       // the only group that says what actually happened.
       '@container (max-width:620px){.ah-chip-merged{display:none}}',
-      '@container (max-width:460px){.ah-chip-pre{display:none}}',
+      '@container (max-width:560px){.ah-chip-pre{display:none}}',
+      '@container (max-width:480px){.ah-chip-mem-unit{display:none}}',
       '@container (max-width:400px){.ah-chip-mem{display:none}}',
       '.ah-tone-warn{color:var(--ah-human-fg,#f7ad31);background:var(--ah-human-bg,rgba(247,173,49,.14));border-color:transparent}',
       '.ah-tone-ok{color:var(--ah-ai-fg,#2fa84f);background:var(--ah-ai-bg,rgba(47,168,79,.12));border-color:transparent}',
@@ -2955,7 +2986,7 @@ window.__ModuleLoader__.load({
         if (toAt > 0 && ts > toAt) return false;
         if (needle === '') return true;
         const chip = chipOf(entry, t);
-        const haystack = [entry.toolName, chip.text, chip.merged === true ? t('chip.merged') : '', commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
+        const haystack = [entry.toolName, chip.text, typeof chip.merged === 'string' ? chip.merged : '', commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
         return haystack.indexOf(needle) >= 0;
       });
 
@@ -4223,6 +4254,7 @@ window.__ModuleLoader__.load({
         configCard: ConfigCard,
         aiEscalated: aiEscalated,
         chipOf: chipOf,
+        memoryText: memoryText,
         memoryBucketId: memoryBucketId,
         rowFingerprintOf: rowFingerprintOf,
         riskLabel: riskLabel,

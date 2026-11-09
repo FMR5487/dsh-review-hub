@@ -287,13 +287,21 @@ export const cases = [
 			assertEqual(bag.riskLabel('medium', (k) => k), 'risk.medium');
 			assertEqual(bag.riskLabel('weird', (k) => k), 'weird', '不认识的等级原样显示');
 			// 徽章拆组：同类合并、AI 打回、记忆句各自成组（窄栏可整组隐藏）
-			const memoryChip = bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once', fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
-			assertEqual(memoryChip.text, 'chip.memory', '同类合并不再是决定文字的一部分');
-			assertEqual(memoryChip.merged, true);
-			assertEqual(bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once' }, (k) => k).merged, false, '没合并就没有那段');
-			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
+			const mergedRow = { decidedBy: 'memory', outcome: 'allowed-once', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 2 };
+			const memoryChip = bag.chipOf(mergedRow, (k) => k);
+			assertEqual(memoryChip.text, 'chip.memory', '合并那段不再拼进决定文字');
+			assertEqual(memoryChip.merged, 'chip.merged', '第二次起才说「合并记忆 n/N 次」');
+			// 第一次出现时还没有任何东西被合并，不该挂这个徽章
+			assertEqual(bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 1 }, (k) => k).merged, '', '第一次不显示合并');
+			assertEqual(bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once' }, (k) => k).merged, '');
+			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 3 }, (k) => k);
 			assertEqual(escalatedChip.pre, 'chip.aiRejected');
-			assertEqual(escalatedChip.merged, true);
+			assertEqual(escalatedChip.merged, 'chip.merged');
+			// 记忆句拆成三段，窄栏只丢「次」这一小段
+			const memText = bag.memoryText({ memoryCount: 1 }, (k) => k);
+			assertEqual(memText.parts.frac, '1/3');
+			assertEqual(memText.parts.lead, 'memory.progressLead');
+			assertEqual(memText.parts.unit, 'memory.progressUnit');
 			// 记忆页分桶：文件是共同主体；没有文件就按指纹各算各的（否则两条无关命令会被加在一起）
 			assertEqual(bag.memoryBucketId('pwsh', '', 'aaa'), bag.memoryBucketId('pwsh', '', 'aaa'));
 			assertTrue(bag.memoryBucketId('pwsh', '', 'aaa') !== bag.memoryBucketId('pwsh', '', 'bbb'), '同工具不同指纹不能并成一桶');
