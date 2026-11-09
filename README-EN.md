@@ -195,6 +195,7 @@ Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). 
 - The approval tab is per session; there is no "all sessions" view.
 - Undo is an instruction delivered to the session, so it needs a live agent there.
 - Write-ahead snapshots are capped (256 KB per file, 64 per session); beyond that only metadata is kept.
+- **AI verdicts are cached across sessions** (key = requester class + argument fingerprint), kept for 10 minutes by default: once any session has paid for a fingerprint, every other session reuses that verdict (`aiSource=cache`). So "this session made 0 AI calls" does not mean the AI was absent — either the requester class pushed it to a human, or it hit a cache someone else paid for. The statistics page's approval-cache count is the whole pool, not this session's share.
 
 ---
 

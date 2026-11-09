@@ -365,7 +365,16 @@ export function createReviewer(deps = {}) {
 
 	return {
 		review,
-		stats: () => ({ ...stats, byModel: Object.fromEntries(byModel), cacheSize: cache.size, maxTokensSupported }),
+		stats: () => {
+			// An entry past its TTL is not usable: the lookup already refuses it, and a sweep
+			// may not have run yet. The panel's "审批缓存 N 条" has to count what can actually
+			// answer, otherwise the number contradicts the hit/miss line right under it.
+			const ttl = Math.max(0, Number(settingsOf().aiCacheTtlMs) || 0);
+			const at = now();
+			let live = 0;
+			for (const hit of cache.values()) if (ttl > 0 && at - hit.at <= ttl) live += 1;
+			return { ...stats, byModel: Object.fromEntries(byModel), cacheSize: live, cacheEntries: cache.size, maxTokensSupported };
+		},
 		breakerState: () => Object.fromEntries([...breakers.entries()].map(([key, value]) => [key, { ...value }])),
 		reset(sessionId) {
 			if (sessionId === undefined) {

@@ -148,9 +148,9 @@ window.__ModuleLoader__.load({
       'stats.tabTitle': '明镜 · 统计',
       'bar.stats': '审批统计',
       'stats.totals': '审批合计',
-      'stats.lanes': '使用过的模型',
+      'stats.lanes': 'AI 调用情况',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / 兜底 {fallback}',
-      'stats.cacheInline': 'AI 缓存 {hits}/{calls}',
+      'stats.cacheLine': '审批缓存 {total} 条 · 命中 {hits} 次',
       'stats.lane': '车道',
       'stats.calls': '调用',
       'stats.allow': 'allow',
@@ -390,9 +390,9 @@ window.__ModuleLoader__.load({
       'stats.tabTitle': 'MingJing · Statistics',
       'bar.stats': 'Review statistics',
       'stats.totals': 'Approvals',
-      'stats.lanes': 'Models used',
+      'stats.lanes': 'AI calls',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / fallback {fallback}',
-      'stats.cacheInline': 'AI cache {hits}/{calls}',
+      'stats.cacheLine': 'approval cache {total} entries · {hits} hits',
       'stats.lane': 'Lane',
       'stats.calls': 'calls',
       'stats.allow': 'allow',
@@ -3933,18 +3933,23 @@ window.__ModuleLoader__.load({
           total: num(tally.total), allow: num(tally.allow), deny: num(tally.deny),
           cancelled: num(tally.cancelled), unavailable: num(tally.unavailable),
         }),
-        reviewer === null ? '' : t('stats.reviewerInline', {
-          allow: num(reviewer.allows),
-          ask: num(reviewer.asks),
-          fallback: num(reviewer.fallbacks),
-        }),
-        reviewer === null ? '' : t('stats.cacheInline', { hits: num(reviewer.cacheHits), calls: num(reviewer.calls) }),
       ].filter(function (line) { return line !== ''; });
+      // "Cache 12 entries" is the pool; "10 hits" is this session. Two different scopes, so
+      // they are two different sentences rather than a fraction pretending to be one.
+      const aiLines = reviewer === null
+        ? []
+        : [
+          t('stats.reviewerInline', { allow: num(reviewer.allows), ask: num(reviewer.asks), fallback: num(reviewer.fallbacks) }),
+          t('stats.cacheLine', { total: num(reviewer.cacheSize), hits: num(reviewer.cacheHits) }),
+        ];
 
       return h('div', { className: 'ah-panel ah-stats-tab' }, [
         h('div', { className: 'ah-section', key: 'sec-totals' }, t('stats.totals')),
         h('div', { className: 'ah-stat-line', key: 'totals' }, totals.join(' · ')),
-        laneNames.length === 0 ? null : h('div', { className: 'ah-section', key: 'sec-lanes' }, t('stats.lanes')),
+        reviewer === null && laneNames.length === 0 ? null : h('div', { className: 'ah-section', key: 'sec-lanes' }, t('stats.lanes')),
+        ...aiLines.map(function (line, index) {
+          return h('div', { className: 'ah-stat-line', key: 'ai-' + index }, line);
+        }),
         ...laneNames.map(function (name) {
           const bucket = lanes[name] || {};
           return h('div', { className: 'ah-stat-line ah-stat-lane', key: 'lane-' + name }, [
