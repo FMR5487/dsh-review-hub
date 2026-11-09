@@ -77,7 +77,7 @@ Versions below were checked on **2026-11-03 / 09** (`fetch('https://registry.npm
 
 | Plugin | Version | Its approach | Relationship |
 |---|---|---|---|
-| [`@deepseek-ai/dsh-experimental-auto-review`](https://www.npmjs.com/package/@deepseek-ai/dsh-experimental-auto-review) | 0.1.6-alpha.1 | the official experimental baseline shipped with the host: reviews every call with the session model, no deterministic risk list, risk/reason not persisted | the baseline this plugin is measured against: the deterministic layer (free, predictable), memory and the audit UI are what it lacks |
+| [`@deepseek-ai/dsh-experimental-auto-review`](https://www.npmjs.com/package/@deepseek-ai/dsh-experimental-auto-review) | 0.1.6-alpha.1 (`next` = 0.2.2-rc.1) | the official experimental baseline shipped with the host: reviews every call with the session model, no deterministic risk list, risk/reason not persisted | the baseline this plugin is measured against: the deterministic layer (free, predictable), memory and the audit UI are what it lacks |
 | [`dsh-auto-approve`](https://www.npmjs.com/package/dsh-auto-approve) | 0.7.1 | keeps the sandbox and only narrows escalations; deterministic risk list runs before the classifier; per-session memory keyed on tool + raw args hash (30-minute TTL, in-memory only); falls back to the human when classification fails | **the closest thing to this plugin.** Differences: memory here persists, uses a threshold and counts human approvals only; risk-list hits never enter memory (both projects agree on that one) |
 | [`dsh-plugin-auto-review`](https://www.npmjs.com/package/dsh-plugin-auto-review) | 0.1.0 | ports the Codex Guardian / Grok escalation review prompts; the model may deny, and auto-denies when nobody is watching | a counter-example: a model that can deny is exactly this project's red line (the human stays in the loop) |
 | [`dsh-auto-review`](https://www.npmjs.com/package/dsh-auto-review) | 0.15.0 | second-model pre-check at the head of the chain; **fail-closed** when the reviewer is unavailable (rejects outright, no human) | the AI layer (L3) borrows its tiering, per-turn budget and breaker; **the veto is removed**, and the "PTC arguments folded → blind deny" bug is fixed |
@@ -91,6 +91,28 @@ Versions below were checked on **2026-11-03 / 09** (`fetch('https://registry.npm
 | [`dsh-approval-toast`](https://www.npmjs.com/package/dsh-approval-toast) | 1.0.3 | approve straight from a Windows toast | complementary (delivery), but it can answer too — verify it does not race |
 
 Every package name above links to its npm page; `moon09300731/dsh-approval-gate` points at the GitHub repository (it was never published to npm).
+
+### How it differs from the official `@deepseek-ai/dsh-experimental-auto-review`
+
+The official plugin is a **gate in front of tool execution** (`tools/pre-execute`), and it only acts for sessions whose permission preset is the `AUTO` one it registers; every other request passes straight through. MingJing is an **answerer on the approval chain** (`approval/request`): it changes no preset and applies at every level. **The two do not conflict and can be installed together**, but their power models are opposites:
+
+Checked against the official **`next` tag = 0.2.2-rc.1** (the version this host runs), file `lib/index.js`:
+
+| Dimension | official auto-review 0.2.2-rc.1 | MingJing |
+|---|---|---|
+| Mount point | `tools/pre-execute`, `AUTO` preset only (`current(session) !== AUTO_PRESET` → `next()`) | `approval/request` answerer, every preset, tiered per tool |
+| Power of the AI | **it can deny**: `deny` plus session override `never` refuses execution outright | `allow` / `ask` only; `deny` is downgraded to `ask` in `review.js` |
+| Review failure | **fail-closed**: an LLM or protocol problem refuses the call | goes to a human; `aiSource` records why (`error` / `unparsed` / `breaker` / `budget` / `unavailable`) |
+| What the model sees | **the whole visible session history** (rendered by role) + raw tool argument JSON + tool schemas, no redaction | a ≤240-character redacted summary; credential paths never leave at all (L0 first) |
+| Learning | none; the same command is re-reviewed and re-paid for every time | persistent memory: after N **human** approvals it passes deterministically, counted per session |
+| Which model | fixed to the session's own lane | any `provider/model` (global default plus per-session override) |
+| Cost guards | no budget, no breaker, no cache | 60-second window budget, 5-minute breaker after repeated failures, fingerprint-level verdict cache with a tunable TTL |
+| UI / audit | no UI of its own, only approval events and error codes | approval page, memory page, statistics, right-sidebar diff and undo |
+| On teardown | sessions sitting in `AUTO` are **switched to `danger-full-access`** | only the answerer is removed; presets are untouched |
+
+Two details worth knowing: the official plugin **exempts top-level `run_code` calls** from review (`exec.parent === undefined` passes straight through), and its `allow` does not mean "approved" — it only means "do not escalate to a human", after which the sandbox and native permission checks still run.
+
+In one line: the official plugin **hands the decision to the model**; MingJing **lets the model propose and has a human or a deterministic rule decide**.
 
 ### How it differs from `dsh-auto-approve`, item by item
 

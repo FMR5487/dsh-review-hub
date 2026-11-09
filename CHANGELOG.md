@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.0.11 — 官方 auto-review 对照入 README；缓存过期时间进高级设置
+
+- **README（中英）新增「和官方 `@deepseek-ai/dsh-experimental-auto-review` 的差异」**：按官方 `next` = **0.2.2-rc.1**（与本机宿主同版）的 `lib/index.js` 逐处核对——挂载点（`tools/pre-execute` + `AUTO` 预设专享）、AI 能否决（`override=never` 下 `deny` 直接拒绝执行）、审查失败 fail-closed、把**整个会话可见历史 + 原始参数**送模型且无脱敏、无记忆/无预算/无熔断/无缓存、模型固定用会话车道、卸载时把 `AUTO` 会话切成 `danger-full-access`、顶层 `run_code` 豁免审查。表里同时写明两者**不冲突可共存**。
+- 竞品表里官方那行的版本号补成 `0.1.6-alpha.1（next = 0.2.2-rc.1）`——只写 `latest` 会漏掉宿主真正跑的版本。
+- **新设置项「AI 缓存过期（毫秒）」**（高级设置，`aiCacheTtlMs`，默认 600000 = 10 分钟，0 = 关闭）：字段本来就在 `clampSettings` 与 `CONFIG_FIELDS` 里，只是从来没有界面入口。说明文字写明缓存键**跨会话共用**。
+
 ## 1.0.10 — 统计页的 AI 板块：口径、措辞、过期条目
 
 - 「审批合计」只留件数（共 / 放行 / 拒绝 / 取消 / 不可用）；`allow / ask / 兜底` 与缓存数字移进「**AI 调用情况**」（原「使用过的模型」）。一行一个主语：审批合计说件数，AI 板块说调用。

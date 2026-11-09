@@ -78,7 +78,7 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 
 | 插件 | 版本 | 它的做法 | 与本插件的关系 |
 |---|---|---|---|
-| [`@deepseek-ai/dsh-experimental-auto-review`](https://www.npmjs.com/package/@deepseek-ai/dsh-experimental-auto-review) | 0.1.6-alpha.1 | 官方随宿主的实验性基线：用当前会话模型审每个调用，无确定性危险清单，风险/理由不落盘 | 本插件的对比基线：确定性层（不花钱、可预测）、记忆、审计 UI 是它没有的 |
+| [`@deepseek-ai/dsh-experimental-auto-review`](https://www.npmjs.com/package/@deepseek-ai/dsh-experimental-auto-review) | 0.1.6-alpha.1（`next` = 0.2.2-rc.1） | 官方随宿主的实验性基线：用当前会话模型审每个调用，无确定性危险清单，风险/理由不落盘 | 本插件的对比基线：确定性层（不花钱、可预测）、记忆、审计 UI 是它没有的 |
 | [`dsh-auto-approve`](https://www.npmjs.com/package/dsh-auto-approve) | 0.7.1 | 保留沙箱、只裁 escalation；确定性危险清单先于分类器；会话记忆（同工具 + 同参数原文哈希，TTL 30 分钟、仅在内存）；分类器失败回落人工 | **功能面最接近的一个**。差异：本插件的记忆是持久 + 阈值 + 只计人工批准，且危险清单命中永不进记忆（这点两家一致） |
 | [`dsh-plugin-auto-review`](https://www.npmjs.com/package/dsh-plugin-auto-review) | 0.1.0 | 移植 Codex Guardian / Grok escalation 的审查提示，模型可拒绝，无人值守时直接拒 | 反面参照：机器可拒绝正是本项目的红线（人在环里才有最终决定权） |
 | [`dsh-auto-review`](https://www.npmjs.com/package/dsh-auto-review) | 0.15.0 | 链首第二模型预审；reviewer 不可用时 **fail-closed**（直接拒绝，不给人机会） | AI 层（L3）取了它的分层、每轮预算与熔断；**去掉否决权**，并修掉 PTC 折叠参数看不到就盲拒 |
@@ -92,6 +92,28 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 | [`dsh-approval-toast`](https://www.npmjs.com/package/dsh-approval-toast) | 1.0.3 | Windows 原生 toast 里直接批 | 功能互补（触达），但它也能作答，同时启用要确认不抢答 |
 
 表里的包名都能点开（指向 npm 页面；`moon09300731/dsh-approval-gate` 那个是 GitHub 仓库，它没有发布到 npm）。
+
+### 和官方 `@deepseek-ai/dsh-experimental-auto-review` 的差异
+
+它是**工具执行前的闸门**（挂 `tools/pre-execute`），只在会话选用它注册的 `AUTO` 权限预设时才动作，其余请求原样透传。明镜是**审批链上的 answerer**（挂 `approval/request`），不改任何预设、所有档位都走同一套链。**两者不冲突，可以同时装**，但权力模型相反：
+
+下表按官方 **`next` 标签 = 0.2.2-rc.1**（与本机宿主版本一致）的 `lib/index.js` 逐处核对，行号可复核：
+
+| 维度 | 官方 auto-review 0.2.2-rc.1 | 明镜 |
+|---|---|---|
+| 挂载点 | `tools/pre-execute`，只有 `AUTO` 预设的会话（`current(session) !== AUTO_PRESET` 直接 `next()`） | `approval/request` answerer，全预设、按工具分档 |
+| AI 的权力 | **能否决**：`deny` 且会话 override=`never` → 直接拒绝执行，脚本体不跑 | 只能 `allow` / `ask`；`deny` 在 `review.js` 被强制降级成 `ask` |
+| 审查失败 | **fail-closed**：模型/协议出问题 → 拒绝执行 | 转人工，`aiSource` 记下原因（`error` / `unparsed` / `breaker` / `budget` / `unavailable`） |
+| 给模型看什么 | **整个会话可见历史**（用户消息按角色渲染）+ 工具调用的原始参数 JSON + 工具 schema，无脱敏层 | ≤240 字符脱敏摘要；凭据类路径连摘要都不给（L0 先拦） |
+| 学习 | 无。同一条命令每次都重新审、重新付历史 token | 持久记忆：N 次**人工**批准后确定性放行，计数按会话隔离 |
+| 用哪个模型 | 固定 = 会话自己的车道 | 可钉任意 `provider/model`（全局默认 + 按会话覆盖） |
+| 成本护栏 | 无预算、无熔断、无缓存 | 60 秒窗预算、连续失败熔断 5 分钟、指纹级裁决缓存（TTL 可调） |
+| UI / 审计 | 无自有 UI，只留审批事件与错误码 | 审批页 / 记忆页 / 统计 / 右侧栏 diff·撤销 |
+| 卸载时 | 处于 `AUTO` 的会话被**切换成 `danger-full-access`** | 只摘 answerer，权限预设原样不动 |
+
+两处容易忽略的细节：官方对**顶层 `run_code` 调用豁免审查**（`exec.parent === undefined` 时直接放行）；它的 `allow` 并不等于「批准」——只表示「不升级到人工」，沙箱与原生权限判断仍照常执行。
+
+一句话：官方是**把审批权交给模型**，明镜是**让模型提议、由人或确定性规则裁决**。选官方的人要的是无人值守；选明镜的人要的是可审计。
 
 ### 和 `dsh-auto-approve` 的逐项差异
 
