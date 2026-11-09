@@ -183,9 +183,3 @@ DSH 的审批生态里已经有不少插件，思路各不相同。本插件把�
 | [UX.md](UX.md) | 界面取舍记录：每处 UI 为什么长这样，含**被否掉**的方案和原因 |
 | [docs/FEEDBACK.md](docs/FEEDBACK.md) | 问题复盘与工单（§1–§9 指纹被分页参数劈开；§10 起第二批体验工单） |
 | [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | 调研与实施计划（历史） |
-
----
-
-## Star 趋势
-
-[![Star 趋势图](https://api.star-history.com/svg?repos=FMR5487/dsh-review-hub&type=Date)](https://star-history.com/#FMR5487/dsh-review-hub&Date)

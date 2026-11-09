@@ -181,9 +181,3 @@ Idle costs **zero requests** (one local SSE connection, a heartbeat every 30s). 
 | [UX.md](UX.md) | UI decision log: why each screen looks the way it does, **including the options that were rejected** and why |
 | [docs/FEEDBACK.md](docs/FEEDBACK.md) | Post-mortems and work tickets (§1–§9: fingerprints split by paging knobs; §10 on: the second batch) |
 | [RESEARCH.md](RESEARCH.md) / [docs/PLAN.md](docs/PLAN.md) | Research notes and the implementation plan |
-
----
-
-## Star history
-
-[![Star history chart](https://api.star-history.com/svg?repos=FMR5487/dsh-review-hub&type=Date)](https://star-history.com/#FMR5487/dsh-review-hub&Date)

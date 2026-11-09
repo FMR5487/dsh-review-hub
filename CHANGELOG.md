@@ -2,6 +2,10 @@
 
 ## 未发版 · 文档整理
 
+- **移除 README / README-EN 底部的 Star 趋势区块**（上一提交加的，按用户要求撤掉）。
+
+## 未发版 · 竞品与星标
+
 - README / README-EN 顶部「和同类插件的关系」按另一会话（代码审查 + 竞品调研）的建议补齐：新增**四条差异**摘要（AI 无否决权 / 记忆只计人工批准 / 模型只看脱敏摘要 / 完整审批 UI），并把竞品表补上三个此前缺位的对手——官方 `@deepseek-ai/dsh-experimental-auto-review` 0.1.6-alpha.1、`dsh-auto-approve` 0.7.1（功能面最接近）、`dsh-plugin-auto-review` 0.1.0（机器可拒绝，作为反面参照）。每个包名都是实测 200 OK 的链接，版本取自 `registry.npmjs.org/<pkg>/latest`。
 - README / README-EN 底部加 **Star 趋势** 区块，与 [dsh-ops](https://github.com/T-Auto/dsh-ops) README 同款（`api.star-history.com/svg` + `star-history.com` 链接，`type=Date`）。
 
