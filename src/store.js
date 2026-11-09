@@ -640,7 +640,12 @@ export function createStore(options = {}) {
 		const out = [];
 		for (const [key, row] of memory) {
 			if (prefix !== '' && key.startsWith(prefix) === false) continue;
-			out.push({ key, ...row });
+			// The fingerprint only exists inside the memory key (`sessionId\0fp`), and both
+			// removal and the panel's per-row bucketing need it as a field; deriving it on
+			// every consumer was how `remove` silently matched nothing and how two unrelated
+			// commands ended up in one bucket.
+			const cut = key.indexOf('\u0000');
+			out.push({ key, fingerprint: cut >= 0 ? key.slice(cut + 1) : '', ...row });
 		}
 		// Rows written before `filePath` existed only carry `material`, whose path has
 		// already been shrunk to its last two segments — a path that no ledger row and no

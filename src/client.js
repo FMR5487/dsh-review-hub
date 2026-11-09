@@ -1862,13 +1862,13 @@ window.__ModuleLoader__.load({
       // said" from "why the reviewer stopped it", so neither can be mistaken for the other.
       '.ah-row-reason-ai{margin-top:5px;padding-top:5px;border-top:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.22))}',
       '.ah-row-reason-head{display:flex;align-items:center;gap:6px}',
-      '.ah-risk{font-size:10.5px;line-height:15px;padding:0 5px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}',
+      '.ah-risk{font-size:10.5px;line-height:15px;white-space:nowrap}',
       '.ah-risk-high{color:var(--dsw-alias-state-error-primary,#d93a3a)}',
       '.ah-risk-medium{color:var(--ah-human-fg,#f7ad31)}',
       '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
       '.ah-risk-unknown{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-row-reason-ai-solo{margin-top:0;padding-top:0;border-top:0}',
-      '.ah-row-reason-label{font-weight:600;color:var(--dsw-alias-label-primary,#fff)}',
+      '.ah-row-reason-label{color:var(--dsw-alias-label-primary,#fff)}',
       '.ah-row-model{flex:0 1 auto;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       // "AI 打回" is a property of the row, not of the AI lane: the chip already carries the
       // row's tone (warn / muted / danger), so the prefix inherits that colour instead of
@@ -1881,7 +1881,7 @@ window.__ModuleLoader__.load({
       // Narrower than the sidebar itself: drop the merge note, then the reviewer verdict,
       // then the memory sentence — the decision stays on screen the longest because it is
       // the only group that says what actually happened.
-      '@container (max-width:520px){.ah-chip-merged{display:none}}',
+      '@container (max-width:620px){.ah-chip-merged{display:none}}',
       '@container (max-width:460px){.ah-chip-pre{display:none}}',
       '@container (max-width:400px){.ah-chip-mem{display:none}}',
       '.ah-tone-warn{color:var(--ah-human-fg,#f7ad31);background:var(--ah-human-bg,rgba(247,173,49,.14));border-color:transparent}',
@@ -3615,6 +3615,27 @@ window.__ModuleLoader__.load({
      * The learned operations of this session. Both destructive buttons are red and
      * armed: one confirm for a row, three for everything (the pane has no undo).
      */
+    /**
+     * What counts as "the same lesson" on the memory page. A file is a shared subject, so
+     * every fingerprint touching it is one bucket; a command with no file has **no** shared
+     * subject — bucketing those by `tool + ""` added two unrelated shell scripts together
+     * (1 + 1 = "2/3 · 合并 2 条") while the approval row kept printing its own 1/3.
+     */
+    /** The fingerprint lives inside the memory key (`sid\0fp`); older payloads omit the field. */
+    function rowFingerprintOf(row) {
+      if (row === null || row === undefined) return '';
+      if (typeof row.fingerprint === 'string' && row.fingerprint !== '') return row.fingerprint;
+      const key = typeof row.key === 'string' ? row.key : '';
+      const at = key.indexOf('\u0000');
+      return at < 0 ? '' : key.slice(at + 1);
+    }
+
+    function memoryBucketId(tool, path, fingerprint) {
+      if (path !== '') return tool + '\u0000' + path;
+      const fp = fingerprint === undefined || fingerprint === null ? '' : String(fingerprint);
+      return tool + '\u0000fp:' + fp;
+    }
+
     function MemoryBody(props) {
       const t = translator(props);
       const view = useStore();
@@ -3661,7 +3682,7 @@ window.__ModuleLoader__.load({
         }
         patch({ armedFp: '' });
         for (const row of bucket.rows) {
-          void memoryManage({ op: 'remove', session: view.sessionId, fingerprint: row.fingerprint });
+          void memoryManage({ op: 'remove', session: view.sessionId, fingerprint: rowFingerprintOf(row) });
         }
       };
       const clearAll = function () {
@@ -3736,7 +3757,7 @@ window.__ModuleLoader__.load({
           groups.push(group);
         }
         const path = memoryFileOf(row);
-        const bucketId = tool + '\u0000' + path;
+        const bucketId = memoryBucketId(tool, path, rowFingerprintOf(row));
         let bucket = group.byFile.get(bucketId);
         if (bucket === undefined) {
           bucket = { id: bucketId, tool: tool, path: path, rows: [], max: 0, sum: 0, lastTs: 0, delta: null };
@@ -4202,6 +4223,8 @@ window.__ModuleLoader__.load({
         configCard: ConfigCard,
         aiEscalated: aiEscalated,
         chipOf: chipOf,
+        memoryBucketId: memoryBucketId,
+        rowFingerprintOf: rowFingerprintOf,
         riskLabel: riskLabel,
         reasonBlockOf: reasonBlockOf,
         rowModelOf: rowModelOf,

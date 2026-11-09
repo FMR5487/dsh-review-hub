@@ -294,6 +294,14 @@ export const cases = [
 			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'] }, (k) => k);
 			assertEqual(escalatedChip.pre, 'chip.aiRejected');
 			assertEqual(escalatedChip.merged, true);
+			// 记忆页分桶：文件是共同主体；没有文件就按指纹各算各的（否则两条无关命令会被加在一起）
+			assertEqual(bag.memoryBucketId('pwsh', '', 'aaa'), bag.memoryBucketId('pwsh', '', 'aaa'));
+			assertTrue(bag.memoryBucketId('pwsh', '', 'aaa') !== bag.memoryBucketId('pwsh', '', 'bbb'), '同工具不同指纹不能并成一桶');
+			assertEqual(bag.memoryBucketId('edit', 'D:/x/a.md', 'aaa'), bag.memoryBucketId('edit', 'D:/x/a.md', 'bbb'), '同一文件的不同指纹合成一桶');
+			// 指纹在记忆 key 里（sid\0fp）：服务端不给字段时也要能取出来，否则删除会静默打空
+			assertEqual(bag.rowFingerprintOf({ fingerprint: 'abc' }), 'abc');
+			assertEqual(bag.rowFingerprintOf({ key: 'session-1\u0000deadbeef' }), 'deadbeef');
+			assertEqual(bag.rowFingerprintOf({ key: 'no-separator' }), '');
 			// 日期左边的模型名：评审车道优先于会话车道
 			assertEqual(bag.rowModelOf({ decidedBy: 'human', aiModel: 'p/reviewer', routeModel: 'p/lane' }).text, 'p/reviewer');
 			assertEqual(bag.rowModelOf({ decidedBy: 'ai', routeModel: 'p/lane' }).text, 'p/lane');
