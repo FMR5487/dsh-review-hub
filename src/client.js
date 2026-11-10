@@ -253,6 +253,7 @@ window.__ModuleLoader__.load({
       'preview.kindPending': '等待审批',
       'preview.kindReviewing': 'AI 审阅中',
       'row.aiNoVerdict': 'AI 未给出结论',
+      'row.aiSkipLabel': '未送 AI：',
       'dock.pendingSkipped': '未送 AI 审查（{why}）—— 由你判断',
       'preview.kindTimeout': 'AI 超时/无结论',
       'preview.owner': '开关：{name}',
@@ -526,6 +527,7 @@ window.__ModuleLoader__.load({
       'preview.kindPending': 'Awaiting approval',
       'preview.kindReviewing': 'reviewer thinking',
       'row.aiNoVerdict': 'no reviewer verdict',
+      'row.aiSkipLabel': 'not reviewed:',
       'dock.pendingSkipped': 'not sent to the reviewer ({why}) — your call',
       'preview.kindTimeout': 'reviewer timed out',
       'preview.owner': 'switch: {name}',
@@ -1160,6 +1162,11 @@ window.__ModuleLoader__.load({
       const own = isDescription(entry.reason) ? entry.reason : '';
       const ai = isDescription(entry.aiReason) ? entry.aiReason : '';
       const risk = riskOf(entry);
+      // Why the reviewer was never asked belongs in the detail, next to the verdict fields:
+      // it is an audit fact, not something to interrupt the human with.
+      if (typeof entry.aiSkip === 'string' && entry.aiSkip !== '') {
+        return { own: own, ai: entry.aiSkip, label: 'row.aiSkipLabel', risk: risk };
+      }
       if (ai === '' || ai === own) return { own: own !== '' ? own : ai, ai: '', label: '', risk: '' };
       if (aiEscalated(entry) === true) return { own: own, ai: ai, label: 'row.aiReject', risk: risk };
       if (entry !== null && entry !== undefined && entry.decidedBy === 'ai') return { own: own, ai: ai, label: 'row.aiAllow', risk: risk };
@@ -2475,6 +2482,9 @@ window.__ModuleLoader__.load({
           const failed = reviewed === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
           const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
           const glyph = reviewSpin.glyphs[reviewSpin.frame % reviewSpin.glyphs.length];
+          // A designed skip is recorded in the approval page, not shouted on screen: the
+          // human is already being asked, and a card saying "nothing happened" is noise.
+          if (skipped === true) continue;
           const advice = skipped === true
             ? t('dock.pendingSkipped', { why: String(row.aiSkip || '') })
             : (reviewing === true
