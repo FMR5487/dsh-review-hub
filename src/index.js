@@ -344,11 +344,39 @@ async function answerer(request, next) {
 			row.note = 'file-auto-pass';
 			counters.memory += 1;
 		} else {
-			// Invariant: the reviewer runs *before* next(), never in parallel with it. So the
-			// human always answers last and an AI verdict can never overwrite a human one —
-			// if the reviewer says allow we skip the human entirely, otherwise the human
-			// decides after it. Do not reorder these two: doing so reopens that race.
-			const verdict = await maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp });
+			// Invariant: an AI verdict can never overwrite a human one. Two shapes serve it:
+			// either the reviewer answers first and we ask the human only on `ask`, or the
+			// handover timer fires and the human answers first while the reviewer keeps running
+			// — in that case its late answer is recorded as evidence and changes nothing.
+			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp });
+			let verdict;
+			const humanFirstMs = Math.max(0, Number(settings?.humanFirstMs) || 0);
+			if (humanFirstMs > 0) {
+				let timer;
+				const handover = new Promise(function (resolve) {
+					timer = setTimeout(function () { resolve('__handover__'); }, humanFirstMs);
+				});
+				const first = await Promise.race([review, handover]);
+				clearTimeout(timer);
+				if (first === '__handover__') {
+					// Hand the decision over now; the reviewer finishes in the background and its
+					// words land as audit evidence only.
+					row.humanAsked = true;
+					activeStore?.announce?.({ kind: 'pending' });
+					review.then(function (late) {
+						if (late === undefined) return;
+						row.aiLate = true;
+						if (row.aiSource === undefined) row.aiSource = late.source;
+						if (typeof late.reason === 'string' && late.reason !== '') row.aiReason = late.reason.slice(0, 160);
+						if (late.risk !== undefined) row.aiRisk = late.risk;
+						activeStore?.announce?.({ kind: 'pending' });
+					}, function () {});
+				} else {
+					verdict = first;
+				}
+			} else {
+				verdict = await review;
+			}
 			if (verdict !== undefined) {
 				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage };
 			}

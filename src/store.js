@@ -53,7 +53,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	fileAutoPass: Object.freeze({}),
 	threshold: 3,
 	aiFailurePolicy: 'ask',
-	reviewTimeoutMs: 8000,
+	// How long the reviewer may run before we hand the decision to the human anyway.
+	// 0 disables the handover, leaving reviewTimeoutMs as the only guard.
+	humanFirstMs: 8000,
+	// Raised from 8s: with humanFirstMs holding the handover, this is now purely the
+	// reviewer's own leash, so it can be generous without making anyone wait.
+	reviewTimeoutMs: 16000,
 	aiBudgetPerTurn: 20,
 	aiBreakerFails: 3,
 	aiCacheTtlMs: 600000,
@@ -114,6 +119,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
 const BOUNDS = {
 	threshold: [1, 5],
 	reviewTimeoutMs: [1000, 120000],
+	humanFirstMs: [0, 120000],
 	aiBudgetPerTurn: [1, 500],
 	aiBreakerFails: [1, 20],
 	aiCacheTtlMs: [0, 86400000],

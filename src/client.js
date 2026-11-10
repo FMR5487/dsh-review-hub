@@ -275,6 +275,8 @@ window.__ModuleLoader__.load({
       'config.reviewerLocale': 'AI 理由语言',
       'config.reviewerLocaleNote': '跟随界面 = 用你当前界面语言；也可强制中文 / English',
       'config.localeAuto': '跟随界面',
+      'config.humanFirst': '交出决策权（毫秒）',
+      'config.humanFirstNote': 'AI 超过这个时间没给结论，就先把人工选项摆出来；AI 之后返回的意见只记录、不改变决定。0 = 关闭',
       'config.reasonChars': 'AI 理由长度上限（字符）',
       'config.reasonCharsNote': '40–400，默认 80。中文理由通常比英文长，嫌理由太短就调大',
       'config.cacheTtl': 'AI 缓存过期（毫秒）',
@@ -544,6 +546,8 @@ window.__ModuleLoader__.load({
       'config.reviewerLocale': 'Reviewer reason language',
       'config.reviewerLocaleNote': 'Follow the UI = use the panel language; or force Chinese / English',
       'config.localeAuto': 'Follow the UI',
+      'config.humanFirst': 'Hand over to the human after (ms)',
+      'config.humanFirstNote': 'If the reviewer has not answered in this long, the human options appear first; a later reviewer answer is recorded, never applied. 0 = off',
       'config.reasonChars': 'Reviewer reason length cap (chars)',
       'config.reasonCharsNote': '40-400, default 80. Chinese reasons run longer than English ones — raise it if they feel cut off',
       'config.cacheTtl': 'AI verdict cache TTL (ms)',
@@ -2450,6 +2454,9 @@ window.__ModuleLoader__.load({
           if (belongsHere(row) === false) continue;
           if (dismissed.has(String(row.id))) continue;
           if (adviceOverlay.settled.has(String(row.id))) continue;
+          // Only rows the human has actually been asked about belong up here: while the
+          // reviewer still holds the row, the dock seat below is visible and looks better.
+          if (row.aiReviewed !== true && row.humanAsked !== true) continue;
 
           // Three states, not two: the reviewer is still thinking / it answered / it never
           // answered. The last one must say so plainly instead of spinning forever.
@@ -3652,6 +3659,7 @@ window.__ModuleLoader__.load({
         ),
         numberField('pollMs', t('config.pollMs')),
         numberField('maxEntriesPerSession', t('config.maxEntries')),
+        numberField('humanFirstMs', t('config.humanFirst'), t('config.humanFirstNote')),
         numberField('reviewTimeoutMs', t('config.timeout')),
         numberField('aiCacheTtlMs', t('config.cacheTtl'), t('config.cacheTtlNote')),
         numberField('aiReasonChars', t('config.reasonChars'), t('config.reasonCharsNote')),
