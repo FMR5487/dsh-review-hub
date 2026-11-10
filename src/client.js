@@ -1378,8 +1378,10 @@ window.__ModuleLoader__.load({
         }
         walk = walk.parentElement;
       }
-      // No scrolling ancestor (a short conversation): sit just above the dock instead.
-      if (top === 0) top = Math.max(8, rect.top - 120);
+      // No scrolling ancestor (a short conversation): sit at the top of the conversation
+      // column. Placing it just above the dock made it read as the dock hint card, which is
+      // exactly the seat this card must not look like.
+      if (top === 0) top = Math.max(8, Math.min(96, rect.top - 16));
       return { left: rect.left, width: rect.width, top: top };
     }
 
@@ -1480,6 +1482,10 @@ window.__ModuleLoader__.load({
         if (typeof item.sessionId === 'string' && item.sessionId !== '' && item.sessionId !== session) return false;
         // A designed skip is an audit fact for the detail page, never a card.
         if (typeof item.aiSkip === 'string' && item.aiSkip !== '') return false;
+        // Already decided (the human used the native panel, not our card): retire it here
+        // too, or the card lingers for as long as the server takes to drop the row.
+        if (typeof item.decidedBy === 'string' && item.decidedBy !== '') return false;
+        if (typeof item.outcome === 'string' && item.outcome !== '') return false;
         if (adviceOverlay.dismissed.has(String(item.id)) === true) return false;
         // Still with the reviewer: this is the "it is thinking, you may decide anyway" card.
         // It only shows once the human has been asked; before that the dock seat carries it.
