@@ -344,6 +344,10 @@ async function answerer(request, next) {
 			row.note = 'file-auto-pass';
 			counters.memory += 1;
 		} else {
+			// Invariant: the reviewer runs *before* next(), never in parallel with it. So the
+			// human always answers last and an AI verdict can never overwrite a human one —
+			// if the reviewer says allow we skip the human entirely, otherwise the human
+			// decides after it. Do not reorder these two: doing so reopens that race.
 			const verdict = await maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp });
 			if (verdict !== undefined) {
 				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage };
