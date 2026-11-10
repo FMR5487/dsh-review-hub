@@ -251,6 +251,9 @@ window.__ModuleLoader__.load({
       'model.refresh': '刷新模型目录',
       'model.skipped': '{n} 个 provider 没返回目录（缺凭据或超时），已跳过',
       'preview.kindPending': '等待审批',
+      'preview.kindReviewing': 'AI 审阅中',
+      'preview.kindTimeout': 'AI 超时/无结论',
+      'preview.owner': '开关：{name}',
       'preview.kindDanger': '高危',
       'preview.sampleHint': '以上是样例；下面是本会话实时',
       'preview.floatTry': '试一下悬浮卡',
@@ -517,6 +520,9 @@ window.__ModuleLoader__.load({
       'model.refresh': 'Refresh the provider list',
       'model.skipped': '{n} providers returned no list (missing credentials or a timeout), skipped',
       'preview.kindPending': 'Awaiting approval',
+      'preview.kindReviewing': 'reviewer thinking',
+      'preview.kindTimeout': 'reviewer timed out',
+      'preview.owner': 'switch: {name}',
       'preview.kindDanger': 'High risk',
       'preview.sampleHint': 'That card is a sample; the rows below are this session live',
       'preview.floatTry': 'Try the floating card',
@@ -1842,6 +1848,8 @@ window.__ModuleLoader__.load({
       '.ah-card{box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 10px;min-height:44px;border-radius:10px;font-size:12px;line-height:18px;border:1px solid var(--dsw-alias-border-l2);background:var(--ah-card-bg,#2c2c2e);color:var(--dsw-alias-label-primary)}',
       // One flat green for the AI family across every card surface (product decision).
       '.ah-dock,.ah-preview,.ah-float,.ah-card-ai,.ah-card-chip-ai{--ah-ai-fg:#65c98d}',
+      /* The reviewing card carries two lines; keep the break instead of folding it away. */
+      '.ah-float .ah-card-sub,.ah-preview .ah-card-sub{white-space:pre-line}',
       '.ah-card-ai{border-color:color-mix(in srgb, var(--ah-ai-fg) 55%, transparent)}',
       '.ah-card-memory{border-color:color-mix(in srgb, var(--ah-memory-fg) 50%, transparent)}',
       '.ah-card-pending{border-color:color-mix(in srgb, var(--ah-human-fg) 60%, transparent)}',
@@ -3320,13 +3328,25 @@ window.__ModuleLoader__.load({
 
     const AGENT_KINDS = ['default', 'subagent', 'scheduled', 'task_board', 'unknown'];
 
-    const PREVIEW_KINDS = ['ai', 'memory', 'pending', 'danger', 'other'];
+    const PREVIEW_KINDS = ['ai', 'memory', 'pending', 'reviewing', 'timeout', 'danger', 'other'];
     const PREVIEW_LABELS = {
       ai: 'chip.ai',
       memory: 'chip.memory',
       pending: 'preview.kindPending',
+      reviewing: 'preview.kindReviewing',
+      timeout: 'preview.kindTimeout',
       danger: 'preview.kindDanger',
       other: 'dock.otherChip',
+    };
+    // Which switch owns each sample, so the preview answers "why did I not see this".
+    const PREVIEW_OWNERS = {
+      ai: 'setting.aiAdviceCard',
+      memory: 'setting.memory',
+      pending: 'setting.pendingCard',
+      reviewing: 'setting.pendingCard',
+      timeout: 'setting.dangerCard',
+      danger: 'setting.dangerCard',
+      other: 'setting.hint',
     };
 
     /** The five sample cards, written as data now that the popup window is gone. */
@@ -3348,6 +3368,16 @@ window.__ModuleLoader__.load({
           main: 'edit · C:/Users/x/cordis.patch.yml',
           sub: t('dock.pendingLine', { time: '11-06 10:24:02' }),
         },
+        // Still being reviewed: the only card on screen while the reviewer is thinking.
+        reviewing: {
+          kind: 'pending',
+          chip: '',
+          main: 'pwsh · Remove-Item -Recurse -Force D:/tmp',
+          sub: t('dock.pendingReviewing', { sec: 7, spin: '│' }),
+          spin: true,
+        },
+        // Reviewed, but no verdict came back: red edge, no spinner, no pretending.
+        timeout: { kind: 'pending', danger: true, chip: t('row.highRisk'), main: 'pwsh · New-Item C:/Users/x/probe.txt', sub: t('dock.pendingFailed') },
         danger: { kind: 'pending', danger: true, chip: t('row.highRisk'), main: 'pwsh · Remove-Item -Recurse -Force D:/tmp', sub: '未进 AI 审查：命中 L0 删除类' },
         other: { kind: 'other', chip: t('dock.otherChip'), main: '审批中心 (1)', sub: '等待审批 1 · AI通过 0 · 记忆通过 1' },
       };
@@ -3379,7 +3409,10 @@ window.__ModuleLoader__.load({
           key: id,
           className: id === kind ? 'ah-btn ah-btn-active' : 'ah-btn',
           onClick: function () { setKind(id); },
-        }, t(PREVIEW_LABELS[id]));
+        }, t(PREVIEW_LABELS[id]) === undefined ? t('preview.kindPending') : t(PREVIEW_LABELS[id]),
+        // Name the switch that owns this sample: "I never see this card" is almost always
+        // a switch that is off, and the preview is where that gets answered.
+        h('span', { key: 'owner', className: 'ah-hint' }, t('preview.owner', { name: t(PREVIEW_OWNERS[id] || 'setting.pendingCard') })));
       });
       // A way to see the floating advice card without waiting for a real approval: the
       // card is driven by store.pending, so we put one row in and sync by hand (the dock
