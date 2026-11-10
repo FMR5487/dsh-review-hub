@@ -1981,7 +1981,7 @@ window.__ModuleLoader__.load({
       // row's tone (warn / muted / danger), so the prefix inherits that colour instead of
       // pinning the AI green — otherwise "AI 打回 · 人工拒绝" paints green next to red.
       '.ah-chip-pre{color:inherit;font-weight:600}',
-      '.ah-chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;padding:1px 6px;border-radius:999px;border:1px solid currentColor}',
+      '.ah-chip{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;padding:1px 6px;border-radius:999px;border:1px solid transparent}',
       '.ah-chip-short{display:none}',
       // A right sidebar halves this pane; the tool name and the date must never lose.
       '@container (max-width:560px){.ah-chip-long{display:none}.ah-chip-short{display:inline}}',

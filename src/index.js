@@ -367,7 +367,11 @@ async function answerer(request, next) {
 						if (late === undefined) return;
 						row.aiLate = true;
 						if (row.aiSource === undefined) row.aiSource = late.source;
-						if (typeof late.reason === 'string' && late.reason !== '') row.aiReason = late.reason.slice(0, 160);
+						// Only a real verdict is words a human should read; "ended with aborted" is a
+						// diagnostic, not the reviewer's opinion.
+						const lateReal = late.source === 'ai' || late.source === 'cache';
+						if (lateReal === true && typeof late.reason === 'string' && late.reason !== '') row.aiReason = late.reason.slice(0, 160);
+						else row.aiSource = late.source;
 						if (late.risk !== undefined) row.aiRisk = late.risk;
 						activeStore?.announce?.({ kind: 'pending' });
 					}, function () {});
