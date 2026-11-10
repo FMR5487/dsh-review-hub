@@ -2463,7 +2463,11 @@ window.__ModuleLoader__.load({
           // Three states, not two: the reviewer is still thinking / it answered / it never
           // answered. The last one must say so plainly instead of spinning forever.
           const reviewing = row.aiReviewed !== true;
-          const failed = reviewing === false && (typeof row.aiReason !== 'string' || row.aiReason === '');
+          // "Never sent to the reviewer" and "sent but no verdict" are different facts. Only a
+          // row that carries an aiSource was actually reviewed; without one there is nothing
+          // to report, so the card stays a plain waiting line instead of claiming a timeout.
+          const reviewed = reviewing === false && typeof row.aiSource === 'string' && row.aiSource !== '';
+          const failed = reviewed === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
           const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
           const glyph = reviewSpin.glyphs[reviewSpin.frame % reviewSpin.glyphs.length];
           const advice = reviewing === true
