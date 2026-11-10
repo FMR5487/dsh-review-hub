@@ -252,6 +252,7 @@ window.__ModuleLoader__.load({
       'model.skipped': '{n} 个 provider 没返回目录（缺凭据或超时），已跳过',
       'preview.kindPending': '等待审批',
       'preview.kindReviewing': 'AI 审阅中',
+      'row.aiNoVerdict': 'AI 未给出结论',
       'preview.kindTimeout': 'AI 超时/无结论',
       'preview.owner': '开关：{name}',
       'preview.kindDanger': '高危',
@@ -523,6 +524,7 @@ window.__ModuleLoader__.load({
       'model.skipped': '{n} providers returned no list (missing credentials or a timeout), skipped',
       'preview.kindPending': 'Awaiting approval',
       'preview.kindReviewing': 'reviewer thinking',
+      'row.aiNoVerdict': 'no reviewer verdict',
       'preview.kindTimeout': 'reviewer timed out',
       'preview.owner': 'switch: {name}',
       'preview.kindDanger': 'High risk',
@@ -2454,9 +2456,9 @@ window.__ModuleLoader__.load({
           if (belongsHere(row) === false) continue;
           if (dismissed.has(String(row.id))) continue;
           if (adviceOverlay.settled.has(String(row.id))) continue;
-          // Only rows the human has actually been asked about belong up here: while the
-          // reviewer still holds the row, the dock seat below is visible and looks better.
-          if (row.aiReviewed !== true && row.humanAsked !== true) continue;
+          // Every undecided row is drawn here, including the one still being reviewed: the
+          // dock-side rendering never materialised, so gating the reviewing card out of this
+          // overlay left the reviewer's first seconds with no card at all.
 
           // Three states, not two: the reviewer is still thinking / it answered / it never
           // answered. The last one must say so plainly instead of spinning forever.
@@ -2480,7 +2482,9 @@ window.__ModuleLoader__.load({
             key: 'p-' + row.id,
             kind: 'pending',
             danger: dangerous,
-            chip: dangerous ? t('row.highRisk') : '',
+            // "Hard risk" and "no verdict" are different stories; the chip must not claim the
+            // first when the card is telling the second.
+            chip: failed === true ? t('row.aiNoVerdict') : (dangerous === true ? t('row.highRisk') : ''),
             main: String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160),
             sub: advice,
             extra: [iconButton('close', t('dock.dismiss'), function () {
