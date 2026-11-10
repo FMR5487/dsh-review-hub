@@ -1407,44 +1407,23 @@ window.__ModuleLoader__.load({
       node.style.transform = 'none';
     }
 
-    function syncAdviceOverlay(t, anchor) {
-      if (typeof document === 'undefined' || document.body === null || document.body === undefined) return;
-      // Keep the last real measurement: the settings page has no dock of its own, and the
-      // preview there should still land on the conversation instead of the window centre.
-      if (anchor !== null && anchor !== undefined) adviceOverlay.anchor = anchor;
-      const placed = anchor === null || anchor === undefined ? adviceOverlay.anchor : anchor;
-      const session = store.sessionId;
-      const row = (Array.isArray(store.pending) ? store.pending : []).find(function (item) {
-        if (item === null || item === undefined) return false;
-        if (typeof item.sessionId === 'string' && item.sessionId !== '' && item.sessionId !== session) return false;
-        // A designed skip is an audit fact for the detail page, never a card.
-        if (typeof item.aiSkip === 'string' && item.aiSkip !== '') return false;
-        if (adviceOverlay.dismissed.has(String(item.id)) === true) return false;
-        // Still with the reviewer: this is the "it is thinking, you may decide anyway" card.
-        // It only shows once the human has been asked; before that the dock seat carries it.
-        if (item.aiReviewed !== true) return item.humanAsked === true;
-        // A hard-risk request never reaches the reviewer, so it has no advice — but it is
-        // still a decision only a human can make, which is exactly what this card is for.
-        if (item.riskLevel === 'high') return true;
-        return typeof item.aiReason === 'string' && item.aiReason !== '';
-      });
-      const wanted = row !== undefined && settings().composerHint !== false
-        && settings().pendingCard === true && store.pageVisible !== true;
-      if (wanted === false) {
-        removeAdviceOverlay();
-        return;
-      }
-      const signature = String(row.id) + '\u0000' + String(row.aiReason || '') + '\u0000' + String(row.riskRule || '')
-        + '\u0000' + String(row.aiReviewed) + '\u0000' + String(row.aiSource || '') + '\u0000' + String(row.humanAsked)
-        + '\u0000' + String(reviewSpin.frame);
-      if (adviceOverlay.node !== null && adviceOverlay.signature === signature) {
-        // Content unchanged: only the geometry can have moved (sidebar opened, window
-        // resized), and that is a couple of style writes.
-        placeAdviceOverlay(placed);
-        return;
-      }
-      removeAdviceOverlay();
+    /**
+     * Build the floating card for one pending row. Extracted so the settings preview can
+     * pop the very same card instead of a look-alike.
+     */
 
+    /** Pop the real floating card for a preview sample, so its geometry can be judged
+     *  without waiting for a real approval. A second call replaces it. */
+    function previewFloat(t, row) {
+      if (typeof document === "undefined") return;
+      removeAdviceOverlay();
+      const node = buildFloatCard(t, row);
+      document.body.appendChild(node);
+      adviceOverlay.node = node;
+      adviceOverlay.signature = "preview";
+      placeAdviceOverlay(adviceOverlay.anchor);
+    }
+    function buildFloatCard(t, row) {
       const reviewing = row.aiReviewed !== true;
       const reviewedNow = reviewing === false && typeof row.aiSource === 'string' && row.aiSource !== '';
       const failed = reviewedNow === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
@@ -1486,6 +1465,48 @@ window.__ModuleLoader__.load({
       node.appendChild(head);
       node.appendChild(main);
       node.appendChild(sub);
+      return node;
+    }
+
+    function syncAdviceOverlay(t, anchor) {
+      if (typeof document === 'undefined' || document.body === null || document.body === undefined) return;
+      // Keep the last real measurement: the settings page has no dock of its own, and the
+      // preview there should still land on the conversation instead of the window centre.
+      if (anchor !== null && anchor !== undefined) adviceOverlay.anchor = anchor;
+      const placed = anchor === null || anchor === undefined ? adviceOverlay.anchor : anchor;
+      const session = store.sessionId;
+      const row = (Array.isArray(store.pending) ? store.pending : []).find(function (item) {
+        if (item === null || item === undefined) return false;
+        if (typeof item.sessionId === 'string' && item.sessionId !== '' && item.sessionId !== session) return false;
+        // A designed skip is an audit fact for the detail page, never a card.
+        if (typeof item.aiSkip === 'string' && item.aiSkip !== '') return false;
+        if (adviceOverlay.dismissed.has(String(item.id)) === true) return false;
+        // Still with the reviewer: this is the "it is thinking, you may decide anyway" card.
+        // It only shows once the human has been asked; before that the dock seat carries it.
+        if (item.aiReviewed !== true) return item.humanAsked === true;
+        // A hard-risk request never reaches the reviewer, so it has no advice — but it is
+        // still a decision only a human can make, which is exactly what this card is for.
+        if (item.riskLevel === 'high') return true;
+        return typeof item.aiReason === 'string' && item.aiReason !== '';
+      });
+      const wanted = row !== undefined && settings().composerHint !== false
+        && settings().pendingCard === true && store.pageVisible !== true;
+      if (wanted === false) {
+        removeAdviceOverlay();
+        return;
+      }
+      const signature = String(row.id) + '\u0000' + String(row.aiReason || '') + '\u0000' + String(row.riskRule || '')
+        + '\u0000' + String(row.aiReviewed) + '\u0000' + String(row.aiSource || '') + '\u0000' + String(row.humanAsked)
+        + '\u0000' + String(reviewSpin.frame);
+      if (adviceOverlay.node !== null && adviceOverlay.signature === signature) {
+        // Content unchanged: only the geometry can have moved (sidebar opened, window
+        // resized), and that is a couple of style writes.
+        placeAdviceOverlay(placed);
+        return;
+      }
+      removeAdviceOverlay();
+
+      const node = buildFloatCard(t, row);
       document.body.appendChild(node);
       adviceOverlay.node = node;
       adviceOverlay.signature = signature;
@@ -3405,7 +3426,8 @@ window.__ModuleLoader__.load({
 
     const AGENT_KINDS = ['default', 'subagent', 'scheduled', 'task_board', 'unknown'];
 
-    const PREVIEW_KINDS = ['ai', 'memory', 'pending', 'reviewing', 'timeout', 'danger', 'other'];
+    const PREVIEW_KINDS = ['ai', 'memory', 'reviewing', 'timeout', 'danger', 'other'];
+    const PREVIEW_FLOAT = { ai: 'advice', danger: 'danger', reviewing: 'reviewing', timeout: 'timeout' };
     const PREVIEW_LABELS = {
       ai: 'chip.ai',
       memory: 'chip.memory',
@@ -3485,7 +3507,7 @@ window.__ModuleLoader__.load({
           type: 'button',
           key: id,
           className: id === kind ? 'ah-btn ah-btn-active' : 'ah-btn',
-          onClick: function () { setKind(id); },
+          onClick: function () { setKind(id); const shape = PREVIEW_FLOAT[id]; if (shape !== undefined) tryFloat(shape); },
         }, t(PREVIEW_LABELS[id]) === undefined ? t('preview.kindPending') : t(PREVIEW_LABELS[id]),
         // Name the switch that owns this sample: "I never see this card" is almost always
         // a switch that is off, and the preview is where that gets answered.
@@ -3514,7 +3536,7 @@ window.__ModuleLoader__.load({
       const floatState = React.useState('');
       const floatMsg = floatState[0];
       const setFloatMsg = floatState[1];
-      const tryFloat = function (danger) {
+      const tryFloat = function (kind) {
         const config = view.config === null ? {} : view.config;
         if (config.composerHint === false || config.pendingCard !== true) {
           setFloatMsg(t('preview.floatBlocked'));
@@ -3537,9 +3559,14 @@ window.__ModuleLoader__.load({
         };
         // Two shapes, because they carry different text: an AI suggestion and an L0
         // hard-risk row that never reached the reviewer at all.
-        const row = danger === true
-          ? Object.assign({}, base, { argsSummary: 'bash -lc "rm -rf D:/tmp/build"', aiReason: '', aiRisk: 'high', riskLevel: 'high', riskRule: 'delete' })
-          : Object.assign({}, base, { aiReason: t('preview.floatAdvice'), aiRisk: 'high' });
+        let row = Object.assign({}, base, { aiReason: t('preview.floatAdvice'), aiRisk: 'high' });
+        if (kind === 'danger') {
+          row = Object.assign({}, base, { argsSummary: 'bash -lc "rm -rf D:/tmp/build"', aiReason: '', aiRisk: 'high', riskLevel: 'high', riskRule: 'delete' });
+        } else if (kind === 'reviewing') {
+          row = Object.assign({}, base, { aiReviewed: false, humanAsked: true, aiReason: '', startedAt: Date.now() - 7000 });
+        } else if (kind === 'timeout') {
+          row = Object.assign({}, base, { aiSource: 'timeout', aiReason: '', aiRisk: '' });
+        }
         store.pending = [row].concat(Array.isArray(store.pending) ? store.pending : []);
         notify();
         syncAdviceOverlay(t, cardAnchor());
@@ -3595,8 +3622,8 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'ah-hint', key: 'recent-empty' }, t('empty.session'))
           : liveCards,
         h('div', { className: 'ah-preview-btns', key: 'float-btns' },
-          h('button', { type: 'button', className: 'ah-btn', onClick: function () { tryFloat(false); } }, t('preview.floatTry')),
-          h('button', { type: 'button', className: 'ah-btn', onClick: function () { tryFloat(true); } }, t('preview.floatTryDanger'))),
+          h('button', { type: 'button', className: 'ah-btn', onClick: function () { tryFloat('advice'); } }, t('preview.floatTry')),
+          h('button', { type: 'button', className: 'ah-btn', onClick: function () { tryFloat('danger'); } }, t('preview.floatTryDanger'))),
         floatMsg === '' ? null : h('div', { className: 'ah-hint', key: 'float-msg' }, floatMsg),
         h('div', { className: 'ah-hint', key: 'float-hint' }, t('preview.floatHint')),
         h('div', { className: 'ah-hint', key: 'pending-title' }, t('preview.pending')),
