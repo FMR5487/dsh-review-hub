@@ -2442,15 +2442,15 @@ window.__ModuleLoader__.load({
       // The reviewer's card must survive the panel being open: while the native panel is on
       // screen the dock row below is the part that gets covered, so the floating card is the
       // only place this signal can live. Advice/high-risk cards still keep the old rule.
-      if (view.config !== null && view.config.pendingCard === true && (listIsOpen === false || anyReviewing === true) && adviceOverlay.node === null) {
+      // Every undecided row is carried by the floating card now, panel open or not: the dock
+      // row below is exactly the surface the native panel covers, so it can never be the place
+      // a warning lives. The dock keeps only finished results.
+      if (view.config !== null && view.config.pendingCard === true && adviceOverlay.node === null) {
         for (const row of view.pending) {
           if (belongsHere(row) === false) continue;
           if (dismissed.has(String(row.id))) continue;
           if (adviceOverlay.settled.has(String(row.id))) continue;
-          const reviewingHere = row.aiReviewed !== true;
-          // With the panel open only the reviewing card is allowed: the panel already asks
-          // the question, so a second question card would be noise.
-          if (listIsOpen === true && reviewingHere !== true) continue;
+
           // Three states, not two: the reviewer is still thinking / it answered / it never
           // answered. The last one must say so plainly instead of spinning forever.
           const reviewing = row.aiReviewed !== true;
