@@ -1417,8 +1417,12 @@ window.__ModuleLoader__.load({
       const row = (Array.isArray(store.pending) ? store.pending : []).find(function (item) {
         if (item === null || item === undefined) return false;
         if (typeof item.sessionId === 'string' && item.sessionId !== '' && item.sessionId !== session) return false;
-        if (item.aiReviewed === false) return false;
+        // A designed skip is an audit fact for the detail page, never a card.
+        if (typeof item.aiSkip === 'string' && item.aiSkip !== '') return false;
         if (adviceOverlay.dismissed.has(String(item.id)) === true) return false;
+        // Still with the reviewer: this is the "it is thinking, you may decide anyway" card.
+        // It only shows once the human has been asked; before that the dock seat carries it.
+        if (item.aiReviewed !== true) return item.humanAsked === true;
         // A hard-risk request never reaches the reviewer, so it has no advice — but it is
         // still a decision only a human can make, which is exactly what this card is for.
         if (item.riskLevel === 'high') return true;
@@ -1430,7 +1434,9 @@ window.__ModuleLoader__.load({
         removeAdviceOverlay();
         return;
       }
-      const signature = String(row.id) + '\u0000' + String(row.aiReason || '') + '\u0000' + String(row.riskRule || '');
+      const signature = String(row.id) + '\u0000' + String(row.aiReason || '') + '\u0000' + String(row.riskRule || '')
+        + '\u0000' + String(row.aiReviewed) + '\u0000' + String(row.aiSource || '') + '\u0000' + String(row.humanAsked)
+        + '\u0000' + String(reviewSpin.frame);
       if (adviceOverlay.node !== null && adviceOverlay.signature === signature) {
         // Content unchanged: only the geometry can have moved (sidebar opened, window
         // resized), and that is a couple of style writes.
@@ -1439,14 +1445,17 @@ window.__ModuleLoader__.load({
       }
       removeAdviceOverlay();
 
-      const dangerous = row.riskLevel === 'high';
+      const reviewing = row.aiReviewed !== true;
+      const reviewedNow = reviewing === false && typeof row.aiSource === 'string' && row.aiSource !== '';
+      const failed = reviewedNow === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
+      const dangerous = row.riskLevel === 'high' || failed === true;
       const node = document.createElement('div');
       node.className = 'ah-float ah-card-pending' + (dangerous ? ' ah-card-danger ah-float-danger' : '');
       const head = document.createElement('div');
       head.className = 'ah-float-head';
       const chip = document.createElement('span');
       chip.className = 'ah-card-chip ' + (dangerous ? 'ah-card-chip-danger' : 'ah-card-chip-pending');
-      chip.textContent = dangerous ? t('row.highRisk') : t('dock.pending');
+      chip.textContent = failed === true ? t('row.aiNoVerdict') : (dangerous === true ? t('row.highRisk') : t('dock.pending'));
       const close = document.createElement('button');
       close.type = 'button';
       close.className = 'ah-icon-btn ah-float-close';
@@ -1464,11 +1473,16 @@ window.__ModuleLoader__.load({
       main.textContent = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160);
       const sub = document.createElement('div');
       sub.className = 'ah-float-sub';
-      sub.textContent = typeof row.aiReason === 'string' && row.aiReason !== ''
-        ? t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason })
-        : (dangerous
-          ? t('dock.pendingDanger', { rule: String(row.riskRule || t('row.highRisk')) })
-          : t('dock.pendingLine', { time: stampOf(row.startedAt) }));
+      const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
+      sub.textContent = reviewing === true
+        ? t('dock.pendingReviewing', { sec: waited, spin: reviewSpin.glyphs[reviewSpin.frame % reviewSpin.glyphs.length] })
+        : (failed === true
+          ? t('dock.pendingFailed')
+          : (typeof row.aiReason === 'string' && row.aiReason !== ''
+            ? t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason })
+            : (dangerous
+              ? t('dock.pendingDanger', { rule: String(row.riskRule || t('row.highRisk')) })
+              : t('dock.pendingLine', { time: stampOf(row.startedAt) }))));
       node.appendChild(head);
       node.appendChild(main);
       node.appendChild(sub);
