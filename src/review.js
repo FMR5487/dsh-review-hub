@@ -427,7 +427,12 @@ export function createReviewer(deps = {}) {
 			noteFailure(sessionId, settings);
 			stats.fallbacks += 1;
 			bumpLane(input.route, 'fallbacks');
-			return fallback('error', 'reviewer failed: ' + (error instanceof Error ? error.message : String(error)).slice(0, 80));
+			// An aborted request is the leash, not a failure: name it so the panel can say
+			// "timed out" instead of a generic error the human has to guess about.
+			const message = error instanceof Error ? error.message : String(error);
+			const timedOut = error !== null && error !== undefined && (error.name === 'AbortError' || /abort/i.test(message) === true);
+			if (timedOut === true) return fallback('timeout', 'reviewer timed out after ' + String(timeoutMs) + 'ms');
+			return fallback('error', 'reviewer failed: ' + message.slice(0, 80));
 		}
 		if (answer.reason !== undefined) {
 			noteFailure(sessionId, settings);
