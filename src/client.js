@@ -1386,6 +1386,12 @@ window.__ModuleLoader__.load({
     function placeAdviceOverlay(anchor) {
       const node = adviceOverlay.node;
       if (node === null) return;
+      // Fall back to measuring the dock ourselves before surrendering to the CSS
+      // "centred in the viewport" rule: with the sidebar open that rule lands the card
+      // off the conversation column (visibly to the right and too narrow).
+      if ((anchor === null || anchor === undefined) && typeof document !== 'undefined') {
+        anchor = describeDockAnchor(document.querySelector('.ah-dock'));
+      }
       if (anchor === null || anchor === undefined) {
         node.style.left = '';
         node.style.width = '';
@@ -1393,6 +1399,8 @@ window.__ModuleLoader__.load({
         node.style.transform = '';
         return;
       }
+      // The dock's own padding is already inside rect.width, so the card matches the dock
+      // edge to edge instead of standing proud of it.
       node.style.left = anchor.left + 'px';
       node.style.width = anchor.width + 'px';
       node.style.top = anchor.top + 'px';
