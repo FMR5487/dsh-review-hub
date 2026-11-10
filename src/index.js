@@ -355,7 +355,8 @@ async function answerer(request, next) {
 			// either the reviewer answers first and we ask the human only on `ask`, or the
 			// handover timer fires and the human answers first while the reviewer keeps running
 			// — in that case its late answer is recorded as evidence and changes nothing.
-			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp });
+			const reviewControl = new AbortController();
+			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp, signal: reviewControl.signal });
 			let verdict;
 			const humanFirstMs = Math.max(0, Number(settings?.humanFirstMs) || 0);
 			if (humanFirstMs > 0) {
@@ -369,6 +370,10 @@ async function answerer(request, next) {
 					// Hand the decision over now; the reviewer finishes in the background and its
 					// words land as audit evidence only.
 					row.humanAsked = true;
+					// The human owns the decision from here on: cancel the reviewer instead of
+					// letting it finish an answer that can never be used (and paying for it).
+					reviewControl.abort();
+					row.aiSource = 'aborted';
 					activeStore?.announce?.({ kind: 'pending' });
 					review.then(function (late) {
 						if (late === undefined) return;

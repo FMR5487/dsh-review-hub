@@ -187,9 +187,15 @@ export function buildMessages(input) {
  * Chunks are block events; the terminal one is `{ type:'finish', reason:{ kind } }`.
  * @returns {Promise<{text?:string, reason?:string}>}
  */
-async function collect(llm, prompt, timeoutMs, route, extra, onChunk) {
+async function collect(llm, prompt, timeoutMs, route, extra, onChunk, outer) {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	// The caller may cancel too (the human took the decision, so the answer is moot).
+	// Aborting here stops the stream instead of paying for an answer nobody will read.
+	if (outer !== undefined && outer !== null) {
+		if (outer.aborted === true) controller.abort();
+		else if (typeof outer.addEventListener === 'function') outer.addEventListener('abort', () => controller.abort());
+	}
 	const tail = extra !== null && typeof extra === 'object' ? extra : {};
 	try {
 		if (typeof llm?.stream === 'function') {
@@ -413,11 +419,11 @@ export function createReviewer(deps = {}) {
 		const timeoutMs = Math.max(1000, Number(settings.reviewTimeoutMs) || 8000);
 		let answer;
 		try {
-			answer = await collect(llm, prompt, timeoutMs, input.route, maxTokensSupported ? { maxTokens: MAX_TOKENS } : undefined, noteShape);
+			answer = await collect(llm, prompt, timeoutMs, input.route, maxTokensSupported ? { maxTokens: MAX_TOKENS } : undefined, noteShape, input.signal);
 			if (answer.reason !== undefined && maxTokensSupported === true) {
 				// The seam may not know this option. Ask once more without it and stop
 				// asking, rather than letting the cap disable the reviewer for good.
-				const retry = await collect(llm, prompt, timeoutMs, input.route, undefined);
+				const retry = await collect(llm, prompt, timeoutMs, input.route, undefined, undefined, input.signal);
 				if (retry.reason === undefined) {
 					maxTokensSupported = false;
 					answer = retry;
@@ -430,6 +436,10 @@ export function createReviewer(deps = {}) {
 			// An aborted request is the leash, not a failure: name it so the panel can say
 			// "timed out" instead of a generic error the human has to guess about.
 			const message = error instanceof Error ? error.message : String(error);
+			// Cancelled by handover is not a timeout: the human took the decision and this
+			// answer became moot. Naming them apart keeps the ledger readable.
+			const cancelled = input.signal !== undefined && input.signal !== null && input.signal.aborted === true;
+			if (cancelled === true) return fallback('aborted', 'reviewer cancelled: the human decided first');
 			const timedOut = error !== null && error !== undefined && (error.name === 'AbortError' || /abort/i.test(message) === true);
 			if (timedOut === true) return fallback('timeout', 'reviewer timed out after ' + String(timeoutMs) + 'ms');
 			return fallback('error', 'reviewer failed: ' + message.slice(0, 80));
