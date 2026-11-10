@@ -1325,7 +1325,7 @@ window.__ModuleLoader__.load({
      * plain node to `document.body`, which no ancestor layout, transform or stacking
      * context can cover.
      */
-    const adviceOverlay = { node: null, signature: '', dismissed: new Set(), anchor: null };
+    const adviceOverlay = { node: null, signature: '', dismissed: new Set(), anchor: null, settled: new Set(), currentId: '', clickHooked: false };
     // While the reviewer is still thinking, the card has nothing to report but must not look
     // frozen: a 500ms tick cycles the spinner glyph. The timer is owned here and cleared the
     // moment no pending row is being reviewed, so a re-mount cannot leak it.
@@ -2419,16 +2419,38 @@ window.__ModuleLoader__.load({
       // Own the spinner tick here: one timer for as long as any pending row is still being
       // reviewed, cleared as soon as none is — a re-mount can never leave it running.
       const anyReviewing = view.pending.some(function (row) { return belongsHere(row) && row.aiReviewed !== true; });
+      // Clicking anywhere inside our card means the human has answered: retire the row at
+      // once instead of waiting for the server to drop it (that wait is what made the card
+      // come back for a few frames after a decision).
+      if (adviceOverlay.clickHooked !== true && typeof document !== 'undefined') {
+        adviceOverlay.clickHooked = true;
+        document.addEventListener('click', function (event) {
+          if (adviceOverlay.currentId === '') return;
+          const node = adviceOverlay.node;
+          if (node !== null && typeof node.contains === 'function' && node.contains(event.target) === true) {
+            adviceOverlay.settled.add(adviceOverlay.currentId);
+            if (adviceOverlay.settled.size > 100) adviceOverlay.settled.clear();
+          }
+        }, true);
+      }
       if (anyReviewing === true && reviewSpin.timer === null) {
         reviewSpin.timer = setInterval(function () { reviewSpin.frame += 1; notify(); }, 500);
       } else if (anyReviewing === false && reviewSpin.timer !== null) {
         clearInterval(reviewSpin.timer);
         reviewSpin.timer = null;
       }
-      if (view.config !== null && view.config.pendingCard === true && listIsOpen === false && adviceOverlay.node === null) {
+      // The reviewer's card must survive the panel being open: while the native panel is on
+      // screen the dock row below is the part that gets covered, so the floating card is the
+      // only place this signal can live. Advice/high-risk cards still keep the old rule.
+      if (view.config !== null && view.config.pendingCard === true && (listIsOpen === false || anyReviewing === true) && adviceOverlay.node === null) {
         for (const row of view.pending) {
           if (belongsHere(row) === false) continue;
           if (dismissed.has(String(row.id))) continue;
+          if (adviceOverlay.settled.has(String(row.id))) continue;
+          const reviewingHere = row.aiReviewed !== true;
+          // With the panel open only the reviewing card is allowed: the panel already asks
+          // the question, so a second question card would be noise.
+          if (listIsOpen === true && reviewingHere !== true) continue;
           // Three states, not two: the reviewer is still thinking / it answered / it never
           // answered. The last one must say so plainly instead of spinning forever.
           const reviewing = row.aiReviewed !== true;
@@ -2455,6 +2477,7 @@ window.__ModuleLoader__.load({
             main: String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160),
             sub: advice,
             extra: [iconButton('close', t('dock.dismiss'), function () {
+              adviceOverlay.settled.add(String(row.id));
               dismissed.add(String(row.id));
               store.pending = store.pending.filter(function (item) { return item.id !== row.id; });
               notify();
