@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 1.0.40 — 预览样本点击即弹真实悬浮卡
+
+- 悬浮卡的 DOM 构建抽成 `buildFloatCard(t, row)`（原本内联在 `syncAdviceOverlay` 里），预览与真实浮层**共用同一个构建器**——位置、宽度、红边权重、两行文案不会再出现「预览好看、实际偏位」。
+- 预览样本可点：AI 通过 / 高危 / AI 审阅中 / AI 超时 各弹一张真实卡，走的是与真实审批**同一条判定链**（审阅中用 `aiReviewed:false + humanAsked:true`，超时用 `aiSource:'timeout'`）。
+- `PREVIEW_KINDS` 去掉 `pending`：它在 1.0.31 之后已被「AI 审阅中」取代。
+
+## 1.0.39 — 锚定后的浮层接管全部卡片状态
+
+- 之前系统里**两套浮层并存**：DOM 那套用 dock 的 rect 定位（正确），React 那套用 `.ah-float` 的视口居中（侧边栏一开就偏右），而且**状态判定各写一半**——位置对的那套只有三态，状态全的那套定位错。截图里「偏右 + 宽度不对 + 文案奇怪」就是这两套交叉的产物。
+- 现在 DOM 那套承担全部四态：审阅中 / 建议 / 高危 / 未给出结论（红边）；`aiSkip` 的行**不弹卡**。
+- 卡片签名加上 `aiReviewed / aiSource / humanAsked / 转圈帧`，否则转圈时签名不变、秒数会停住不刷。
+
+## 1.0.38 — 悬浮卡锚到对话列，而不是视口中心
+
+- 根因不是宽度公式，而是**回退路径**：测量拿不到 anchor 时（dock 尚未布局完），代码清掉内联样式、退回 CSS 的 `left:50%` 视口居中——侧边栏打开时看起来就是偏右、偏窄。
+- 修法：放弃之前先自己量一次 `.ah-dock`（`describeDockAnchor`），并用它的 `rect.left/width` 作内联定位；`rect.width` 已含 dock 内距，所以卡片与提示卡**边缘对齐**。
+
+## 1.0.37 — 「没送 AI」不弹卡，只记在详情里
+
+- `aiSkip` 的行直接不进悬浮卡渲染循环（少一次打扰），原因写进审批页详情：`未送 AI：hard-risk:delete`。
+- 实现细节：`reasonBlockOf` 在 factory 作用域里拿不到 `t`，所以标签用 locale key（`row.aiSkipLabel`）交给渲染器翻译，值保留原始原因码（机器可读）。
+
+## 1.0.36 — 台账记下「为什么没送 AI」
+
+- 新增 `aiSkip`，三种取值：`hard-risk:<rule>`（硬风险）、`tier:<tier>`（档位表本身不送 AI）、`policy:<agentKind>`（agent 策略压人）。
+- 起因是一次误判：某条 `pwsh` 台账没有 `aiSource`，被当成「审查器出错」，实际是 `Remove-Item -Recurse -Force` 命中 `riskRule: delete`——**硬风险根本不送 AI**，这正是设计。现在台账自己说清楚，不用再反推。
+
 ## 1.0.27 — 理由语言扩到 10 种；「跟随界面」真正跟随面板
 
 - 下拉从「跟随界面 / 中文 / English」扩到 **10 种**：简体、繁體、English、日本語、한국어、Deutsch、Français、Español、Русский、Português。服务端不再写死三选一，改为接受任意 `xx` / `xx-YY` 语言标签并映射成提示词里的语言名——**加语言不用改代码**。
