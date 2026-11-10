@@ -253,6 +253,7 @@ window.__ModuleLoader__.load({
       'preview.kindPending': '等待审批',
       'preview.kindReviewing': 'AI 审阅中',
       'row.aiNoVerdict': 'AI 未给出结论',
+      'dock.pendingSkipped': '未送 AI 审查（{why}）—— 由你判断',
       'preview.kindTimeout': 'AI 超时/无结论',
       'preview.owner': '开关：{name}',
       'preview.kindDanger': '高危',
@@ -525,6 +526,7 @@ window.__ModuleLoader__.load({
       'preview.kindPending': 'Awaiting approval',
       'preview.kindReviewing': 'reviewer thinking',
       'row.aiNoVerdict': 'no reviewer verdict',
+      'dock.pendingSkipped': 'not sent to the reviewer ({why}) — your call',
       'preview.kindTimeout': 'reviewer timed out',
       'preview.owner': 'switch: {name}',
       'preview.kindDanger': 'High risk',
@@ -2466,15 +2468,20 @@ window.__ModuleLoader__.load({
           // "Never sent to the reviewer" and "sent but no verdict" are different facts. Only a
           // row that carries an aiSource was actually reviewed; without one there is nothing
           // to report, so the card stays a plain waiting line instead of claiming a timeout.
-          const reviewed = reviewing === false && typeof row.aiSource === 'string' && row.aiSource !== '';
+          // A designed skip is not a failure: say why instead of pretending a verdict is
+          // missing.
+          const skipped = typeof row.aiSkip === 'string' && row.aiSkip !== '';
+          const reviewed = reviewing === false && skipped === false && typeof row.aiSource === 'string' && row.aiSource !== '';
           const failed = reviewed === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
           const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
           const glyph = reviewSpin.glyphs[reviewSpin.frame % reviewSpin.glyphs.length];
-          const advice = reviewing === true
+          const advice = skipped === true
+            ? t('dock.pendingSkipped', { why: String(row.aiSkip || '') })
+            : (reviewing === true
             ? t('dock.pendingReviewing', { sec: waited, spin: glyph })
             : (failed === true
               ? t('dock.pendingFailed')
-              : t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason }));
+              : t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason })));
           // A failed review is as serious as a hard risk: both get the red card.
           const dangerous = row.riskLevel === 'high' || failed === true;
           // Two independent switches: the advice card and the high-risk card can each be

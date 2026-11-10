@@ -312,6 +312,13 @@ async function answerer(request, next) {
 	});
 	row.agentKind = agentKind;
 	row.tier = tier;
+	// Why the reviewer was never asked, when it never was. Without this the ledger only shows
+	// an absent aiSource, which reads as "something went wrong" when it is a designed skip.
+	if (tier !== 'ai') {
+		if (hardRisk !== undefined) row.aiSkip = 'hard-risk:' + String(hardRisk.rule || 'unknown');
+		else if (baseTier !== 'ai') row.aiSkip = 'tier:' + String(baseTier || 'human');
+		else row.aiSkip = 'policy:' + String(agentKind || 'unknown');
+	}
 	// Set once the reviewer has answered: the dock/toast waits for it, so the human
 	// learns what the AI made of the request at the same moment they are asked.
 	row.aiReviewed = tier !== 'ai';
