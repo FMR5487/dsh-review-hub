@@ -3666,13 +3666,32 @@ window.__ModuleLoader__.load({
 
       // A switch that only edits the draft *looks* saved and is not: the forensic and
       // safety toggles are diagnostics, so they persist on the spot like the everyday ones.
-      const toggleNow = function (field, next) {
-        const merged = Object.assign({}, draft || {}, { [field]: next });
-        change(field, next);
-        void saveConfig(merged);
+      // Every control in this card persists itself: a debounce coalesces typing into one
+      // write, and nothing here waits for a Save button any more.
+      const autoTimer = React.useRef(null);
+      const autoSave = function (next) {
+        if (autoTimer.current !== null) clearTimeout(autoTimer.current);
+        autoTimer.current = setTimeout(function () {
+          autoTimer.current = null;
+          setStatus('saving');
+          saveConfig(Object.assign({}, next, { panelLocale: String(props?.locale ?? '') }))
+            .then(function (body) { setDraft(body); setStatus('saved'); })
+            .catch(function () { setStatus('failed'); });
+        }, 600);
       };
+      React.useEffect(function () {
+        return function () {
+          if (autoTimer.current !== null) clearTimeout(autoTimer.current);
+        };
+      }, []);
       const change = function (field, value) {
-        setDraft(function (current) { return Object.assign({}, current || {}, { [field]: value }); });
+        const next = Object.assign({}, draft || {}, { [field]: value });
+        setDraft(next);
+        autoSave(next);
+      };
+      // Kept as a name for the call sites that used to force an immediate write.
+      const toggleNow = function (field, next) {
+        change(field, next);
       };
 
       const save = async function () {
