@@ -172,11 +172,12 @@ window.__ModuleLoader__.load({
       'stats.lanes': 'AI 调用情况',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / 错误 {fallback}',
       'stats.cacheLine': '审批缓存 {total} 条 · 命中 {hits} 次',
-      'stats.tokensLine': 'Token 总用量 输入 {input} · 输出 {output} · 合计 {sum} · 缓存读取 {cached}',
+      'stats.tokensLine': 'Token 总用量 {sum} · 输入 {input} · 输出 {output} · 缓存读取 {cached}',
       'stats.tokens': 'Token',
       'stats.tokensIn': '输入',
       'stats.tokensOut': '输出',
       'stats.tokensSum': '合计',
+      'stats.cacheRead': '缓存读取',
       'stats.hitRate': '缓存命中',
       'stats.lane': '车道',
       'stats.calls': '调用',
@@ -451,11 +452,12 @@ window.__ModuleLoader__.load({
       'stats.lanes': 'AI calls',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / fallback {fallback}',
       'stats.cacheLine': 'approval cache {total} entries · {hits} hits',
-      'stats.tokensLine': 'tokens: input {input} · output {output} · total {sum} · cache read {cached}',
+      'stats.tokensLine': 'tokens: total {sum} · input {input} · output {output} · cache read {cached}',
       'stats.tokens': 'tokens',
       'stats.tokensIn': 'in',
       'stats.tokensOut': 'out',
       'stats.tokensSum': 'total',
+      'stats.cacheRead': 'cache read',
       'stats.hitRate': 'cache hit',
       'stats.lane': 'Lane',
       'stats.calls': 'calls',
@@ -928,11 +930,12 @@ window.__ModuleLoader__.load({
       if (by === 'memory') return { text: t('chip.memory'), tone: 'learn' };
       if (by === 'ai') return { text: denied ? t('chip.aiDeny') : t('chip.ai'), tone: denied ? 'danger' : 'ok' };
       if (by === 'human') {
-      // A hard-risk row never reached the reviewer: say so on the chip, because "a human
-      // approved it" alone hides the reason it came to the human at all.
+      // A hard-risk row never reached the reviewer. The L0 marker rides in `pre`, which the
+      // chip renders bold — so the reason stands out without turning the whole label loud.
       const l0 = typeof entry.riskLevel === 'string' && entry.riskLevel === 'high';
-      const key = denied === true ? (l0 ? 'chip.humanL0Deny' : 'chip.humanDeny') : (l0 ? 'chip.humanL0' : 'chip.human');
-      return { text: t(key), tone: denied ? 'danger' : 'warn', pre: pre };
+      const label = denied === true ? t('chip.humanDeny') : t('chip.human');
+      const head = l0 === true ? (pre === '' ? '命中L0' : pre + ' · 命中L0') : pre;
+      return { text: label, tone: denied ? 'danger' : 'warn', pre: head };
     }
       if (by === 'external') return { text: t('chip.external'), tone: 'muted', pre: pre };
       return { text: denied ? t('chip.rejected') : t('chip.fallback'), tone: denied ? 'danger' : 'muted', pre: pre };
@@ -4351,10 +4354,9 @@ window.__ModuleLoader__.load({
               t('stats.ask') + ' ' + num(bucket.asks),
               t('stats.fallback') + ' ' + num(bucket.fallbacks),
               t('stats.cache') + ' ' + num(bucket.cacheHits),
-              // Kept as one unit so a narrow panel moves the whole "Token …" group to the
-              // next line instead of breaking a number in half.
-              t('stats.tokens') + ' ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)),
-              t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
+              // One unit: the token block and its cache-hit rate wrap together, so a narrow
+              // panel never leaves "Token …" stranded on a line of its own.
+              t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
             ].map(function (text, index) { return h('span', { key: 'v' + index }, text); })),
           ]);
         }),
