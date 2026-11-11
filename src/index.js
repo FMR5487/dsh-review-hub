@@ -358,6 +358,7 @@ async function answerer(request, next) {
 			const reviewControl = new AbortController();
 			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp, signal: reviewControl.signal });
 			let verdict;
+			let humanOutcome;
 			let handedOver = false;
 			const humanFirstMs = Math.max(0, Number(settings?.humanFirstMs) || 0);
 			if (humanFirstMs > 0) {
@@ -369,26 +370,32 @@ async function answerer(request, next) {
 				clearTimeout(timer);
 				if (first === '__handover__') {
 					handedOver = true;
-					// Hand the decision over now; the reviewer finishes in the background and its
-					// words land as audit evidence only.
+					// Show the human their options now instead of making them wait, but keep the
+					// reviewer running: whoever answers first wins. The human only keeps priority
+					// when both are ready at the same instant, which this race gives them anyway.
 					row.humanAsked = true;
-					// The human owns the decision from here on: cancel the reviewer instead of
-					// letting it finish an answer that can never be used (and paying for it).
-					reviewControl.abort();
-					row.aiSource = 'aborted';
 					activeStore?.announce?.({ kind: 'pending' });
-					review.then(function (late) {
-						if (late === undefined) return;
+					const humanPromise = next();
+					const second = await Promise.race([
+						review.then(function (value) { return { kind: 'ai', value: value }; }),
+						humanPromise.then(function (value) { return { kind: 'human', value: value }; }),
+					]);
+					if (second.kind === 'ai') {
+						// The reviewer got there first: its verdict stands, and the panel above is
+						// resolved by this decision (the host retires it).
+						verdict = second.value;
+						if (!(verdict !== undefined && verdict.decision === 'allow')) {
+							// It asked for a human after all: that human is already being asked.
+							humanOutcome = await humanPromise;
+						}
+					} else {
+						// The human answered first: the reviewer's answer can no longer matter.
+						humanOutcome = second.value;
+						reviewControl.abort();
+						row.aiSource = 'aborted';
 						row.aiLate = true;
-						if (row.aiSource === undefined) row.aiSource = late.source;
-						// Only a real verdict is words a human should read; "ended with aborted" is a
-						// diagnostic, not the reviewer's opinion.
-						const lateReal = late.source === 'ai' || late.source === 'cache';
-						if (lateReal === true && typeof late.reason === 'string' && late.reason !== '') row.aiReason = late.reason.slice(0, 160);
-						else row.aiSource = late.source;
-						if (late.risk !== undefined) row.aiRisk = late.risk;
 						activeStore?.announce?.({ kind: 'pending' });
-					}, function () {});
+					}
 				} else {
 					verdict = first;
 				}
@@ -411,12 +418,13 @@ async function answerer(request, next) {
 			}
 			// The card is already on screen: push the advice into it the moment it exists.
 			activeStore?.announce?.({ kind: 'pending' });
-			if (verdict !== undefined && verdict.decision === 'allow') {
+			if (verdict !== undefined && verdict.decision === 'allow' && humanOutcome === undefined) {
 				outcome = 'allowed-once';
 				decidedBy = 'ai';
 				counters.ai += 1;
 			} else {
-				const chainOutcome = await next();
+				// Handover already asked the human: reuse that answer instead of asking twice.
+				const chainOutcome = humanOutcome !== undefined ? humanOutcome : await next();
 				const elapsed = Date.now() - started;
 				outcome = typeof chainOutcome === 'string' ? chainOutcome : 'unavailable';
 				if (outcome === 'unavailable' || outcome === 'cancelled') decidedBy = 'fallback';
