@@ -445,6 +445,9 @@ function noteShape(kind, keys) {
 		const attemptAt = Date.now();
 		noteAnswer({
 			event: 'start',
+			// Self-identifying: without this we cannot tell "old module still loaded" from
+			// "new code ran and produced an empty value".
+			code: '1.0.54',
 			tool: String(input.toolName || ''),
 			agentKind: String(input.agentKind || ''),
 			// Two spellings: the decision path passes `tier`, older call sites used `tierName`.

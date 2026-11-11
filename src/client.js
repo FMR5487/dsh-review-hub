@@ -3725,7 +3725,10 @@ window.__ModuleLoader__.load({
       // on mount instead of waiting for the first manual edit: until then the reviewer falls
       // back to "whatever language the request used", which is why reasons came back in English.
       React.useEffect(function () {
-        const want = String(props?.locale === undefined ? '' : props.locale);
+        // props.locale on this seat is the i18n namespace, not the UI language; prefer the
+        // document language and only trust a value that looks like a locale tag.
+        const raw = String((typeof document !== 'undefined' && document.documentElement && document.documentElement.lang) || (props?.locale === undefined ? '' : props.locale)).toLowerCase();
+        const want = /^[a-z]{2,3}(-[a-z0-9]{2,4})?$/.test(raw) === true ? raw : '';
         if (want === '' || draft === null) return;
         if (String(draft.panelLocale === undefined ? '' : draft.panelLocale) === want) return;
         void saveConfig(Object.assign({}, draft, { panelLocale: want }))
