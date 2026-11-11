@@ -170,7 +170,7 @@ window.__ModuleLoader__.load({
       'bar.stats': '审批统计',
       'stats.totals': '审批合计',
       'stats.lanes': 'AI 调用情况',
-      'stats.reviewerInline': 'allow {allow} / ask {ask} / 错误 {fallback}',
+      'stats.reviewerInline': 'allow {allow} / ask {ask} / 中断 {aborted} / 错误 {fallback}',
       'stats.cacheLine': '审批缓存 {total} 条 · 命中 {hits} 次',
       'stats.tokensLine': 'Token 总用量 {sum} · 输入 {input} · 输出 {output} · 缓存读取 {cached}',
       'stats.tokens': 'Token',
@@ -451,7 +451,7 @@ window.__ModuleLoader__.load({
       'bar.stats': 'Review statistics',
       'stats.totals': 'Approvals',
       'stats.lanes': 'AI calls',
-      'stats.reviewerInline': 'allow {allow} / ask {ask} / fallback {fallback}',
+      'stats.reviewerInline': 'allow {allow} / ask {ask} / aborted {aborted} / errors {fallback}',
       'stats.cacheLine': 'approval cache {total} entries · {hits} hits',
       'stats.tokensLine': 'tokens: total {sum} · input {input} · output {output} · cache read {cached}',
       'stats.tokens': 'tokens',
@@ -1972,12 +1972,7 @@ window.__ModuleLoader__.load({
       '.ah-card-danger{border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 65%, transparent)}',
       '.ah-stat-line{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#b6bcc4);word-break:break-word}',
       '.ah-stat-lane{display:flex;flex-direction:column;gap:1px;padding:4px 0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.14))}',
-      /* Wide enough keeps one line; when the panel narrows, the metrics wrap in whole groups
-         so "Token …" never splits mid-number. */
-      '.ah-stat-lane>span:last-child{display:flex;flex-wrap:wrap;gap:0 2px}',
-      '.ah-stat-lane>span:last-child>span{white-space:nowrap}',
-      '.ah-stat-lane>span:last-child>span+span::before{content:"· "}',
-      '.ah-stat-lane>span:last-child>span.ah-stat-tokens{flex-basis:100%;margin-top:2px}',
+
       '.ah-stat-lane-name{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;color:var(--dsw-alias-label-primary)}',
       '.ah-motto{text-align:center;font-size:12px;line-height:19px;margin:2px 0 6px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-row-waiting{opacity:.92}',
@@ -4330,7 +4325,7 @@ window.__ModuleLoader__.load({
       const aiLines = reviewer === null
         ? []
         : [
-          t('stats.reviewerInline', { allow: num(reviewer.allows), ask: num(reviewer.asks), fallback: num(reviewer.fallbacks) }),
+          t('stats.reviewerInline', { allow: num(reviewer.allows), ask: num(reviewer.asks), aborted: num(reviewer.aborted), fallback: num(reviewer.fallbacks) }),
           t('stats.cacheLine', { total: num(reviewer.cacheSize), hits: num(reviewer.cacheHits) }),
           t('stats.tokensLine', {
             input: num(reviewer.promptTokens),
@@ -4351,6 +4346,8 @@ window.__ModuleLoader__.load({
           const bucket = lanes[name] || {};
           return h('div', { className: 'ah-stat-line ah-stat-lane', key: 'lane-' + name }, [
             h('span', { className: 'ah-stat-lane-name', key: 'name' }, name),
+            // One plain string again: per-metric spans made every wrapped line start with a
+            // stray "· ", and the normal word wrapping was easier to read than forced groups.
             h('span', { key: 'vals' }, [
               t('stats.calls') + ' ' + num(bucket.calls),
               t('stats.allow') + ' ' + num(bucket.allows),
@@ -4358,15 +4355,8 @@ window.__ModuleLoader__.load({
               t('stats.aborted') + ' ' + num(bucket.aborted),
               t('stats.fallback') + ' ' + num(bucket.fallbacks),
               t('stats.cache') + ' ' + num(bucket.cacheHits),
-              // One unit: the token block and its cache-hit rate wrap together, so a narrow
-              // panel never leaves "Token …" stranded on a line of its own.
               t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
-            ].map(function (text, index) {
-              // The token block always starts a new line: it is the longest metric and its
-              // numbers are only readable as one piece.
-              const cls = index === 5 ? 'ah-stat-tokens' : '';
-              return h('span', { key: 'v' + index, className: cls }, text);
-            })),
+            ].join(' · ')),
           ]);
         }),
       ]);
