@@ -143,6 +143,9 @@ Details and pitfalls: [README-AI.md](README-AI.md) and [AGENT.md](AGENT.md).
 
 ## FAQ
 
+**Q: why is each model's cache hit rate so low (often 0)?**
+Because the prompts are short: one review is roughly 900–1000 characters (~500 tokens) of system + user text, while mainstream prompt caches only start caching above a minimum length (commonly 1024 tokens). Below that threshold nothing is cached, so the rate is legitimately 0; the counters themselves are recorded faithfully (input / output / cache-read are all visible).
+Provider policies also differ: some compare a byte-exact prefix, some work in 128-token blocks, some require an explicit `cache_control` marker, and some only cache a prefix that grows within one session. The same plugin on a different lane can therefore show a completely different rate. Raising it means making the context longer (see context-aware review), not optimising the prefix at this size.
 **Why did the AI never show up?**
 Hard risk (6 classes) never reaches it; or there is no model service, the call timed out, or the breaker is open. The row records `aiSource`.
 

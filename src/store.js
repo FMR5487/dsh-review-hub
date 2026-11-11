@@ -594,7 +594,9 @@ export function createStore(options = {}) {
 			}
 			const source = typeof row.aiSource === 'string' ? row.aiSource : '';
 			if (source !== '') {
-				const lane = typeof row.aiModel === 'string' && row.aiModel !== '' ? row.aiModel : '(unknown)';
+				const lane = typeof row.aiModel === 'string' && row.aiModel !== ''
+				? row.aiModel
+				: (typeof row.routeModel === 'string' && row.routeModel !== '' ? row.routeModel : '(unknown)');
 				const bucket = reviewer.byModel[lane] ?? { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, lastTs: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0 };
 				// A cache hit is a verdict *without* a model call, so it is counted apart —
 				// exactly how review.js counts it live.

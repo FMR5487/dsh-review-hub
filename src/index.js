@@ -490,7 +490,12 @@ async function answerer(request, next) {
 	if (callId !== undefined) finished.callId = callId;
 	// The lane this decision was resolved against (memory/human rows included): the
 	// panel decides what to show, the row just records the fact.
-	if (lane !== undefined && typeof lane.provider === 'string' && typeof lane.model === 'string') finished.routeModel = lane.provider + '/' + lane.model;
+	if (lane !== undefined && typeof lane.provider === 'string' && typeof lane.model === 'string') {
+		finished.routeModel = lane.provider + '/' + lane.model;
+		// The stats page groups by aiModel; without this every failed/aborted review (which has
+		// no verdict, hence no aiNote.model) was bucketed as "(unknown)".
+		finished.aiModel = finished.routeModel;
+	}
 	if (hardRisk !== undefined) finished.riskRule = hardRisk.rule;
 	// Who asked, and what that made the row eligible for. Without these two fields the
 	// ledger cannot answer "why did the AI never look at this?", which is exactly the
