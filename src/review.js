@@ -444,17 +444,14 @@ export function createReviewer(deps = {}) {
 			if (timedOut === true) return fallback('timeout', 'reviewer timed out after ' + String(timeoutMs) + 'ms');
 			return fallback('error', 'reviewer failed: ' + message.slice(0, 80));
 		}
-		if (answer.reason !== undefined) {
-			noteFailure(sessionId, settings);
-			stats.fallbacks += 1;
-			bumpLane(input.route, 'fallbacks');
-			return fallback('error', answer.reason);
-		}
+		// Parse first, judge the finish reason second: a truncated stream can still carry a
+		// complete verdict, and treating every non-clean finish as a failure threw those away.
 		const verdict = parseVerdict(answer.text, { strict: settings.strictVerdict === true });
 		if (verdict === undefined) {
 			noteFailure(sessionId, settings);
 			stats.fallbacks += 1;
 			bumpLane(input.route, 'fallbacks');
+			if (answer.reason !== undefined) return fallback('error', String(answer.reason).slice(0, 60));
 			return fallback('unparsed', 'reviewer reply was not a verdict');
 		}
 		noteSuccess(sessionId);

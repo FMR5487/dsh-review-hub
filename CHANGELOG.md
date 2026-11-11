@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.0.46 — 先解析结论，再看 finish reason
+
+- 现象：台账连续两条 `aiSource: "error"`、`aiReason` 为空，但取证日志里明明有 `usage` 与 `finish` 块——**模型答了，插件把它丢了**。
+- 根因：`review.js` 在解析之前先判 `answer.reason !== undefined`（流结束原因，如 `length` / `max_tokens`）就直接 `fallback('error')`。只要 finish reason 不是干净结束，**哪怕回复里已经带着完整结论也被整条丢弃**；而 `maxTokens` 这个参数在部分 provider 上不认，很容易触发这种 finish reason。
+- 修法：**先 `parseVerdict`，解析失败才看 finish reason**——前者成功即为有效结论；失败时把 finish reason 原样记进 `aiSource: error` 的说明，方便区分「被截断」与「根本没答」。
+
 ## 1.0.45 — 高级设置改为自动保存
 
 - 所有控件（数字、文本、textarea、开关）都走同一个 `change()`，现在它自带 **600ms 防抖写盘**，不再需要按「保存」。输入框失焦/停止输入即落盘，状态行显示 `已保存`。
