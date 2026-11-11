@@ -436,6 +436,9 @@ export function createReviewer(deps = {}) {
 			// An aborted request is the leash, not a failure: name it so the panel can say
 			// "timed out" instead of a generic error the human has to guess about.
 			const message = error instanceof Error ? error.message : String(error);
+			if (typeof input.noteAnswer === 'function') {
+				input.noteAnswer({ thrown: message.slice(0, 300), name: error === null || error === undefined ? null : String(error.name || '') });
+			}
 			// Cancelled by handover is not a timeout: the human took the decision and this
 			// answer became moot. Naming them apart keeps the ledger readable.
 			const cancelled = input.signal !== undefined && input.signal !== null && input.signal.aborted === true;
