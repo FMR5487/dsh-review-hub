@@ -5,7 +5,7 @@
  */
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { DEFAULT_AI_TOOLS } from './policy.js';
 
@@ -819,6 +819,10 @@ export function createStore(options = {}) {
 				degraded = true;
 			}
 		});
+		// The probe files only exist for a diagnostic run: switching the switch off should not
+		// leave the leftovers behind on the next start.
+		if (settings.debugReview !== true) await unlink(join(root, 'review-probe.log')).catch(() => undefined);
+		if (settings.debugHeaders !== true) await unlink(join(root, 'http-probe.log')).catch(() => undefined);
 		return settingsSnapshot();
 	}
 
