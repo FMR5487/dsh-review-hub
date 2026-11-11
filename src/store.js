@@ -597,7 +597,7 @@ export function createStore(options = {}) {
 				const lane = typeof row.aiModel === 'string' && row.aiModel !== ''
 				? row.aiModel
 				: (typeof row.routeModel === 'string' && row.routeModel !== '' ? row.routeModel : '(unknown)');
-				const bucket = reviewer.byModel[lane] ?? { calls: 0, allows: 0, asks: 0, fallbacks: 0, cacheHits: 0, lastTs: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0 };
+				const bucket = reviewer.byModel[lane] ?? { calls: 0, allows: 0, asks: 0, aborted: 0, fallbacks: 0, cacheHits: 0, lastTs: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0 };
 				// A cache hit is a verdict *without* a model call, so it is counted apart —
 				// exactly how review.js counts it live.
 				if (source === 'ai') {
@@ -618,9 +618,12 @@ export function createStore(options = {}) {
 					}
 				} else if (source === 'aborted') {
 					// The reviewer was asked but the human took over: the call did happen, so it
-					// is a call, not an error — the human chose to answer, the AI did not fail.
+					// is a call, not an error — and it is broken out as 中断 so the two cases stay
+					// readable apart.
 					reviewer.calls += 1;
 					bucket.calls += 1;
+					reviewer.aborted = (Number(reviewer.aborted) || 0) + 1;
+					bucket.aborted = (Number(bucket.aborted) || 0) + 1;
 				} else {
 					// timeout / error / unparsed / breaker / budget / unavailable: asked and could
 					// not answer. This bucket is what the panel calls 错误.

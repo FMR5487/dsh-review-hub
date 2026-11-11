@@ -184,6 +184,7 @@ window.__ModuleLoader__.load({
       'stats.allow': 'allow',
       'stats.ask': 'ask',
       'stats.fallback': '错误',
+      'stats.aborted': '中断',
       'stats.cache': '审批缓存命中',
       'setting.secReview': '审查',
       'setting.secAgent': '按请求方分档',
@@ -463,7 +464,8 @@ window.__ModuleLoader__.load({
       'stats.calls': 'calls',
       'stats.allow': 'allow',
       'stats.ask': 'ask',
-      'stats.fallback': 'fallback',
+      'stats.fallback': 'errors',
+      'stats.aborted': 'aborted',
       'stats.cache': 'approval cache hits',
       'setting.secReview': 'Review',
       'setting.secAgent': 'By requester',
@@ -1975,6 +1977,7 @@ window.__ModuleLoader__.load({
       '.ah-stat-lane>span:last-child{display:flex;flex-wrap:wrap;gap:0 2px}',
       '.ah-stat-lane>span:last-child>span{white-space:nowrap}',
       '.ah-stat-lane>span:last-child>span+span::before{content:"· "}',
+      '.ah-stat-lane>span:last-child>span.ah-stat-tokens{flex-basis:100%;margin-top:2px}',
       '.ah-stat-lane-name{font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;color:var(--dsw-alias-label-primary)}',
       '.ah-motto{text-align:center;font-size:12px;line-height:19px;margin:2px 0 6px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-row-waiting{opacity:.92}',
@@ -4352,12 +4355,18 @@ window.__ModuleLoader__.load({
               t('stats.calls') + ' ' + num(bucket.calls),
               t('stats.allow') + ' ' + num(bucket.allows),
               t('stats.ask') + ' ' + num(bucket.asks),
+              t('stats.aborted') + ' ' + num(bucket.aborted),
               t('stats.fallback') + ' ' + num(bucket.fallbacks),
               t('stats.cache') + ' ' + num(bucket.cacheHits),
               // One unit: the token block and its cache-hit rate wrap together, so a narrow
               // panel never leaves "Token …" stranded on a line of its own.
               t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
-            ].map(function (text, index) { return h('span', { key: 'v' + index }, text); })),
+            ].map(function (text, index) {
+              // The token block always starts a new line: it is the longest metric and its
+              // numbers are only readable as one piece.
+              const cls = index === 5 ? 'ah-stat-tokens' : '';
+              return h('span', { key: 'v' + index, className: cls }, text);
+            })),
           ]);
         }),
       ]);
