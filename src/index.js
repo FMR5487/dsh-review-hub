@@ -358,6 +358,7 @@ async function answerer(request, next) {
 			const reviewControl = new AbortController();
 			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp, signal: reviewControl.signal });
 			let verdict;
+			let handedOver = false;
 			const humanFirstMs = Math.max(0, Number(settings?.humanFirstMs) || 0);
 			if (humanFirstMs > 0) {
 				let timer;
@@ -367,6 +368,7 @@ async function answerer(request, next) {
 				const first = await Promise.race([review, handover]);
 				clearTimeout(timer);
 				if (first === '__handover__') {
+					handedOver = true;
 					// Hand the decision over now; the reviewer finishes in the background and its
 					// words land as audit evidence only.
 					row.humanAsked = true;
@@ -397,6 +399,9 @@ async function answerer(request, next) {
 				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage };
 			}
 			row.aiReviewed = true;
+			// AI-eligible but the reviewer returned nothing (disabled, no llm, no verdict):
+			// say so, otherwise the row looks like a silent failure.
+			if (handedOver === false && verdict === undefined && row.aiSkip === undefined) row.aiSkip = 'ai-off';
 			if (aiNote !== undefined) {
 				row.aiRisk = aiNote.risk;
 				// Only a real verdict carries an advice line. "reviewer reply was not a
@@ -491,6 +496,12 @@ async function answerer(request, next) {
 		if (Array.isArray(fpInfo.droppedKeys) && fpInfo.droppedKeys.length > 0) finished.droppedKeys = fpInfo.droppedKeys.slice(0, 12);
 	}
 	if (row.note !== undefined) finished.note = row.note;
+	// AI facts travel with whatever the row carries at settle time. The aiNote branch below
+	// only fires when the reviewer answered *before* the human; on the handover path it never
+	// does, so keying off aiNote alone silently dropped aiSource from the ledger.
+	for (const key of ['aiSource', 'aiSkip', 'aiReason', 'aiRisk', 'aiLate', 'aiUsage']) {
+		if (row[key] !== undefined) finished[key] = row[key];
+	}
 	if (aiNote !== undefined) {
 		finished.riskLevel = aiNote.risk;
 		finished.aiSource = aiNote.source;
