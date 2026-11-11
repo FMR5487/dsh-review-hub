@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 1.0.53 — 评审流取证覆盖一次完整尝试
+
+- `review-probe.log` 现在一次尝试留下多行结构化事件（仍受「记录评审流（取证）」开关控制）：
+  - `start`：工具 / agentKind / tier / 路由 / system 字符数 / user 消息字符数 / reasonChars / 语言 / 追加提示词长度 / 超时 / maxTokens；
+  - `finish`：耗时、finish reason、回复正文前 400 字符、usage（输入/输出/缓存读写）；
+  - `verdict`：结论（allow/ask）、风险等级、理由长度；
+  - `unparsed`：解析失败时的 finish reason 与回复正文；
+  - `fail`：异常名与消息。
+- 目的：把「请求没发出去」「模型没回内容」「回了但格式不对」三种情况在日志层直接分开。
+- 原有的块字段名记录（block-* / usage / finish，只记字段名不记值）保留。
+
 ## 1.0.52 — 取证记录 finish reason 本体
 
 - `1.0.51` 之后日志能出 `{"kind":"answer","reason":"reviewer ended with error","text":""}`：**文本是空的**，说明模型没有产出可解析的内容，失败发生在 seam 层而不是解析层。

@@ -439,6 +439,24 @@ function noteShape(kind, keys) {
 			}),
 		});
 		const timeoutMs = Math.max(1000, Number(settings.reviewTimeoutMs) || 8000);
+		// One line per attempt describing what was actually asked: route, prompt sizes, knobs.
+		// Together with the finish/verdict lines this answers "what did we send" from the log
+		// alone, instead of re-deriving it from settings weeks later.
+		const attemptAt = Date.now();
+		noteAnswer({
+			event: 'start',
+			tool: String(input.toolName || ''),
+			agentKind: String(input.agentKind || ''),
+			tier: String(input.tier || ''),
+			route: laneOf(input.route),
+			systemChars: String(prompt.system || '').length,
+			userChars: JSON.stringify(prompt.messages || []).length,
+			reasonChars: Number(settings.aiReasonChars) || 0,
+			locale: String(settings.reviewerLocale === '' ? settings.panelLocale : settings.reviewerLocale),
+			appendChars: String(settings.promptAppend || '').length,
+			timeoutMs,
+			maxTokens: MAX_TOKENS,
+		});
 		let answer;
 		try {
 			answer = await collect(llm, prompt, timeoutMs, input.route, maxTokensSupported ? { maxTokens: MAX_TOKENS } : undefined, noteShape, input.signal);
@@ -451,6 +469,13 @@ function noteShape(kind, keys) {
 					answer = retry;
 				}
 			}
+			noteAnswer({
+				event: 'finish',
+				ms: Date.now() - attemptAt,
+				reason: answer.reason === undefined ? null : String(answer.reason).slice(0, 80),
+				text: String(answer.text || '').slice(0, 400),
+				usage: answer.usage === undefined ? null : answer.usage,
+			});
 		} catch (error) {
 			noteFailure(sessionId, settings);
 			stats.fallbacks += 1;
@@ -458,7 +483,7 @@ function noteShape(kind, keys) {
 			// An aborted request is the leash, not a failure: name it so the panel can say
 			// "timed out" instead of a generic error the human has to guess about.
 			const message = error instanceof Error ? error.message : String(error);
-			noteAnswer({ thrown: message.slice(0, 300), name: error === null || error === undefined ? null : String(error.name || '') });
+			noteAnswer({ event: 'fail', ms: Date.now() - attemptAt, thrown: message.slice(0, 300), name: error === null || error === undefined ? null : String(error.name || '') });
 			// Cancelled by handover is not a timeout: the human took the decision and this
 			// answer became moot. Naming them apart keeps the ledger readable.
 			const cancelled = input.signal !== undefined && input.signal !== null && input.signal.aborted === true;
@@ -471,13 +496,14 @@ function noteShape(kind, keys) {
 		// complete verdict, and treating every non-clean finish as a failure threw those away.
 		const verdict = parseVerdict(answer.text, { strict: settings.strictVerdict === true });
 		if (verdict === undefined) {
-			noteAnswer({ reason: answer.reason === undefined ? null : String(answer.reason).slice(0, 60), text: String(answer.text || '').slice(0, 300) });
+			noteAnswer({ event: 'unparsed', reason: answer.reason === undefined ? null : String(answer.reason).slice(0, 60), text: String(answer.text || '').slice(0, 400) });
 			noteFailure(sessionId, settings);
 			stats.fallbacks += 1;
 			bumpLane(input.route, 'fallbacks');
 			if (answer.reason !== undefined) return fallback('error', String(answer.reason).slice(0, 60));
 			return fallback('unparsed', 'reviewer reply was not a verdict');
 		}
+		noteAnswer({ event: 'verdict', ms: Date.now() - attemptAt, decision: verdict.decision, risk: verdict.risk, reasonChars: String(verdict.reason || '').length });
 		noteSuccess(sessionId);
 		if (answer.usage !== undefined) {
 			stats.promptTokens += answer.usage.promptTokens;
