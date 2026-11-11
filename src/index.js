@@ -15,6 +15,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { appendFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { createStore, fileFingerprintOf, filePathOf, fingerprintOf, splitRoute } from './store.js';
@@ -550,6 +551,15 @@ async function answerer(request, next) {
 	return outcome;
 }
 
+/** The package version, read once. The probe names it so a log says which code produced it. */
+function readVersion() {
+	try {
+		return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version || '0');
+	} catch (error) {
+		return '0';
+	}
+}
+
 export function apply(ctx, rawConfig = {}) {
 	const debugHeaders = rawConfig?.debugHeaders === true;
 	if (rawConfig?.log === true) console.log('review-hub: mounting ' + VERSION);
@@ -612,6 +622,9 @@ export function apply(ctx, rawConfig = {}) {
 		// switch as the HTTP probe, and values are never recorded.
 		// The counterpart for replies: when a verdict is thrown away, record what actually came
 		// back (finish reason + the head of the text) so the next test does not have to guess.
+		// The probe should name the code that actually ran; a literal here went stale within
+		// one release and made every later log ambiguous.
+		version: readVersion(),
 		noteAnswer: (info) => {
 			if (store.settingsSnapshot().debugReview !== true) return;
 			void appendFile(join(store.root, 'review-probe.log'), JSON.stringify({ at: Date.now(), kind: 'answer', ...info }) + '\n').catch(() => undefined);

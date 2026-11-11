@@ -447,7 +447,8 @@ function noteShape(kind, keys) {
 			event: 'start',
 			// Self-identifying: without this we cannot tell "old module still loaded" from
 			// "new code ran and produced an empty value".
-			code: '1.0.54',
+			// Read from deps so it tracks package.json instead of going stale the next release.
+			code: typeof deps.version === 'string' ? deps.version : '0',
 			tool: String(input.toolName || ''),
 			agentKind: String(input.agentKind || ''),
 			// Two spellings: the decision path passes `tier`, older call sites used `tierName`.
