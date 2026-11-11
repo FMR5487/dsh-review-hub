@@ -384,6 +384,17 @@ async function answerer(request, next) {
 						// The reviewer got there first: its verdict stands, and the panel above is
 						// resolved by this decision (the host retires it).
 						verdict = second.value;
+						// Record it on the row *now*: the card reads aiReviewed to decide between
+						// "still thinking" and "has an answer", and waiting for the human left it
+						// spinning long after the reviewer had returned.
+						row.aiReviewed = true;
+						if (verdict !== undefined) {
+							row.aiSource = verdict.source;
+							if (verdict.risk !== undefined) row.aiRisk = verdict.risk;
+							if ((verdict.source === 'ai' || verdict.source === 'cache') && typeof verdict.reason === 'string' && verdict.reason !== '') row.aiReason = verdict.reason.slice(0, 160);
+							aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage };
+						}
+						activeStore?.announce?.({ kind: 'pending' });
 						if (!(verdict !== undefined && verdict.decision === 'allow')) {
 							// It asked for a human after all: that human is already being asked.
 							humanOutcome = await humanPromise;

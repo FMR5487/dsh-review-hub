@@ -57,6 +57,8 @@ window.__ModuleLoader__.load({
       'empty.memory': '还没有记忆的操作：同一操作人工批准满阈值后会自动放行',
       'chip.aiRejected': 'AI 打回',
       'chip.human': '人工通过',
+      'chip.humanL0': '命中L0 · 人工通过',
+      'chip.humanL0Deny': '命中L0 · 人工拒绝',
       'chip.ai': 'AI 通过',
       'chip.memory': '记忆通过',
       'chip.humanDeny': '人工拒绝',
@@ -271,7 +273,7 @@ window.__ModuleLoader__.load({
       'preview.recent': '本会话最近 6 条',
       'preview.pending': '待你审批',
       'preview.noPending': '当前没有待审',
-      'dock.pendingReviewing': 'AI 正在审阅… 已 {sec}s {spin}\n可以先点按钮，你的决定不会被它的结论覆盖',
+      'dock.pendingReviewing': 'AI 正在审阅… 已 {sec}s  {spin}',
       'dock.pendingFailed': 'AI 审批超时，未给出结论 —— 请你判断',
       'config.promptAppend': '追加提示词（可为空）',
       'config.promptAppendNote': '会接在固定提示词之后。固定规则由程序强制执行，与本段冲突的部分一律忽略——这里只能加偏好，改不掉红线',
@@ -331,6 +333,8 @@ window.__ModuleLoader__.load({
       'empty.memory': 'Nothing learned yet: an operation auto-passes after enough human approvals',
       'chip.aiRejected': 'AI escalated',
       'chip.human': 'Human approved',
+      'chip.humanL0': 'L0 hit · human approved',
+      'chip.humanL0Deny': 'L0 hit · human denied',
       'chip.ai': 'AI passed',
       'chip.memory': 'Memory passed',
       'chip.humanDeny': 'Human denied',
@@ -545,7 +549,7 @@ window.__ModuleLoader__.load({
       'preview.recent': 'Last 6 in this session',
       'preview.pending': 'Waiting for you',
       'preview.noPending': 'Nothing waiting right now',
-      'dock.pendingReviewing': 'the reviewer is thinking… {sec}s {spin}\nYou may click now — your decision is never overwritten by its verdict',
+      'dock.pendingReviewing': 'the reviewer is thinking… {sec}s  {spin}',
       'dock.pendingFailed': 'the reviewer timed out without a verdict — please decide',
       'config.promptAppend': 'Extra prompt (optional)',
       'config.promptAppendNote': 'Appended after the fixed prompt. The fixed rules are enforced by code; anything here that conflicts is ignored — this adds preference, never removes a red line',
@@ -917,7 +921,13 @@ window.__ModuleLoader__.load({
       if (cancelled) return { text: t('chip.cancelled'), tone: 'muted' };
       if (by === 'memory') return { text: t('chip.memory'), tone: 'learn' };
       if (by === 'ai') return { text: denied ? t('chip.aiDeny') : t('chip.ai'), tone: denied ? 'danger' : 'ok' };
-      if (by === 'human') return { text: denied ? t('chip.humanDeny') : t('chip.human'), tone: denied ? 'danger' : 'warn', pre: pre };
+      if (by === 'human') {
+      // A hard-risk row never reached the reviewer: say so on the chip, because "a human
+      // approved it" alone hides the reason it came to the human at all.
+      const l0 = typeof entry.riskLevel === 'string' && entry.riskLevel === 'high';
+      const key = denied === true ? (l0 ? 'chip.humanL0Deny' : 'chip.humanDeny') : (l0 ? 'chip.humanL0' : 'chip.human');
+      return { text: t(key), tone: denied ? 'danger' : 'warn', pre: pre };
+    }
       if (by === 'external') return { text: t('chip.external'), tone: 'muted', pre: pre };
       return { text: denied ? t('chip.rejected') : t('chip.fallback'), tone: denied ? 'danger' : 'muted', pre: pre };
     }
