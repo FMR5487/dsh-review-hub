@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.0.51 — 取证钩子走对了通道
+
+- 现象：`1.0.47`/`1.0.50` 加的 `answer` 取证行一条都没出现，日志里只有 `finish` 块。
+- 根因：`review.js` 的取证钩子是从 **`deps`（审查器工厂选项）** 取的（`noteShape` 就是这么写的），而我把它挂在了**每次请求的 `input`** 上——`input.noteAnswer` 永远是 `undefined`，两处调用都被 `typeof === 'function'` 静默跳过。
+- 修法：在 `review.js` 里加模块级 `noteAnswer()`，与 `noteShape` 同源读 `deps.noteAnswer`，并 try/catch 兜住（取证绝不能影响审查本身）。
+- 教训：新增取证钩子必须照抄同文件里既有钩子的取用方式（`deps` vs `input`），否则「日志里什么都没有」既可能是没触发，也可能是根本没接上。
+
 ## 1.0.50 — 抛错也进取证
 
 - 1.0.47 只记「解析失败」的回复原文，但这次的 `aiSource: "error"` 走的是 **catch 分支**（审查器抛异常），日志里依旧只有 `finish` 块，看不出原因。
