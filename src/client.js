@@ -1500,6 +1500,10 @@ window.__ModuleLoader__.load({
         // Still with the reviewer: this is the "it is thinking, you may decide anyway" card.
         // It only shows once the human has been asked; before that the dock seat carries it.
         if (item.aiReviewed !== true) return item.humanAsked === true;
+        // Reviewed but no verdict (timeout / failure): this is the card that must say so.
+        // Without this branch the row matched neither "high risk" nor "has a reason", so the
+        // warning vanished at exactly the moment it became true.
+        if (typeof item.aiSource === 'string' && item.aiSource !== '' && (typeof item.aiReason !== 'string' || item.aiReason === '')) return true;
         // A hard-risk request never reaches the reviewer, so it has no advice — but it is
         // still a decision only a human can make, which is exactly what this card is for.
         if (item.riskLevel === 'high') return true;
