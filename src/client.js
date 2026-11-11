@@ -3721,6 +3721,18 @@ window.__ModuleLoader__.load({
         }
       };
 
+      // "Follow the UI" is only real if the server knows which language the UI is in. Record it
+      // on mount instead of waiting for the first manual edit: until then the reviewer falls
+      // back to "whatever language the request used", which is why reasons came back in English.
+      React.useEffect(function () {
+        const want = String(props?.locale === undefined ? '' : props.locale);
+        if (want === '' || draft === null) return;
+        if (String(draft.panelLocale === undefined ? '' : draft.panelLocale) === want) return;
+        void saveConfig(Object.assign({}, draft, { panelLocale: want }))
+          .then(function (body) { setDraft(body); })
+          .catch(function () { /* a failed write must not break the panel */ });
+      }, [draft === null, props?.locale]);
+
       if (draft === null) return h('div', { className: 'ah-hint' }, t('config.loading'));
 
       /** A comma/newline separated tool list; commits on blur like every other field. */

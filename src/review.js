@@ -447,7 +447,8 @@ function noteShape(kind, keys) {
 			event: 'start',
 			tool: String(input.toolName || ''),
 			agentKind: String(input.agentKind || ''),
-			tier: String(input.tier || ''),
+			// Two spellings: the decision path passes `tier`, older call sites used `tierName`.
+			tier: String(input.tier !== undefined ? input.tier : (input.tierName !== undefined ? input.tierName : '')),
 			route: laneOf(input.route),
 			systemChars: String(prompt.system || '').length,
 			userChars: JSON.stringify(prompt.messages || []).length,

@@ -356,7 +356,7 @@ async function answerer(request, next) {
 			// handover timer fires and the human answers first while the reviewer keeps running
 			// — in that case its late answer is recorded as evidence and changes nothing.
 			const reviewControl = new AbortController();
-			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, settings, request, evidence, fp, signal: reviewControl.signal });
+			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, signal: reviewControl.signal });
 			let verdict;
 			let humanOutcome;
 			let handedOver = false;
