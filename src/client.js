@@ -238,6 +238,7 @@ window.__ModuleLoader__.load({
       'setting.danger': '危险操作',
       'setting.clear': '清空历史（仅当前会话）',
       'setting.clearOn': '启用「清空历史」',
+      'setting.moreInConfig': '更多设置在插件页的高级设置区',
       'setting.saved': '已保存',
       'setting.failed': '保存失败',
       'setting.clearDone': '已清空',
@@ -519,6 +520,7 @@ window.__ModuleLoader__.load({
       'setting.danger': 'Danger zone',
       'setting.clear': 'Clear history (this session)',
       'setting.clearOn': 'Enable "clear history"',
+      'setting.moreInConfig': 'more settings live in the plugin page’s advanced section',
       'setting.saved': 'Saved',
       'setting.failed': 'Save failed',
       'setting.clearDone': 'Cleared',
@@ -3062,7 +3064,9 @@ window.__ModuleLoader__.load({
             memoryArmed === 0 ? t('memory.clear') : t('memory.confirm', { n: MEMORY_CLEAR_CLICKS - memoryArmed }))
         ),
         status === 'idle' ? null : h('div', { className: 'ah-hint', key: 'status' },
-          status === 'saved' ? t('setting.saved') : (status === 'failed' ? t('setting.failed') : (status === 'cleared' ? t('setting.clearDone') : t('config.loading'))))
+          status === 'saved' ? t('setting.saved') : (status === 'failed' ? t('setting.failed') : (status === 'cleared' ? t('setting.clearDone') : t('config.loading')))),
+        // Everyday knobs live here; the failure-behaviour knobs are one page away.
+        h('div', { className: 'ah-hint ah-settings-more', key: 'more' }, t('setting.moreInConfig'))
       ]);
     }
 
