@@ -616,9 +616,14 @@ export function createStore(options = {}) {
 						reviewer.asks += 1;
 						bucket.asks += 1;
 					}
+				} else if (source === 'aborted') {
+					// The reviewer was asked but the human took over: the call did happen, so it
+					// is a call, not an error — the human chose to answer, the AI did not fail.
+					reviewer.calls += 1;
+					bucket.calls += 1;
 				} else {
-					// error / unparsed / breaker / budget / unavailable: the reviewer was asked
-					// and could not answer, which is what "兜底" means.
+					// timeout / error / unparsed / breaker / budget / unavailable: asked and could
+					// not answer. This bucket is what the panel calls 错误.
 					reviewer.fallbacks += 1;
 					bucket.fallbacks += 1;
 				}
