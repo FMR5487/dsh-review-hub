@@ -244,6 +244,10 @@ async function maybeReview(input) {
 		sessionId: input.sessionId,
 		toolName: input.toolName,
 		agentKind: input.agentKind,
+		// This wrapper rebuilds the input for the reviewer: anything not listed here never
+		// reaches it, which is why the probe reported an empty tier even though the caller
+		// passed one.
+		tier: input.tier,
 		reason: input.request?.reason,
 		summary: input.evidence?.argsSummary,
 		priorApprovals: prior,
