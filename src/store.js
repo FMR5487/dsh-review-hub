@@ -600,7 +600,9 @@ export function createStore(options = {}) {
 				const bucket = reviewer.byModel[lane] ?? { calls: 0, allows: 0, asks: 0, aborted: 0, fallbacks: 0, cacheHits: 0, lastTs: 0, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0 };
 				// A cache hit is a verdict *without* a model call, so it is counted apart —
 				// exactly how review.js counts it live.
-				if (source === 'ai') {
+				// "calls" means every request that was actually sent, not just the successful
+				// ones: otherwise a lane with 8 failures reported 0 calls next to 8 errors.
+				if (source !== 'cache') {
 					reviewer.calls += 1;
 					bucket.calls += 1;
 				}
@@ -617,11 +619,8 @@ export function createStore(options = {}) {
 						bucket.asks += 1;
 					}
 				} else if (source === 'aborted') {
-					// The reviewer was asked but the human took over: the call did happen, so it
-					// is a call, not an error — and it is broken out as 中断 so the two cases stay
-					// readable apart.
-					reviewer.calls += 1;
-					bucket.calls += 1;
+					// Counted as a call above; broken out as 中断 so it never reads as a failure.
+					
 					reviewer.aborted = (Number(reviewer.aborted) || 0) + 1;
 					bucket.aborted = (Number(bucket.aborted) || 0) + 1;
 				} else {

@@ -72,7 +72,7 @@ export const cases = [
 		},
 	},
 	{
-		name: 'stats：审查器合计按台账行派生（重启不丢、缓存不算调用）',
+		name: 'stats：审查器合计按台账行派生（重启不丢、缓存不算调用、失败计入调用）',
 		async fn() {
 			const store = createStore({ root: await freshRoot('store-stats-reviewer') });
 			// 三条审批都经过 AI：两条被打回（人工裁决）、一条 AI 直接放行。
@@ -83,13 +83,14 @@ export const cases = [
 			await store.record(row({ id: 'r5', ts: 5, decidedBy: 'human', aiSource: 'error' }));
 			await store.record(row({ id: 'r6', ts: 6, decidedBy: 'memory' }));
 			const stats = await store.stats({ session: 's1' });
-			assertEqual(stats.reviewer.calls, 3, '只有 ai 来源算模型调用（cache 不算）');
+			assertEqual(stats.reviewer.calls, 4, '调用 = 实际发出的请求（ai + error；cache 不算）');
 			assertEqual(stats.reviewer.allows, 1);
 			assertEqual(stats.reviewer.asks, 3, '打回两条 + 缓存打回一条');
 			assertEqual(stats.reviewer.cacheHits, 1);
 			assertEqual(stats.reviewer.fallbacks, 1, 'error 是兜底');
 			assertEqual(stats.reviewer.byModel['p/rev'].calls, 3, '按车道分组');
 			assertEqual(stats.reviewer.byModel['(unknown)'].fallbacks, 1, '没有车道信息的行归到 unknown');
+			assertEqual(stats.reviewer.byModel['(unknown)'].calls, 1, '失败也计入调用，否则调用数与明细对不上');
 			assertEqual(stats.reviewer.byModel['p/rev'].lastTs, 4, '车道最后活跃时间');
 			assertEqual((await store.stats({ session: 'other-session' })).reviewer.calls, 0, '按会话隔离');
 		},

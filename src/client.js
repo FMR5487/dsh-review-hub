@@ -4348,6 +4348,8 @@ window.__ModuleLoader__.load({
             h('span', { className: 'ah-stat-lane-name', key: 'name' }, name),
             // One plain string again: per-metric spans made every wrapped line start with a
             // stray "· ", and the normal word wrapping was easier to read than forced groups.
+            // Two lines by construction: counts on the first, tokens on the second. A single
+            // string let the token block drift onto the same line whenever it fit.
             h('span', { key: 'vals' }, [
               t('stats.calls') + ' ' + num(bucket.calls),
               t('stats.allow') + ' ' + num(bucket.allows),
@@ -4355,6 +4357,8 @@ window.__ModuleLoader__.load({
               t('stats.aborted') + ' ' + num(bucket.aborted),
               t('stats.fallback') + ' ' + num(bucket.fallbacks),
               t('stats.cache') + ' ' + num(bucket.cacheHits),
+            ].join(' · ')),
+            h('span', { key: 'tokens' }, [
               t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
             ].join(' · ')),
           ]);
