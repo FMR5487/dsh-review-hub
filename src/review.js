@@ -213,6 +213,13 @@ async function collect(llm, prompt, timeoutMs, route, extra, onChunk, outer) {
 					// hand us usage / prompt-cache counters at all?" without guessing.
 					if (typeof onChunk === 'function' && chunk !== null && typeof chunk === 'object') onChunk(String(chunk.type ?? '?'), Object.keys(chunk).sort());
 					if (chunk?.type === 'finish') {
+			// The finish reason is the only thing that explains "reviewer ended with error":
+			// record its body, not just the fact that it arrived.
+			try {
+				noteAnswer({ finish: JSON.stringify(chunk.reason === undefined ? null : chunk.reason).slice(0, 240) });
+			} catch (error) {
+				// never let forensics break a review
+			}
 						const kind = chunk.reason?.kind;
 						if (kind !== undefined && kind !== 'stop') return { reason: 'reviewer ended with ' + String(kind) };
 						break;

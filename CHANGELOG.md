@@ -1,11 +1,15 @@
 # CHANGELOG
 
+## 1.0.52 — 取证记录 finish reason 本体
+
+- `1.0.51` 之后日志能出 `{"kind":"answer","reason":"reviewer ended with error","text":""}`：**文本是空的**，说明模型没有产出可解析的内容，失败发生在 seam 层而不是解析层。
+- 本轮把 finish 块的 `reason` 对象整体写进 `review-probe.log`，用来区分「provider 直接报错」「被上游截断」「路由不可用」这几种同样表现为空文本的情形。
+
 ## 1.0.51 — 取证钩子走对了通道
 
 - 现象：`1.0.47`/`1.0.50` 加的 `answer` 取证行一条都没出现，日志里只有 `finish` 块。
 - 根因：`review.js` 的取证钩子是从 **`deps`（审查器工厂选项）** 取的（`noteShape` 就是这么写的），而我把它挂在了**每次请求的 `input`** 上——`input.noteAnswer` 永远是 `undefined`，两处调用都被 `typeof === 'function'` 静默跳过。
 - 修法：在 `review.js` 里加模块级 `noteAnswer()`，与 `noteShape` 同源读 `deps.noteAnswer`，并 try/catch 兜住（取证绝不能影响审查本身）。
-- 教训：新增取证钩子必须照抄同文件里既有钩子的取用方式（`deps` vs `input`），否则「日志里什么都没有」既可能是没触发，也可能是根本没接上。
 
 ## 1.0.50 — 抛错也进取证
 
