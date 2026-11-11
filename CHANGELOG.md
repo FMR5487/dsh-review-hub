@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.0.47 — 丢弃结论时记下原文（取证）
+
+- 1.0.46 之后仍然出现 `aiSource: "error"`、`aiReason` 为空，但 `review-probe.log` 只有 `usage` / `finish` 块——**看不出模型到底回了什么**。
+- 新增 `noteAnswer`：结论被丢弃时，把 finish reason 与回复前 300 字符写进 `review-probe.log`（仍受 `记录评审流（取证）` 开关控制）。下次一条测试就能区分是「被截断」「空回复」还是「格式不符」。
+
 ## 1.0.46 — 先解析结论，再看 finish reason
 
 - 现象：台账连续两条 `aiSource: "error"`、`aiReason` 为空，但取证日志里明明有 `usage` 与 `finish` 块——**模型答了，插件把它丢了**。

@@ -595,6 +595,12 @@ export function apply(ctx, rawConfig = {}) {
 		// Names-only shape of each llm chunk, so "does the host hand us usage / prompt-cache
 		// counters?" is answered by evidence instead of a guess. Gated by the same forensics
 		// switch as the HTTP probe, and values are never recorded.
+		// The counterpart for replies: when a verdict is thrown away, record what actually came
+		// back (finish reason + the head of the text) so the next test does not have to guess.
+		noteAnswer: (info) => {
+			if (store.settingsSnapshot().debugReview !== true) return;
+			void appendFile(join(store.root, 'review-probe.log'), JSON.stringify({ at: Date.now(), kind: 'answer', ...info }) + '\n').catch(() => undefined);
+		},
 		noteShape: (kind, keys) => {
 			if (store.settingsSnapshot().debugReview !== true) return;
 			void appendFile(join(store.root, 'review-probe.log'), JSON.stringify({ at: Date.now(), kind, keys }) + '\n').catch(() => undefined);

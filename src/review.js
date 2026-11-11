@@ -448,6 +448,9 @@ export function createReviewer(deps = {}) {
 		// complete verdict, and treating every non-clean finish as a failure threw those away.
 		const verdict = parseVerdict(answer.text, { strict: settings.strictVerdict === true });
 		if (verdict === undefined) {
+			if (typeof input.noteAnswer === 'function') {
+				input.noteAnswer({ reason: answer.reason === undefined ? null : String(answer.reason).slice(0, 60), text: String(answer.text || '').slice(0, 300) });
+			}
 			noteFailure(sessionId, settings);
 			stats.fallbacks += 1;
 			bumpLane(input.route, 'fallbacks');
