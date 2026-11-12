@@ -279,6 +279,9 @@ window.__ModuleLoader__.load({
       'preview.kindReviewing': 'AI 审阅中',
       'row.aiNoVerdict': 'AI 未给出结论',
       'row.aiSkipLabel': '未送 AI：',
+      'row.writeFile': '写文件',
+      'row.editFile': '改文件',
+      'row.linesN': '{n} 行',
       'dock.pendingSkipped': '未送 AI 审查（{why}）—— 由你判断',
       'preview.kindTimeout': 'AI 超时/无结论',
       'preview.owner': '开关：{name}',
@@ -578,6 +581,9 @@ window.__ModuleLoader__.load({
       'preview.kindReviewing': 'reviewer thinking',
       'row.aiNoVerdict': 'no reviewer verdict',
       'row.aiSkipLabel': 'not reviewed:',
+      'row.writeFile': 'write',
+      'row.editFile': 'edit',
+      'row.linesN': '{n} lines',
       'dock.pendingSkipped': 'not sent to the reviewer ({why}) — your call',
       'preview.kindTimeout': 'reviewer timed out',
       'preview.owner': 'switch: {name}',
@@ -1279,6 +1285,38 @@ window.__ModuleLoader__.load({
         return { add: Number(recorded.add) || 0, del: Number(recorded.del) || 0 };
       }
       return deltaOf(argsOf(entry));
+    }
+
+    /** Bytes → a short human size ("7.9 KB"). */
+    function sizeText(bytes) {
+      const n = Number(bytes) || 0;
+      if (n < 1024) return String(n) + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      return (n / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    /**
+     * One line per row, shaped by the tool: file tools lead with the path (that is what a
+     * human checks first), everything else keeps the command/reason. A `write` body is never
+     * printed here — it used to push a 2 000-character blob into the timeline.
+     */
+    function headlineOf(t, entry) {
+      const tool = String(entry === null || entry === undefined ? '' : entry.toolName || '');
+      const payload = argsOf(entry);
+      const path = payload === null
+        ? ''
+        : (typeof payload.file_path === 'string' ? payload.file_path : (typeof payload.path === 'string' ? payload.path : ''));
+      if (path !== '' && (tool === 'write' || tool === 'edit' || tool === 'str_replace_editor')) {
+        if (tool === 'write') {
+          const body = typeof payload.content === 'string' ? payload.content : '';
+          const bytes = typeof TextEncoder === 'function' ? new TextEncoder().encode(body).length : body.length;
+          return t('row.writeFile') + ' · ' + path + ' · ' + sizeText(bytes) + ' / ' + t('row.linesN', { n: String(lineCountOf(body)) });
+        }
+        const delta = rowDelta(entry);
+        const change = delta === null ? '' : ' · +' + String(delta.add) + ' −' + String(delta.del);
+        return t('row.editFile') + ' · ' + path + change;
+      }
+      return tool + ' · ' + String(entry.argsSummary || reasonOf(entry) || '').slice(0, 160);
     }
 
     /** The "+N −N" chip, or null when the row changes no text. */
@@ -2656,7 +2694,7 @@ window.__ModuleLoader__.load({
           key: hint.id,
           kind: hint.kind,
           chip: chip.text,
-          main: String(entry.toolName || '') + ' · ' + String(entry.argsSummary || reasonOf(entry) || '').slice(0, 160),
+          main: headlineOf(t, entry),
           sub: stampOf(entry.ts),
           extra: [
             iconButton('copy', copyText === 'copied' ? t('dock.copied') : (copyText === 'copyFailed' ? t('dock.copyFailed') : t('dock.copy')), function () { copyEntry(entry); }, copyText === 'copied' ? 'ah-icon-ok' : ''),
@@ -3704,7 +3742,7 @@ window.__ModuleLoader__.load({
           kind: look.kind,
           danger: look.danger,
           chip: chip.text,
-          main: String(entry.toolName || '') + ' · ' + String(entry.argsSummary || reasonOf(entry) || '').slice(0, 160),
+          main: headlineOf(t, entry),
           sub: stampOf(entry.ts),
         });
       });
