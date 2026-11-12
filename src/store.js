@@ -277,7 +277,10 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	if (patch.agentPolicy !== null && typeof patch.agentPolicy === 'object') {
 		for (const kind of ['default', 'subagent', 'scheduled', 'task_board', 'unknown']) {
 			const value = patch.agentPolicy[kind];
-			if (typeof value === 'string' && AI_LEVELS.has(value)) next.agentPolicy[kind] = value;
+			// 'off' used to mean "no automatic pass at all"; it was retired because a single
+			// mis-set row turned every approval in that class into a human question. Old configs
+			// are folded into 'strict' so nothing stays in a level the UI no longer offers.
+			if (typeof value === 'string' && AI_LEVELS.has(value)) next.agentPolicy[kind] = value === 'off' ? 'strict' : value;
 		}
 	}
 	return next;

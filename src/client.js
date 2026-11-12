@@ -234,6 +234,13 @@ window.__ModuleLoader__.load({
       'dock.otherWaitChip': '等待审批 {n}',
       'config.secAdvanced': '高级设置（不要乱改）',
       'config.advancedWarn': '下面这些会改变失败行为与性能，没有明确理由请不要动',
+      'config.kindDefault': '普通会话',
+      'config.kindSubagent': '子代理',
+      'config.kindScheduled': '定时任务',
+      'config.kindTaskBoard': '任务板',
+      'config.kindUnknown': '来源未知',
+      'config.levelFull': 'AI 预审',
+      'config.levelStrict': '一律问我',
       'config.agentNote': '按请求方收紧 AI 预审：子代理 / 定时 / 看板默认更严，因为它们替你做的事更多。默认 strict',
       'config.clearOn': '启用「清空历史」',
       'config.clearOnNote': '打开后审批页才出现「清空历史」按钮（仍需连点三次）。默认关',
@@ -303,7 +310,7 @@ window.__ModuleLoader__.load({
       'config.cacheTtlNote': '同一操作这么长时间内只审一次，省调用也省 token。默认 10m，0 = 关闭（每次都调模型）',
       'config.snapshotDays': '快照保留天数',
       'config.snapshotDaysNote': '审批快照留多少天，过期在下一次启动时清理。默认 0 = 一直留（仍受每会话 64 条限制）',
-      'config.aiTools': '额外先交给 AI 的工具',
+      'config.aiTools': '额外允许 AI 预审的工具',
       'config.aiToolsNote': '额外允许 AI 预审的工具，逗号或换行分隔（内置的 shell / 只读 / 检索已默认包含）。默认空 = 只用内置名单',
       'config.aiToolsDeny': '不交给 AI 的工具（黑名单）',
       'config.aiToolsDenyNote': '这些工具一律直接问你，优先级高于上面和内置名单。默认空',
@@ -525,7 +532,14 @@ window.__ModuleLoader__.load({
       'dock.otherWaitChip': '{n} waiting',
       'config.secAdvanced': 'Advanced (do not fiddle)',
       'config.advancedWarn': 'These change failure behaviour and performance; leave them alone without a reason',
-      'config.agentNote': 'Subagents, schedules and the task board default to stricter',
+      'config.kindDefault': 'normal session',
+      'config.kindSubagent': 'subagent',
+      'config.kindScheduled': 'scheduled',
+      'config.kindTaskBoard': 'task board',
+      'config.kindUnknown': 'unknown source',
+      'config.levelFull': 'AI may pre-review',
+      'config.levelStrict': 'always ask me',
+      'config.agentNote': 'Tighten AI pre-review per requester: subagents, schedules and the task board default to stricter',
       'config.clearOn': 'Enable "clear history"',
       'config.clearOnNote': 'Shows the clear button in the approval tab (still three clicks)',
       'config.open': 'Open approval tab',
@@ -4006,14 +4020,16 @@ window.__ModuleLoader__.load({
           h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } }, AGENT_KINDS.map(function (kind) {
             const current = (draft.agentPolicy || {})[kind] || 'strict';
             return h('label', { key: kind, className: 'ah-settings-row', style: { gap: 4 } },
-              h('span', { className: 'ah-hint' }, kind),
+              h('span', { className: 'ah-hint' }, t('config.kind' + kind.charAt(0).toUpperCase() + kind.slice(1))),
               h('select', {
                 className: 'ah-btn',
-                value: current,
+                value: current === 'off' ? 'strict' : current,
                 onChange: function (event) {
                   change('agentPolicy', Object.assign({}, draft.agentPolicy || {}, { [kind]: event.target.value }));
                 },
-              }, ['full', 'strict', 'off'].map(function (level) { return h('option', { key: level, value: level }, level); }))
+              }, ['full', 'strict'].map(function (level) {
+                return h('option', { key: level, value: level }, t(level === 'full' ? 'config.levelFull' : 'config.levelStrict'));
+              }))
             );
           })),
         ]),
