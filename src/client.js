@@ -221,6 +221,7 @@ window.__ModuleLoader__.load({
       'dock.otherWaitingAgainOne': '仍未处理：{title}',
       'dock.otherWaitingBody': '{title}（{n} 条）',
       'dock.otherWaitingAgainBody': '仍未处理：{title}（{n} 条）',
+      'config.reset': '恢复默认',
       'config.secRhythm': '① 审查节奏',
       'config.secPrompt': '② 提示词',
       'config.secScope': '③ 范围与工具',
@@ -511,6 +512,7 @@ window.__ModuleLoader__.load({
       'dock.otherWaitingAgainOne': 'Still waiting: {title}',
       'dock.otherWaitingBody': '{title} ({n})',
       'dock.otherWaitingAgainBody': 'Still waiting: {title} ({n})',
+      'config.reset': 'restore default',
       'config.secRhythm': '1 — review rhythm',
       'config.secPrompt': '2 — prompt',
       'config.secScope': '3 — scope and tools',
@@ -1988,6 +1990,9 @@ window.__ModuleLoader__.load({
       '.ah-icon-filtered{color:var(--dsw-alias-state-business-primary,#2f6fd0);opacity:1}',
       '.ah-icon-filtered::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:999px;background:currentColor}',
       '.ah-card-danger{border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 65%, transparent)}',
+      '.ah-reset-btn{background:none;border:0;color:var(--dsw-alias-label-secondary,#b6bcc4);cursor:pointer;font-size:12px;line-height:1;padding:0 2px;opacity:0;transition:opacity .12s}',
+      '.ah-settings-row:hover .ah-reset-btn,.ah-settings-block:hover .ah-reset-btn{opacity:1}',
+      '.ah-reset-btn:hover{color:var(--dsw-alias-label-primary)}',
       '.ah-group-head{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.14));color:var(--dsw-alias-label-primary);font-size:12px;font-weight:600;padding:6px 2px;margin-top:6px;cursor:pointer}',
       '.ah-group-danger{color:var(--dsw-alias-state-warning-primary,#d9a521)}',
       '.ah-group-body{display:flex;flex-direction:column;gap:6px;padding:4px 0 8px}',
@@ -3484,6 +3489,36 @@ window.__ModuleLoader__.load({
 
     const AGENT_KINDS = ['default', 'subagent', 'scheduled', 'task_board', 'unknown'];
 
+    // Defaults for the advanced card, mirrored from store.js DEFAULT_SETTINGS (the server is
+    // the source of truth; this copy only powers "restore default" and the per-group dot).
+    const ADVANCED_DEFAULTS = Object.freeze({
+      pollMs: 1000,
+      maxEntriesPerSession: 2000,
+      humanFirstMs: 8000,
+      reviewTimeoutMs: 16000,
+      aiCacheTtlMs: 600000,
+      aiReasonChars: 80,
+      clearEnabled: false,
+      promptAppend: '',
+      reviewerLocale: '',
+      aiBudgetPerTurn: 20,
+      aiBreakerFails: 3,
+      aiTools: null,
+      aiToolsDeny: null,
+      snapshotRetentionDays: 0,
+      debugHeaders: false,
+      debugReview: false,
+      strictVerdict: false,
+    });
+    const ADVANCED_GROUP_FIELDS = Object.freeze({
+      rhythm: ['maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled'],
+      prompt: ['promptAppend', 'reviewerLocale'],
+      scope: ['aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny'],
+      preview: [],
+      debug: ['pollMs', 'snapshotRetentionDays', 'strictVerdict', 'debugHeaders', 'debugReview'],
+    });
+
+
     const PREVIEW_KINDS = ['ai', 'memory', 'reviewing', 'timeout', 'danger', 'other'];
     const PREVIEW_FLOAT = { ai: 'advice', danger: 'danger', reviewing: 'reviewing', timeout: 'timeout' };
     const PREVIEW_LABELS = {
@@ -3814,7 +3849,8 @@ window.__ModuleLoader__.load({
             value: draft[field] === undefined ? '' : draft[field],
             onChange: function (event) { change(field, event.target.value); },
             style: { maxWidth: 120 },
-          })
+          }),
+          resetButton(field)
         );
       };
 
@@ -3822,14 +3858,32 @@ window.__ModuleLoader__.load({
       // behaviour, so the card explains itself before the controls.
       const section = function (key, title, children, tone) {
         const open = openMap[key] === true;
+        // A collapsed group can hide a changed value: light a dot so "where did I touch" is
+        // answerable without opening all five.
+        const fields = ADVANCED_GROUP_FIELDS[key] === undefined ? [] : ADVANCED_GROUP_FIELDS[key];
+        const dirty = fields.some(function (field) { return changed(field); });
         const head = h('button', {
           type: 'button',
           key: key + '-head',
           className: 'ah-group-head' + (tone === 'danger' ? ' ah-group-danger' : ''),
           onClick: function () { setOpen(key, open !== true); },
-        }, (open === true ? '▾ ' : '▸ ') + title);
+        }, (open === true ? '▾ ' : '▸ ') + title + (dirty === true ? ' ●' : ''));
         const body = open === true ? h('div', { key: key + '-body', className: 'ah-group-body' }, children) : null;
         return [head, body];
+      };
+      const changed = function (field) {
+        if (ADVANCED_DEFAULTS[field] === undefined) return false;
+        return JSON.stringify(draft[field] === undefined ? null : draft[field]) !== JSON.stringify(ADVANCED_DEFAULTS[field]);
+      };
+      const resetButton = function (field) {
+        if (changed(field) !== true) return null;
+        return h('button', {
+          type: 'button',
+          key: field + '-reset',
+          className: 'ah-reset-btn',
+          title: t('config.reset'),
+          onClick: function () { change(field, ADVANCED_DEFAULTS[field]); },
+        }, '↺');
       };
       // Long text needs the whole row: squeezed into a label/control pair it showed three
       // lines of a field that deserves a page.
@@ -3841,7 +3895,8 @@ window.__ModuleLoader__.load({
             value: draft[field] === undefined ? '' : draft[field],
             rows: 4,
             onChange: function (event) { change(field, event.target.value); },
-          })
+          }),
+          resetButton(field)
         );
       };
       const fmtDuration = function (ms) {
@@ -3875,7 +3930,8 @@ window.__ModuleLoader__.load({
               const next = parseDuration(event.target.value);
               if (next !== undefined) change(field, next);
             },
-          })
+          }),
+          resetButton(field)
         );
       };
 
@@ -3899,7 +3955,8 @@ window.__ModuleLoader__.load({
               'aria-checked': draft.clearEnabled === true ? 'true' : 'false',
               title: t('config.clearOn'),
               onClick: function () { change('clearEnabled', draft.clearEnabled !== true); },
-            }, h('span', { className: 'ah-switch-knob' }))
+            }, h('span', { className: 'ah-switch-knob' })),
+            resetButton('clearEnabled')
           ),
         ]),
 
@@ -3923,7 +3980,8 @@ window.__ModuleLoader__.load({
               h('option', { key: 'es', value: 'es' }, '西班牙文'),
               h('option', { key: 'ru', value: 'ru' }, '俄文'),
               h('option', { key: 'pt', value: 'pt' }, '葡萄牙文'),
-            ])
+            ]),
+            resetButton('reviewerLocale')
           ),
         ]),
 
@@ -3966,7 +4024,8 @@ window.__ModuleLoader__.load({
               'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
               title: t('config.strictVerdict'),
               onClick: function () { toggleNow('strictVerdict', draft.strictVerdict !== true); },
-            }, h('span', { className: 'ah-switch-knob' }))
+            }, h('span', { className: 'ah-switch-knob' })),
+          resetButton('strictVerdict')
           ),
           h('div', { className: 'ah-settings-row', key: 'debug-headers' },
             h('span', { className: 'ah-settings-label' }, t('config.debugHeaders'), h('span', { className: 'ah-settings-note' }, t('config.debugHeadersNote'))),
@@ -3977,7 +4036,8 @@ window.__ModuleLoader__.load({
               'aria-checked': draft.debugHeaders === true ? 'true' : 'false',
               title: t('config.debugHeaders'),
               onClick: function () { toggleNow('debugHeaders', draft.debugHeaders !== true); },
-            }, h('span', { className: 'ah-switch-knob' }))
+            }, h('span', { className: 'ah-switch-knob' })),
+          resetButton('debugHeaders')
           ),
           h('div', { className: 'ah-settings-row', key: 'debug-review' },
             h('span', { className: 'ah-settings-label' }, t('config.debugReview'), h('span', { className: 'ah-settings-note' }, t('config.debugReviewNote'))),
@@ -3988,7 +4048,8 @@ window.__ModuleLoader__.load({
               'aria-checked': draft.debugReview === true ? 'true' : 'false',
               title: t('config.debugReview'),
               onClick: function () { toggleNow('debugReview', draft.debugReview !== true); },
-            }, h('span', { className: 'ah-switch-knob' }))
+            }, h('span', { className: 'ah-switch-knob' })),
+          resetButton('debugReview')
           ),
         ]),
 
