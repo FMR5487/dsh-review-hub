@@ -972,7 +972,10 @@ window.__ModuleLoader__.load({
       // chip renders bold — so the reason stands out without turning the whole label loud.
       const l0 = typeof entry.riskLevel === 'string' && entry.riskLevel === 'high';
       const label = denied === true ? t('chip.humanDeny') : t('chip.human');
-      const head = l0 === true ? (pre === '' ? '命中L0' : pre + ' · 命中L0') : pre;
+      // `pre` arrives undefined for most human rows: string-concatenating it printed a literal
+      // "undefined" in front of the chip. Normalise first, then decorate.
+      const base = typeof pre === 'string' ? pre : '';
+      const head = l0 === true ? (base === '' ? '命中L0' : base + ' · 命中L0') : base;
       return { text: label, tone: denied ? 'danger' : 'warn', pre: head };
     }
       if (by === 'external') return { text: t('chip.external'), tone: 'muted', pre: pre };
