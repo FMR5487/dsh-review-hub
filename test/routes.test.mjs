@@ -134,9 +134,9 @@ export const cases = [
 			assertEqual(before.json.toastEnabled, true);
 			const after = await callRoute(byPath.get(ROUTES.config), { method: 'POST', url: ROUTES.config, body: { threshold: 9, agentPolicy: { subagent: 'off' } } });
 			assertEqual(after.json.threshold, 5, '超范围被夹紧');
-			assertEqual(after.json.agentPolicy.subagent, 'strict', 'off 已下架，写进来会被折成 strict');
+			assertEqual(after.json.agentPolicy.subagent, 'off');
 			const reread = await callRoute(byPath.get(ROUTES.config), { url: ROUTES.config });
-			assertEqual(reread.json.agentPolicy.subagent, 'strict', '落盘的是折叠后的值');
+			assertEqual(reread.json.agentPolicy.subagent, 'off', '写进去了');
 		},
 	},
 	{

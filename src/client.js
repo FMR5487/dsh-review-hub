@@ -240,6 +240,7 @@ window.__ModuleLoader__.load({
       'config.kindTaskBoard': '任务板',
       'config.kindUnknown': '来源未知',
       'config.levelFull': 'AI 预审',
+      'config.levelOff': '全关（连记忆也不放行）',
       'config.levelStrict': '一律问我',
       'config.agentNote': '按请求方收紧 AI 预审：子代理 / 定时 / 看板默认更严，因为它们替你做的事更多。默认 strict',
       'config.clearOn': '启用「清空历史」',
@@ -538,6 +539,7 @@ window.__ModuleLoader__.load({
       'config.kindTaskBoard': 'task board',
       'config.kindUnknown': 'unknown source',
       'config.levelFull': 'AI may pre-review',
+      'config.levelOff': 'off (no auto pass at all)',
       'config.levelStrict': 'always ask me',
       'config.agentNote': 'Tighten AI pre-review per requester: subagents, schedules and the task board default to stricter',
       'config.clearOn': 'Enable "clear history"',
@@ -4027,8 +4029,8 @@ window.__ModuleLoader__.load({
                 onChange: function (event) {
                   change('agentPolicy', Object.assign({}, draft.agentPolicy || {}, { [kind]: event.target.value }));
                 },
-              }, ['full', 'strict'].map(function (level) {
-                return h('option', { key: level, value: level }, t(level === 'full' ? 'config.levelFull' : 'config.levelStrict'));
+              }, ['full', 'strict', 'off'].map(function (level) {
+                return h('option', { key: level, value: level }, t('config.level' + level.charAt(0).toUpperCase() + level.slice(1)));
               }))
             );
           })),
