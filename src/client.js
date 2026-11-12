@@ -135,11 +135,11 @@ window.__ModuleLoader__.load({
       'setting.threshold': '放行阈值（次）',
       'setting.thresholdNote': '人工批准这么多次之后自动放行',
       'setting.fpIgnoreJustification': '允许记忆忽略「理由」',
-      'config.debugReview': '记录评审流（取证）',
+      'config.debugReview': '记录评审流',
       'config.debugReviewNote': '把模型返回的每个数据块的类型与字段名写进 review-probe.log（只记名字，不记值）。用来确认宿主是否透出 prompt-cache / token 用量，从而决定要不要做提示词前缀稳定化',
       'config.strictVerdict': '严格裁决协议',
       'config.strictVerdictNote': '只接受 {decision, risk, reason} 这一种形状：字段名、取值、风险等级有一个不合规就转人工（记为 unparsed）。默认关——中文小模型更容易因此多问人',
-      'config.debugHeaders': '记录请求头（取证）',
+      'config.debugHeaders': '记录请求头',
     'config.debugHeadersNote': '把每个请求的 header 名与 cookie 名写进 http-probe.log（只记名字，不记值，最多 400 行）。用来确认写围栏该用哪个 cookie，平时保持关闭',
     'setting.hideKnobs': '隐藏无用旋钮',
       'setting.hideKnobsNote': '隐藏命令中如 limit、offset 等无关键值的显示（复制仍给完整命令）',
@@ -425,11 +425,11 @@ window.__ModuleLoader__.load({
       'setting.threshold': 'Auto-approve after (times)',
       'setting.thresholdNote': 'Human approvals needed before the operation passes on its own',
       'setting.fpIgnoreJustification': 'Let memory ignore the reason',
-      'config.debugReview': 'Record the review stream (forensics)',
+      'config.debugReview': 'Record the review stream',
       'config.debugReviewNote': 'Writes the type and field names of every model chunk into review-probe.log (names only, never values). It answers whether the host exposes prompt-cache or token usage, which decides if prompt-prefix stabilisation is worth doing',
       'config.strictVerdict': 'Strict verdict protocol',
       'config.strictVerdictNote': 'Accepts one shape only — {decision, risk, reason}: a wrong field name, value or risk level goes to a human (recorded as unparsed). Off by default; small models end up asking more often',
-      'config.debugHeaders': 'Record request headers (forensics)',
+      'config.debugHeaders': 'Record request headers',
     'config.debugHeadersNote': 'Writes each request\'s header and cookie names into http-probe.log (names only, never values, 400-line cap). Use it to pick the write-fence cookie; leave it off otherwise',
     'setting.hideKnobs': 'Hide knob arguments',
       'setting.hideKnobsNote': 'Hides limit, offset and friends from the displayed command (copy still gives the full one)',
@@ -3885,7 +3885,6 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ah-settings-row', key: 'adv-warn' }, h('span', { className: 'ah-hint ah-tone-warn' }, t('config.advancedWarn'))),
 
         ...section('rhythm', t('config.secRhythm'), [
-          numberField('pollMs', t('config.pollMs')),
           numberField('maxEntriesPerSession', t('config.maxEntries')),
           durationField('humanFirstMs', t('config.humanFirst'), t('config.humanFirstNote')),
           durationField('reviewTimeoutMs', t('config.timeout'), t('config.timeoutNote')),
@@ -3956,7 +3955,19 @@ window.__ModuleLoader__.load({
         ]),
 
         ...section('debug', t('config.secDebug'), [
+          numberField('pollMs', t('config.pollMs')),
           numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
+          h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
+            h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
+            h('button', {
+              type: 'button',
+              className: 'ah-switch' + (draft.strictVerdict === true ? ' ah-switch-on' : ''),
+              role: 'switch',
+              'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
+              title: t('config.strictVerdict'),
+              onClick: function () { toggleNow('strictVerdict', draft.strictVerdict !== true); },
+            }, h('span', { className: 'ah-switch-knob' }))
+          ),
           h('div', { className: 'ah-settings-row', key: 'debug-headers' },
             h('span', { className: 'ah-settings-label' }, t('config.debugHeaders'), h('span', { className: 'ah-settings-note' }, t('config.debugHeadersNote'))),
             h('button', {
@@ -3977,17 +3988,6 @@ window.__ModuleLoader__.load({
               'aria-checked': draft.debugReview === true ? 'true' : 'false',
               title: t('config.debugReview'),
               onClick: function () { toggleNow('debugReview', draft.debugReview !== true); },
-            }, h('span', { className: 'ah-switch-knob' }))
-          ),
-          h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
-            h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
-            h('button', {
-              type: 'button',
-              className: 'ah-switch' + (draft.strictVerdict === true ? ' ah-switch-on' : ''),
-              role: 'switch',
-              'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
-              title: t('config.strictVerdict'),
-              onClick: function () { toggleNow('strictVerdict', draft.strictVerdict !== true); },
             }, h('span', { className: 'ah-switch-knob' }))
           ),
         ]),
