@@ -1077,7 +1077,9 @@ window.__ModuleLoader__.load({
      */
     function chipBody(chip, memory, t) {
       const parts = [];
-      if (chip.pre !== undefined) parts.push(h('span', { className: 'ah-chip-pre', key: 'pre' }, chip.pre + ' · '));
+      // An empty prefix is the same as no prefix: rendering ' · ' for it put a stray dot in
+      // front of every plain "人工通过" chip.
+      if (typeof chip.pre === 'string' && chip.pre !== '') parts.push(h('span', { className: 'ah-chip-pre', key: 'pre' }, chip.pre + ' · '));
       parts.push(h('span', { className: 'ah-chip-decision', key: 'decision' }, chip.text));
       if (memory !== null) {
         const body = memory.parts !== undefined
