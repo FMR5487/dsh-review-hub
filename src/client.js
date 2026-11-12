@@ -3774,6 +3774,13 @@ window.__ModuleLoader__.load({
           .catch(function () { /* a failed write must not break the panel */ });
       }, [draft === null, props?.locale]);
 
+      // Hooks must run unconditionally: declared after the early return below, React throws
+      // "rendered fewer hooks than expected" the moment the draft arrives and the whole card
+      // silently disappears.
+      const groups = React.useState({ rhythm: true, prompt: true, scope: false, preview: false, debug: false });
+      const openMap = groups[0];
+      const setOpen = function (key, next) { groups[1](Object.assign({}, openMap, { [key]: next })); };
+
       if (draft === null) return h('div', { className: 'ah-hint' }, t('config.loading'));
 
       /** A comma/newline separated tool list; commits on blur like every other field. */
@@ -3813,9 +3820,6 @@ window.__ModuleLoader__.load({
 
       // Five groups, ordered by how often they get touched. Everything here changes failure
       // behaviour, so the card explains itself before the controls.
-      const groups = React.useState({ rhythm: true, prompt: true, scope: false, preview: false, debug: false });
-      const openMap = groups[0];
-      const setOpen = function (key, next) { groups[1](Object.assign({}, openMap, { [key]: next })); };
       const section = function (key, title, children, tone) {
         const open = openMap[key] === true;
         const head = h('button', {
