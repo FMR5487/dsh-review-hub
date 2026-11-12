@@ -374,4 +374,30 @@ export const cases = [
 			});
 		},
 	},
+	{
+		name: 'client: 高级设置的结构护栏（五组齐全、Hook 在早退之前、默认值覆盖所有字段）',
+		async fn() {
+			const src = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8');
+			for (const key of ['config.secRhythm', 'config.secPrompt', 'config.secScope', 'config.secPreview', 'config.secDebug']) {
+				assertTrue(src.includes("'" + key + "'"), '缺少分组标题 ' + key);
+			}
+			// 1.1.0 的事故：hook 声明写在了 if (draft === null) return 之后，草稿到达时
+			// hook 数量变化 → 整张卡渲染成空。这条断言把那类改动挡在提交之前。
+			const cardAt = src.indexOf('function ConfigCard');
+			assertTrue(cardAt > 0, '找不到 ConfigCard');
+			const rest = src.slice(cardAt + 20);
+			const nextFn = rest.search(/\n    function [A-Za-z]/);
+			const card = nextFn < 0 ? rest : rest.slice(0, nextFn);
+			const early = card.indexOf('if (draft === null) return');
+			const firstHook = card.search(/React\.use(State|Effect|Ref|Memo)\(/);
+			assertTrue(early > 0, 'ConfigCard 里找不到早退');
+			assertTrue(firstHook > 0 && firstHook < early, 'ConfigCard 的 Hook 必须全部声明在早退之前');
+			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
+			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
+			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));
+			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
+				assertTrue(defaultsBlock.includes(field + ':'), 'ADVANCED_DEFAULTS 缺 ' + field);
+			}
+		},
+	},
 ];
