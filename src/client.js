@@ -221,6 +221,14 @@ window.__ModuleLoader__.load({
       'dock.otherWaitingAgainOne': '仍未处理：{title}',
       'dock.otherWaitingBody': '{title}（{n} 条）',
       'dock.otherWaitingAgainBody': '仍未处理：{title}（{n} 条）',
+      'config.secRhythm': '① 审查节奏',
+      'config.secPrompt': '② 提示词',
+      'config.secScope': '③ 范围与工具',
+      'config.secPreview': '④ 卡片预览',
+      'config.secDebug': '⑤ Debug',
+      'config.timeoutNote': 'AI 最长可跑多久，到点掐断并记为 timeout',
+      'config.budgetNote': '每轮对话最多审查几次，防止一次任务烧光额度',
+      'config.breakerNote': '连续失败几次后暂停审查，避免继续消耗',
       'config.motto': 'AI 是灯下献策的幕僚，镜子只负责把每道审批照得清清楚楚。',
       'dock.otherWaitChip': '等待审批 {n}',
       'config.secAdvanced': '高级设置（不要乱改）',
@@ -503,6 +511,14 @@ window.__ModuleLoader__.load({
       'dock.otherWaitingAgainOne': 'Still waiting: {title}',
       'dock.otherWaitingBody': '{title} ({n})',
       'dock.otherWaitingAgainBody': 'Still waiting: {title} ({n})',
+      'config.secRhythm': '1 — review rhythm',
+      'config.secPrompt': '2 — prompt',
+      'config.secScope': '3 — scope and tools',
+      'config.secPreview': '4 — card preview',
+      'config.secDebug': '5 — debug',
+      'config.timeoutNote': 'how long the reviewer may run before it is cut off and logged as timeout',
+      'config.budgetNote': 'how many reviews per turn, so one task cannot burn the quota',
+      'config.breakerNote': 'how many failures in a row pause the reviewer',
       'config.motto': 'The AI advises from the lamp; the mirror only makes every approval legible.',
       'dock.otherWaitChip': '{n} waiting',
       'config.secAdvanced': 'Advanced (do not fiddle)',
@@ -1972,6 +1988,12 @@ window.__ModuleLoader__.load({
       '.ah-icon-filtered{color:var(--dsw-alias-state-business-primary,#2f6fd0);opacity:1}',
       '.ah-icon-filtered::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:999px;background:currentColor}',
       '.ah-card-danger{border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 65%, transparent)}',
+      '.ah-group-head{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.14));color:var(--dsw-alias-label-primary);font-size:12px;font-weight:600;padding:6px 2px;margin-top:6px;cursor:pointer}',
+      '.ah-group-danger{color:var(--dsw-alias-state-warning-primary,#d9a521)}',
+      '.ah-group-body{display:flex;flex-direction:column;gap:6px;padding:4px 0 8px}',
+      '.ah-settings-block{display:flex;flex-direction:column;gap:4px}',
+      '.ah-input-block{width:100%;box-sizing:border-box;min-height:88px;resize:vertical;font-family:inherit;line-height:1.5}',
+      '.ah-input-short{max-width:160px}',
       '.ah-stat-line{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#b6bcc4);word-break:break-word}',
       '.ah-stat-lane{display:flex;flex-direction:column;gap:1px;padding:4px 0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.14))}',
 
@@ -3789,123 +3811,183 @@ window.__ModuleLoader__.load({
         );
       };
 
-      // Everyday settings live in the approval tab. This card keeps the knobs that
-      // change failure behaviour or performance — nothing here should be touched
-      // without a reason, so it says so before the controls.
-      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 } }, [
+      // Five groups, ordered by how often they get touched. Everything here changes failure
+      // behaviour, so the card explains itself before the controls.
+      const groups = React.useState({ rhythm: true, prompt: true, scope: false, preview: false, debug: false });
+      const openMap = groups[0];
+      const setOpen = function (key, next) { groups[1](Object.assign({}, openMap, { [key]: next })); };
+      const section = function (key, title, children, tone) {
+        const open = openMap[key] === true;
+        const head = h('button', {
+          type: 'button',
+          key: key + '-head',
+          className: 'ah-group-head' + (tone === 'danger' ? ' ah-group-danger' : ''),
+          onClick: function () { setOpen(key, open !== true); },
+        }, (open === true ? '▾ ' : '▸ ') + title);
+        const body = open === true ? h('div', { key: key + '-body', className: 'ah-group-body' }, children) : null;
+        return [head, body];
+      };
+      // Long text needs the whole row: squeezed into a label/control pair it showed three
+      // lines of a field that deserves a page.
+      const blockField = function (field, label, hint) {
+        return h('div', { className: 'ah-settings-block', key: field },
+          h('span', { className: 'ah-settings-label' }, label, hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)),
+          h('textarea', {
+            className: 'ah-input ah-input-block',
+            value: draft[field] === undefined ? '' : draft[field],
+            rows: 4,
+            onChange: function (event) { change(field, event.target.value); },
+          })
+        );
+      };
+      const fmtDuration = function (ms) {
+        const value = Number(ms);
+        if (!Number.isFinite(value) || value <= 0) return '0';
+        return value % 1000 === 0 ? String(value / 1000) + 's' : String(value) + 'ms';
+      };
+      const parseDuration = function (text) {
+        const raw = String(text === undefined || text === null ? '' : text).trim().toLowerCase();
+        if (raw === '') return undefined;
+        const hit = /^([0-9]+(?:.[0-9]+)?)s*(ms|s|m|分钟|秒)?$/.exec(raw);
+        if (hit === null) return undefined;
+        const unit = hit[2] === undefined ? 'ms' : hit[2];
+        const n = Number(hit[1]);
+        if (!Number.isFinite(n)) return undefined;
+        if (unit === 's' || unit === '秒') return Math.round(n * 1000);
+        if (unit === 'm' || unit === '分钟') return Math.round(n * 60000);
+        return Math.round(n);
+      };
+      // Durations accept 10s or 10000ms: reading 600000 in your head is the point.
+      // is exactly the kind of arithmetic a settings page should do for you.
+      const durationField = function (field, label, hint) {
+        return h('label', { className: 'ah-settings-row', key: field },
+          h('span', { className: 'ah-settings-label' }, label, hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)),
+          h('input', {
+            className: 'ah-input',
+            type: 'text',
+            value: fmtDuration(draft[field]),
+            style: { maxWidth: 120 },
+            onChange: function (event) {
+              const next = parseDuration(event.target.value);
+              if (next !== undefined) change(field, next);
+            },
+          })
+        );
+      };
 
-        // The page header already names the plugin; this card is where the line
-        // that explains *why* it exists belongs, so it gets the room and the centre.
+      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 } }, [
         h('div', { className: 'ah-motto', key: 'motto' }, t('config.motto')),
         h('div', { className: 'ah-section', key: 'sec-adv' }, t('config.secAdvanced')),
-        h('div', { className: 'ah-settings-row', key: 'adv-warn' },
-          h('span', { className: 'ah-hint ah-tone-warn' }, t('config.advancedWarn'))
-        ),
-        numberField('pollMs', t('config.pollMs')),
-        numberField('maxEntriesPerSession', t('config.maxEntries')),
-        numberField('humanFirstMs', t('config.humanFirst'), t('config.humanFirstNote')),
-        numberField('reviewTimeoutMs', t('config.timeout')),
-        numberField('aiCacheTtlMs', t('config.cacheTtl'), t('config.cacheTtlNote')),
-        numberField('aiReasonChars', t('config.reasonChars'), t('config.reasonCharsNote')),
-        h('label', { className: 'ah-settings-row', key: 'prompt-append' },
-          h('span', { className: 'ah-settings-label' }, t('config.promptAppend'), h('span', { className: 'ah-settings-note' }, t('config.promptAppendNote'))),
-          h('textarea', {
-            className: 'ah-input',
-            value: draft.promptAppend === undefined ? '' : draft.promptAppend,
-            rows: 3,
-            onChange: function (event) { change('promptAppend', event.target.value); },
-          })
-        ),
-        h('label', { className: 'ah-settings-row', key: 'reviewer-locale' },
-          h('span', { className: 'ah-settings-label' }, t('config.reviewerLocale'), h('span', { className: 'ah-settings-note' }, t('config.reviewerLocaleNote'))),
-          h('select', {
-            className: 'ah-input',
-            value: draft.reviewerLocale === undefined ? '' : draft.reviewerLocale,
-            onChange: function (event) { change('reviewerLocale', event.target.value); },
-          }, [
-            h('option', { key: 'auto', value: '' }, t('config.localeAuto')),
-            h('option', { key: 'zh', value: 'zh' }, '中文（简体）'),
-            h('option', { key: 'zh-Hant', value: 'zh-Hant' }, '中文（繁體）'),
-            h('option', { key: 'en', value: 'en' }, 'English'),
-            h('option', { key: 'ja', value: 'ja' }, '日本語'),
-            h('option', { key: 'ko', value: 'ko' }, '한국어'),
-            h('option', { key: 'de', value: 'de' }, 'Deutsch'),
-            h('option', { key: 'fr', value: 'fr' }, 'Français'),
-            h('option', { key: 'es', value: 'es' }, 'Español'),
-            h('option', { key: 'ru', value: 'ru' }, 'Русский'),
-            h('option', { key: 'pt', value: 'pt' }, 'Português'),
-          ])
-        ),
-        numberField('aiBudgetPerTurn', t('config.budget')),
-        numberField('aiBreakerFails', t('config.breaker')),
-        // The deltas on the built-in AI baseline. A textarea, not an input: a dozen tool
-        // names in a single line is a list nobody can read or check.
-        toolListField('aiTools', t('config.aiTools'), t('config.aiToolsNote')),
-        toolListField('aiToolsDeny', t('config.aiToolsDeny'), t('config.aiToolsDenyNote')),
-        h('div', { className: 'ah-settings-row', key: 'agent-title' },
-          h('span', { className: 'ah-settings-label' }, t('config.agent'), h('span', { className: 'ah-settings-note' }, t('config.agentNote')))
-        ),
-        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } }, AGENT_KINDS.map(function (kind) {
-          const current = (draft.agentPolicy || {})[kind] || 'strict';
-          return h('label', { key: kind, className: 'ah-settings-row', style: { gap: 4 } },
-            h('span', { className: 'ah-hint' }, kind),
+        h('div', { className: 'ah-settings-row', key: 'adv-warn' }, h('span', { className: 'ah-hint ah-tone-warn' }, t('config.advancedWarn'))),
+
+        ...section('rhythm', t('config.secRhythm'), [
+          numberField('pollMs', t('config.pollMs')),
+          numberField('maxEntriesPerSession', t('config.maxEntries')),
+          durationField('humanFirstMs', t('config.humanFirst'), t('config.humanFirstNote')),
+          durationField('reviewTimeoutMs', t('config.timeout'), t('config.timeoutNote')),
+          durationField('aiCacheTtlMs', t('config.cacheTtl'), t('config.cacheTtlNote')),
+          numberField('aiReasonChars', t('config.reasonChars'), t('config.reasonCharsNote')),
+          h('div', { className: 'ah-settings-row', key: 'clear-on' },
+            h('span', { className: 'ah-settings-label' }, t('config.clearOn'), h('span', { className: 'ah-settings-note' }, t('config.clearOnNote'))),
+            h('button', {
+              type: 'button',
+              className: 'ah-switch' + (draft.clearEnabled === true ? ' ah-switch-on' : ''),
+              role: 'switch',
+              'aria-checked': draft.clearEnabled === true ? 'true' : 'false',
+              title: t('config.clearOn'),
+              onClick: function () { change('clearEnabled', draft.clearEnabled !== true); },
+            }, h('span', { className: 'ah-switch-knob' }))
+          ),
+        ]),
+
+        ...section('prompt', t('config.secPrompt'), [
+          blockField('promptAppend', t('config.promptAppend'), t('config.promptAppendNote')),
+          h('label', { className: 'ah-settings-row', key: 'reviewer-locale' },
+            h('span', { className: 'ah-settings-label' }, t('config.reviewerLocale'), h('span', { className: 'ah-settings-note' }, t('config.reviewerLocaleNote'))),
             h('select', {
-              className: 'ah-btn',
-              value: current,
-              onChange: function (event) {
-                change('agentPolicy', Object.assign({}, draft.agentPolicy || {}, { [kind]: event.target.value }));
-              },
-            }, ['full', 'strict', 'off'].map(function (level) { return h('option', { key: level, value: level }, level); }))
-          );
-        })),
-        numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
-        h('div', { className: 'ah-settings-row', key: 'debug-headers' },
-          h('span', { className: 'ah-settings-label' }, t('config.debugHeaders'), h('span', { className: 'ah-settings-note' }, t('config.debugHeadersNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.debugHeaders === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.debugHeaders === true ? 'true' : 'false',
-            title: t('config.debugHeaders'),
-            onClick: function () { toggleNow('debugHeaders', draft.debugHeaders !== true); },
-          }, h('span', { className: 'ah-switch-knob' }))
-        ),
-        h('div', { className: 'ah-settings-row', key: 'debug-review' },
-          h('span', { className: 'ah-settings-label' }, t('config.debugReview'), h('span', { className: 'ah-settings-note' }, t('config.debugReviewNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.debugReview === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.debugReview === true ? 'true' : 'false',
-            title: t('config.debugReview'),
-            onClick: function () { toggleNow('debugReview', draft.debugReview !== true); },
-          }, h('span', { className: 'ah-switch-knob' }))
-        ),
-        h('div', { className: 'ah-settings-row', key: 'clear-on' },
-          h('span', { className: 'ah-settings-label' }, t('config.clearOn'), h('span', { className: 'ah-settings-note' }, t('config.clearOnNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.clearEnabled === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.clearEnabled === true ? 'true' : 'false',
-            title: t('config.clearOn'),
-            onClick: function () { change('clearEnabled', draft.clearEnabled !== true); },
-          }, h('span', { className: 'ah-switch-knob' }))
-        ),
-        h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
-          h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.strictVerdict === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
-            title: t('config.strictVerdict'),
-            onClick: function () { toggleNow('strictVerdict', draft.strictVerdict !== true); },
-          }, h('span', { className: 'ah-switch-knob' }))
-        ),
-        // Always on, and last: the preview is a looking glass, not a setting — it belongs
-        // under everything you actually came here to change.
-        h(CardPreview, { key: 'card-preview', locale: props === null || props === undefined ? undefined : props.locale }),
+              className: 'ah-input ah-input-short',
+              value: draft.reviewerLocale === undefined ? '' : draft.reviewerLocale,
+              onChange: function (event) { change('reviewerLocale', event.target.value); },
+            }, [
+              h('option', { key: 'auto', value: '' }, t('config.localeAuto')),
+              h('option', { key: 'zh', value: 'zh' }, '简体中文'),
+              h('option', { key: 'zh-Hant', value: 'zh-Hant' }, '繁體中文'),
+              h('option', { key: 'en', value: 'en' }, '英文'),
+              h('option', { key: 'ja', value: 'ja' }, '日文'),
+              h('option', { key: 'ko', value: 'ko' }, '韩文'),
+              h('option', { key: 'de', value: 'de' }, '德文'),
+              h('option', { key: 'fr', value: 'fr' }, '法文'),
+              h('option', { key: 'es', value: 'es' }, '西班牙文'),
+              h('option', { key: 'ru', value: 'ru' }, '俄文'),
+              h('option', { key: 'pt', value: 'pt' }, '葡萄牙文'),
+            ])
+          ),
+        ]),
+
+        ...section('scope', t('config.secScope'), [
+          numberField('aiBudgetPerTurn', t('config.budget'), t('config.budgetNote')),
+          numberField('aiBreakerFails', t('config.breaker'), t('config.breakerNote')),
+          blockField('aiTools', t('config.aiTools'), t('config.aiToolsNote')),
+          blockField('aiToolsDeny', t('config.aiToolsDeny'), t('config.aiToolsDenyNote')),
+          h('div', { className: 'ah-settings-row', key: 'agent-title' },
+            h('span', { className: 'ah-settings-label' }, t('config.agent'), h('span', { className: 'ah-settings-note' }, t('config.agentNote')))
+          ),
+          h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } }, AGENT_KINDS.map(function (kind) {
+            const current = (draft.agentPolicy || {})[kind] || 'strict';
+            return h('label', { key: kind, className: 'ah-settings-row', style: { gap: 4 } },
+              h('span', { className: 'ah-hint' }, kind),
+              h('select', {
+                className: 'ah-btn',
+                value: current,
+                onChange: function (event) {
+                  change('agentPolicy', Object.assign({}, draft.agentPolicy || {}, { [kind]: event.target.value }));
+                },
+              }, ['full', 'strict', 'off'].map(function (level) { return h('option', { key: level, value: level }, level); }))
+            );
+          })),
+        ]),
+
+        ...section('preview', t('config.secPreview'), [
+          h(CardPreview, { key: 'card-preview', locale: props === null || props === undefined ? undefined : props.locale }),
+        ]),
+
+        ...section('debug', t('config.secDebug'), [
+          numberField('snapshotRetentionDays', t('config.snapshotDays'), t('config.snapshotDaysNote')),
+          h('div', { className: 'ah-settings-row', key: 'debug-headers' },
+            h('span', { className: 'ah-settings-label' }, t('config.debugHeaders'), h('span', { className: 'ah-settings-note' }, t('config.debugHeadersNote'))),
+            h('button', {
+              type: 'button',
+              className: 'ah-switch' + (draft.debugHeaders === true ? ' ah-switch-on' : ''),
+              role: 'switch',
+              'aria-checked': draft.debugHeaders === true ? 'true' : 'false',
+              title: t('config.debugHeaders'),
+              onClick: function () { toggleNow('debugHeaders', draft.debugHeaders !== true); },
+            }, h('span', { className: 'ah-switch-knob' }))
+          ),
+          h('div', { className: 'ah-settings-row', key: 'debug-review' },
+            h('span', { className: 'ah-settings-label' }, t('config.debugReview'), h('span', { className: 'ah-settings-note' }, t('config.debugReviewNote'))),
+            h('button', {
+              type: 'button',
+              className: 'ah-switch' + (draft.debugReview === true ? ' ah-switch-on' : ''),
+              role: 'switch',
+              'aria-checked': draft.debugReview === true ? 'true' : 'false',
+              title: t('config.debugReview'),
+              onClick: function () { toggleNow('debugReview', draft.debugReview !== true); },
+            }, h('span', { className: 'ah-switch-knob' }))
+          ),
+          h('div', { className: 'ah-settings-row', key: 'strict-verdict' },
+            h('span', { className: 'ah-settings-label' }, t('config.strictVerdict'), h('span', { className: 'ah-settings-note' }, t('config.strictVerdictNote'))),
+            h('button', {
+              type: 'button',
+              className: 'ah-switch' + (draft.strictVerdict === true ? ' ah-switch-on' : ''),
+              role: 'switch',
+              'aria-checked': draft.strictVerdict === true ? 'true' : 'false',
+              title: t('config.strictVerdict'),
+              onClick: function () { toggleNow('strictVerdict', draft.strictVerdict !== true); },
+            }, h('span', { className: 'ah-switch-knob' }))
+          ),
+        ]),
+
         h('div', { className: 'ah-settings-row', key: 'actions' },
           h('button', { type: 'button', className: 'ah-btn', onClick: save, disabled: status === 'saving' }, t('config.save')),
           status === 'saved' ? h('span', { className: 'ah-hint' }, t('config.saved')) : null,
