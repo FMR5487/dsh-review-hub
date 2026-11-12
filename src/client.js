@@ -253,8 +253,8 @@ window.__ModuleLoader__.load({
       'setting.clearDone': '已清空',
       'config.pollMs': '轮询间隔（毫秒）',
       'config.maxEntries': '每会话条目上限',
-      'config.timeout': 'AI 超时（毫秒）',
-      'config.budget': '每分钟审查上限',
+      'config.timeout': 'AI 超时',
+      'config.budget': '每轮审查上限',
       'config.breaker': '连续失败熔断阈值',
       'config.model': '审查模型（留空=会话默认）',
       'config.modelAuto': '跟随会话（默认）',
@@ -295,11 +295,11 @@ window.__ModuleLoader__.load({
       'config.reviewerLocale': 'AI 理由语言',
       'config.reviewerLocaleNote': '理由用什么语言写。默认跟随界面，也可强制某一种',
       'config.localeAuto': '跟随界面',
-      'config.humanFirst': '交出决策权（毫秒）',
+      'config.humanFirst': '交出决策权',
       'config.humanFirstNote': 'AI 还没给结论就把人工选项摆出来，免得你干等；之后 AI 再返回也不改你的决定。默认 8s，0 = 关闭',
       'config.reasonChars': 'AI 理由长度上限（字符）',
       'config.reasonCharsNote': '理由最长多少个字，越长越贵。默认 80（范围 40–400），中文嫌短就往上调',
-      'config.cacheTtl': 'AI 缓存过期（毫秒）',
+      'config.cacheTtl': 'AI 缓存过期',
       'config.cacheTtlNote': '同一操作这么长时间内只审一次，省调用也省 token。默认 10m，0 = 关闭（每次都调模型）',
       'config.snapshotDays': '快照保留天数',
       'config.snapshotDaysNote': '审批快照留多少天，过期在下一次启动时清理。默认 0 = 一直留（仍受每会话 64 条限制）',
@@ -544,8 +544,8 @@ window.__ModuleLoader__.load({
       'setting.clearDone': 'Cleared',
       'config.pollMs': 'Poll interval (ms)',
       'config.maxEntries': 'Entries per session',
-      'config.timeout': 'AI timeout (ms)',
-      'config.budget': 'Reviews per minute',
+      'config.timeout': 'AI timeout',
+      'config.budget': 'Reviews per turn',
       'config.breaker': 'Breaker threshold',
       'config.model': 'Reviewer model (blank = session default)',
       'config.modelAuto': 'Follow the session (default)',
@@ -586,11 +586,11 @@ window.__ModuleLoader__.load({
       'config.reviewerLocale': 'Reviewer reason language',
       'config.reviewerLocaleNote': 'Follow the UI = use the panel language; or force Chinese / English',
       'config.localeAuto': 'Follow the UI',
-      'config.humanFirst': 'Hand over to the human after (ms)',
+      'config.humanFirst': 'Hand over to the human after',
       'config.humanFirstNote': 'If the reviewer has not answered in this long, the human options appear first; a later reviewer answer is recorded, never applied. 0 = off',
       'config.reasonChars': 'Reviewer reason length cap (chars)',
       'config.reasonCharsNote': '40-400, default 80. Chinese reasons run longer than English ones — raise it if they feel cut off',
-      'config.cacheTtl': 'AI verdict cache TTL (ms)',
+      'config.cacheTtl': 'AI verdict cache TTL',
       'config.cacheTtlNote': '600000 = 10 minutes; 0 disables the cache (every call reaches the model). Keys are shared across sessions: requester class + argument fingerprint.',
       'config.snapshotDays': 'Snapshot retention (days)',
       'config.snapshotDaysNote': '0 = keep (bounded by 64 entries per session and 64 sessions); set N days and expired snapshots are swept on the next start',
@@ -1990,6 +1990,8 @@ window.__ModuleLoader__.load({
       '.ah-icon-filtered{color:var(--dsw-alias-state-business-primary,#2f6fd0);opacity:1}',
       '.ah-icon-filtered::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:999px;background:currentColor}',
       '.ah-card-danger{border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 65%, transparent)}',
+      '.ah-field-pair{display:inline-flex;align-items:center;gap:4px}',
+      '.ah-settings-label-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}',
       '.ah-reset-btn{background:none;border:0;color:var(--dsw-alias-label-secondary,#b6bcc4);cursor:pointer;font-size:12px;line-height:1;padding:0 2px;opacity:0;transition:opacity .12s}',
       '.ah-settings-row:hover .ah-reset-btn,.ah-settings-block:hover .ah-reset-btn{opacity:1}',
       '.ah-reset-btn:hover{color:var(--dsw-alias-label-primary)}',
@@ -3503,8 +3505,8 @@ window.__ModuleLoader__.load({
       reviewerLocale: '',
       aiBudgetPerTurn: 20,
       aiBreakerFails: 3,
-      aiTools: null,
-      aiToolsDeny: null,
+      aiTools: [],
+      aiToolsDeny: [],
       snapshotRetentionDays: 0,
       debugHeaders: false,
       debugReview: false,
@@ -3843,14 +3845,16 @@ window.__ModuleLoader__.load({
             label,
             hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)
           ),
-          h('input', {
-            className: 'ah-input',
-            type: 'number',
-            value: draft[field] === undefined ? '' : draft[field],
-            onChange: function (event) { change(field, event.target.value); },
-            style: { maxWidth: 120 },
-          }),
-          resetButton(field)
+          h('span', { className: 'ah-field-pair', key: 'pair' },
+            resetButton(field),
+            h('input', {
+              className: 'ah-input',
+              type: 'number',
+              value: draft[field] === undefined ? '' : draft[field],
+              onChange: function (event) { change(field, event.target.value); },
+              style: { maxWidth: 120 },
+            })
+          )
         );
       };
 
@@ -3889,14 +3893,16 @@ window.__ModuleLoader__.load({
       // lines of a field that deserves a page.
       const blockField = function (field, label, hint) {
         return h('div', { className: 'ah-settings-block', key: field },
-          h('span', { className: 'ah-settings-label' }, label, hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)),
+          h('div', { className: 'ah-settings-label-row', key: 'label' },
+            h('span', { className: 'ah-settings-label' }, label, hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)),
+            resetButton(field)
+          ),
           h('textarea', {
             className: 'ah-input ah-input-block',
             value: draft[field] === undefined ? '' : draft[field],
             rows: 4,
             onChange: function (event) { change(field, event.target.value); },
-          }),
-          resetButton(field)
+          })
         );
       };
       const fmtDuration = function (ms) {
@@ -3921,17 +3927,19 @@ window.__ModuleLoader__.load({
       const durationField = function (field, label, hint) {
         return h('label', { className: 'ah-settings-row', key: field },
           h('span', { className: 'ah-settings-label' }, label, hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)),
-          h('input', {
-            className: 'ah-input',
-            type: 'text',
-            value: fmtDuration(draft[field]),
-            style: { maxWidth: 120 },
-            onChange: function (event) {
-              const next = parseDuration(event.target.value);
-              if (next !== undefined) change(field, next);
-            },
-          }),
-          resetButton(field)
+          h('span', { className: 'ah-field-pair', key: 'pair' },
+            resetButton(field),
+            h('input', {
+              className: 'ah-input',
+              type: 'text',
+              value: fmtDuration(draft[field]),
+              style: { maxWidth: 120 },
+              onChange: function (event) {
+                const next = parseDuration(event.target.value);
+                if (next !== undefined) change(field, next);
+              },
+            })
+          )
         );
       };
 
@@ -3964,6 +3972,8 @@ window.__ModuleLoader__.load({
           blockField('promptAppend', t('config.promptAppend'), t('config.promptAppendNote')),
           h('label', { className: 'ah-settings-row', key: 'reviewer-locale' },
             h('span', { className: 'ah-settings-label' }, t('config.reviewerLocale'), h('span', { className: 'ah-settings-note' }, t('config.reviewerLocaleNote'))),
+            h('span', { className: 'ah-field-pair', key: 'pair' },
+            resetButton('reviewerLocale'),
             h('select', {
               className: 'ah-input ah-input-short',
               value: draft.reviewerLocale === undefined ? '' : draft.reviewerLocale,
@@ -3980,8 +3990,8 @@ window.__ModuleLoader__.load({
               h('option', { key: 'es', value: 'es' }, '西班牙文'),
               h('option', { key: 'ru', value: 'ru' }, '俄文'),
               h('option', { key: 'pt', value: 'pt' }, '葡萄牙文'),
-            ]),
-            resetButton('reviewerLocale')
+            ])
+            )
           ),
         ]),
 
