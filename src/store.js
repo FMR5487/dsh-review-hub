@@ -33,6 +33,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	autoExpandDescription: false,
 	/** Hide knob arguments (limit/offset/…) in the displayed command; copy stays verbatim. */
 	hideKnobs: true,
+	/** Show bookkeeping actions (list_bundles, install_bundle) in Chinese; display only. */
+	translateActions: true,
 	/**
 	 * Header forensics for the HTTP fence: record every request's header *names* (never
 	 * values) so a proof cookie/header can be chosen from evidence instead of a guess.
@@ -244,7 +246,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	const langOk = (value) => value === '' || (typeof value === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value));
 	if (langOk(patch.reviewerLocale)) next.reviewerLocale = patch.reviewerLocale;
 	if (langOk(patch.panelLocale)) next.panelLocale = patch.panelLocale;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {

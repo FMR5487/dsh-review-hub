@@ -143,6 +143,8 @@ window.__ModuleLoader__.load({
     'config.debugHeadersNote': '把请求头与 cookie 的**名字**记进 http-probe.log（不记值）。只在排查「设置存不下」时才开，默认关',
       'setting.hideKnobs': '隐藏无用旋钮',
       'setting.hideKnobsNote': '隐藏命令中如 limit、offset 等无关键值的显示（复制仍给完整命令）',
+      'setting.translateActions': '工具动作显示成中文',
+      'setting.translateActionsNote': '把 list_bundles 这类动作显示成「列出包」。只影响显示：复制仍是完整参数，搜索中英文都认' ,
       'setting.autoExpand': '自动展开描述',
       'setting.autoExpandNote': '关闭（默认）：描述要手动点箭头才展开。开启：每条记录默认展开描述，点箭头仍可收起。',
       'setting.fpIgnoreJustificationNote': '关闭（默认）：每次填写的理由算作操作的一部分——理由不同就当作不同操作、分开累计次数，因为提权理由是你批准前要读的证据。开启：同一条命令不管理由怎么写都算同一个操作、可累计放行。不确定就保持关闭。',
@@ -444,6 +446,8 @@ window.__ModuleLoader__.load({
     'config.debugHeadersNote': 'Writes each request\'s header and cookie names into http-probe.log (names only, never values, 400-line cap). Use it to pick the write-fence cookie; leave it off otherwise',
       'setting.hideKnobs': 'Hide knob arguments',
       'setting.hideKnobsNote': 'Hides limit, offset and friends from the displayed command (copy still gives the full one)',
+      'setting.translateActions': 'Show tool actions in Chinese',
+      'setting.translateActionsNote': 'Displays list_bundles as 列出包. Display only: copy still gives the full arguments and search matches both languages',
       'setting.autoExpand': 'Expand descriptions automatically',
       'setting.autoExpandNote': 'Off (default): the description opens when you click the arrow. On: every row starts expanded, and the arrow still collapses it.',
       'setting.fpIgnoreJustificationNote': 'Off (default): the reason you type counts as part of the operation, so different reasons are different operations with separate counts — the escalation reason is the evidence you read before granting. On: the same command counts as one operation no matter what the reason says, so it can reach the auto-approve threshold. Leave it off if unsure.',
@@ -1424,6 +1428,54 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The verb half of a bookkeeping call, in Chinese. Deliberately *not* in the locale
+     * dictionary: `translator()` falls back to the zh table when a key is missing, so a
+     * missing `act.*` entry would leak Chinese into an English UI. English needs no table
+     * at all — the action names are already English.
+     *
+     * Two layers: generic verbs (shared by memory / dtodo / skill_manage / update_goal) and
+     * per-tool overrides where the generic verb loses the noun ("set_bundle" would print
+     * "设置" and drop the "bundle"). An action nobody listed keeps its English form: a wrong
+     * translation is worse than no translation.
+     */
+    const ACTION_ZH = {
+      add: '添加', create: '新建', update: '修改', set: '设置', patch: '修改',
+      list: '列出', read: '读取', get: '读取', search: '搜索',
+      remove: '删除', delete: '删除', replace: '替换', expand: '展开', archive: '归档',
+      done: '完成', complete: '完成', edit: '编辑', pause: '暂停', resume: '继续',
+      list_plugins: '列出插件', list_bundles: '列出包',
+      install_bundle: '安装包', remove_bundle: '卸载包',
+      set_plugin: '设置插件', set_bundle: '设置包',
+      list_version_exemptions: '列出豁免', set_version_exemption: '设置版本豁免',
+    };
+
+    /** The raw `action` value of a call, or '' when it carries none. */
+    function actionOf(entry) {
+      const payload = argsOf(entry);
+      if (payload === null) return '';
+      return typeof payload.action === 'string' ? payload.action.trim() : '';
+    }
+
+    /** The Chinese verb for that action, or '' when the table does not know it. */
+    function actionLabelOf(entry) {
+      const action = actionOf(entry);
+      if (action === '') return '';
+      return ACTION_ZH[action] === undefined ? '' : ACTION_ZH[action];
+    }
+
+    /** Chinese verbs only when the setting is on and the panel is Chinese. */
+    function wantsChineseActions() {
+      if (settings().translateActions === false) return false;
+      try {
+        const lang = String(document.documentElement.lang || '').toLowerCase();
+        return lang === '' || lang.indexOf('zh') === 0;
+      } catch (error) {
+        // No document (tests) or no language: the panel's own fallback is Chinese.
+        return true;
+      }
+    }
+
+    /**
      * A call whose arguments are bookkeeping rather than a command — plugin_manager and
      * its kin: the ledger holds {"action":"install_bundle","target":"@scope/pkg@1.2.3"},
      * which used to reach the timeline either as a JSON blob (list_bundles) or as a bare
@@ -1436,16 +1488,20 @@ window.__ModuleLoader__.load({
     function foldedOf(entry) {
       const payload = argsOf(entry);
       if (payload === null) return null;
-      const action = typeof payload.action === 'string' ? payload.action.trim() : '';
+      const action = actionOf(entry);
       if (action === '') return null;
       const keys = ['command', 'cmd', 'script'];
       for (const key of keys) if (typeof payload[key] === 'string' && payload[key] !== '') return null;
+      // Only the verb may be translated: the target is an identifier meant to be pasted,
+      // and the tool name stays spelled the way the API spells it.
+      const label = actionLabelOf(entry);
+      const verb = label !== '' && wantsChineseActions() === true ? label : action;
       const details = ['target', 'target_path', 'path', 'file_path', 'name'];
       for (const key of details) {
         const value = payload[key];
-        if (typeof value === 'string' && value !== '') return action + ' ' + value;
+        if (typeof value === 'string' && value !== '') return verb + ' ' + value;
       }
-      return action;
+      return verb;
     }
 
     /**
@@ -3172,6 +3228,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ah-section', key: 'sec-card' }, t('setting.secCard')),
         row('autoExpandDescription', t('setting.autoExpand'), t('setting.autoExpandNote'), config.autoExpandDescription === true, flip('autoExpandDescription')),
         row('hideKnobs', t('setting.hideKnobs'), t('setting.hideKnobsNote'), config.hideKnobs !== false, flip('hideKnobs')),
+        row('translateActions', t('setting.translateActions'), t('setting.translateActionsNote'), config.translateActions !== false, flip('translateActions')),
         row('hint', t('setting.hint'), t('setting.hintNote'), config.composerHint === true, flip('composerHint')),
         row('pendingCard', t('setting.pendingCard'), t('setting.pendingNote'), config.pendingCard === true, flip('pendingCard')),
         row('aiAdviceCard', t('setting.aiAdviceCard'), t('setting.aiAdviceCardNote'), config.aiAdviceCard !== false, flip('aiAdviceCard')),
@@ -3500,7 +3557,10 @@ window.__ModuleLoader__.load({
         if (toAt > 0 && ts > toAt) return false;
         if (needle === '') return true;
         const chip = chipOf(entry, t);
-        const haystack = [entry.toolName, chip.text, commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
+        // Both forms of the action, always: the switch decides what is *shown*, never
+        // what is searchable — typing `install_bundle` (the name upstream uses) and
+        // typing 安装包 must both find the same row, whichever way the switch is set.
+        const haystack = [entry.toolName, chip.text, actionOf(entry), actionLabelOf(entry), commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
         return haystack.indexOf(needle) >= 0;
       });
 
@@ -4970,6 +5030,8 @@ window.__ModuleLoader__.load({
         memoryText: memoryText,
         foldedOf: foldedOf,
         timelineTextOf: timelineTextOf,
+        actionOf: actionOf,
+        actionLabelOf: actionLabelOf,
         isMerged: isMerged,
         memoryBucketId: memoryBucketId,
         rowFingerprintOf: rowFingerprintOf,

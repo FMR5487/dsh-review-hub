@@ -29,7 +29,7 @@ const CONFIG_FIELDS = [
 	'aiEnabled', 'aiEnabledLocal', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'toastQuietMs',
 	'threshold', 'aiFailurePolicy', 'humanFirstMs', 'reviewTimeoutMs', 'aiBudgetPerTurn', 'aiBreakerFails',
 	'aiCacheTtlMs', 'aiReasonChars', 'reviewerLocale', 'panelLocale', 'promptAppend', 'strictVerdict', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
-	'exportScope', 'agentPolicy', 'hintMs', 'fpIgnoreJustification', 'autoExpandDescription', 'hideKnobs', 'snapshotRetentionDays', 'fileAutoPass', 'fileFingerprint', 'aiTools', 'aiToolsDeny', 'aiAdviceCard', 'dangerCard', 'debugHeaders', 'debugReview',
+	'exportScope', 'agentPolicy', 'hintMs', 'fpIgnoreJustification', 'autoExpandDescription', 'hideKnobs', 'translateActions', 'snapshotRetentionDays', 'fileAutoPass', 'fileFingerprint', 'aiTools', 'aiToolsDeny', 'aiAdviceCard', 'dangerCard', 'debugHeaders', 'debugReview',
 ];
 
 function isLoopback(host) {
