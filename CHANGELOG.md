@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.1.14 — 记账型调用按动作显示；复制仍是原始参数
+
+- 参数里只有 `action` + 目标、没有真命令的调用（`plugin_manager` 等）不再两头都不是：以前 `list_plugins` 铺一整段 JSON，`install_bundle` 只剩光秃秃的包名（动词被拆包吃掉）。现在一个句式：
+  - `{"action":"list_plugins","limit":10,"offset":240}` → `list_plugins`
+  - `{"action":"install_bundle","target":"@linxin666/dsh-web-all@0.4.18"}` → `install_bundle @linxin666/dsh-web-all@0.4.18`
+  - 提示卡与预览的标题行同样折叠成 `plugin_manager · install_bundle …`。
+- 复制不跟着折叠：这些行复制的是台账里的完整 `argsText`（`{"action":"list_plugins","limit":10,"offset":240}`），粘贴需要原始参数。带真命令（`command` / `cmd` / `script`）或文件路径的行完全不变，复制仍给那条命令或路径。
+
 ## 1.1.13 — 记忆行只说结论；红点不会在会话切换后复活
 
 - 「记忆通过」芯片不再追加记忆句子（原来是「记忆通过 · 合并记忆 3/3 次」）。人工行与 AI 行的「记忆 n/N 次」保持不动：那里的数字是「距离自动放行还差几次」，而记忆行的数字只是把刚生效的规则再念一遍。

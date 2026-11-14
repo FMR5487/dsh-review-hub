@@ -1339,6 +1339,8 @@ window.__ModuleLoader__.load({
         }
         if (path !== '') return path;
       }
+      const folded = foldedOf(entry);
+      if (folded !== null) return folded;
       const cmd = commandOf(entry);
       return cmd === '' ? '' : displayCommand(cmd);
     }
@@ -1357,6 +1359,8 @@ window.__ModuleLoader__.load({
       if (path !== '' && (tool === 'write' || tool === 'edit' || tool === 'str_replace_editor')) {
         return path;
       }
+      const folded = foldedOf(entry);
+      if (folded !== null) return tool + ' · ' + folded;
       return tool + ' · ' + String(entry.argsSummary || reasonOf(entry) || '').slice(0, 160);
     }
 
@@ -1417,6 +1421,31 @@ window.__ModuleLoader__.load({
         if (typeof value === 'string' && value !== '') return value;
       }
       return raw;
+    }
+
+    /**
+     * A call whose arguments are bookkeeping rather than a command — plugin_manager and
+     * its kin: the ledger holds {"action":"install_bundle","target":"@scope/pkg@1.2.3"},
+     * which used to reach the timeline either as a JSON blob (list_bundles) or as a bare
+     * spec with the verb dropped (install_bundle). Folded, both read the same way:
+     * "install_bundle @scope/pkg@1.2.3" / "list_plugins".
+     *
+     * Returns null for every call that carries a real command or path, so nothing else
+     * changes shape. Copy never uses this: a paste needs the original arguments.
+     */
+    function foldedOf(entry) {
+      const payload = argsOf(entry);
+      if (payload === null) return null;
+      const action = typeof payload.action === 'string' ? payload.action.trim() : '';
+      if (action === '') return null;
+      const keys = ['command', 'cmd', 'script'];
+      for (const key of keys) if (typeof payload[key] === 'string' && payload[key] !== '') return null;
+      const details = ['target', 'target_path', 'path', 'file_path', 'name'];
+      for (const key of details) {
+        const value = payload[key];
+        if (typeof value === 'string' && value !== '') return action + ' ' + value;
+      }
+      return action;
     }
 
     /**
@@ -3354,7 +3383,12 @@ window.__ModuleLoader__.load({
       const copyRow = function (entry) {
         // `argsSummary` is capped by the ledger (that is why copy stopped mid-command);
         // `commandOf` reads the stored arguments instead.
-        const text = commandOf(entry) || reasonOf(entry) || String(entry.argsSummary || '');
+        // A folded row shows "install_bundle @scope/pkg", which is a summary: the copy
+        // hands over the whole original arguments (that is what a paste needs).
+        const raw = typeof entry.argsText === 'string' ? entry.argsText.trim() : '';
+        const text = foldedOf(entry) !== null && raw !== ''
+          ? raw
+          : (commandOf(entry) || reasonOf(entry) || String(entry.argsSummary || ''));
         void copyToClipboard(text).then(function (ok) { if (ok === true) setCopiedId(entry.id); });
       };
 
@@ -4934,6 +4968,8 @@ window.__ModuleLoader__.load({
         aiEscalated: aiEscalated,
         chipOf: chipOf,
         memoryText: memoryText,
+        foldedOf: foldedOf,
+        timelineTextOf: timelineTextOf,
         isMerged: isMerged,
         memoryBucketId: memoryBucketId,
         rowFingerprintOf: rowFingerprintOf,

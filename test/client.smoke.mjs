@@ -332,6 +332,14 @@ export const cases = [
 			const bare = bag.laneParts('ops-lane');
 			assertEqual(bare.provider, '', '没有提供商就不显示');
 			assertEqual(bare.model, 'ops-lane');
+			// 记账型调用（plugin_manager 等）显示成一句话，复制仍给完整原始参数
+			assertEqual(bag.foldedOf({ argsText: '{"action": "list_plugins", "limit": 10, "offset": 240}' }), 'list_plugins');
+			assertEqual(bag.timelineTextOf((k) => k, { toolName: 'plugin_manager', argsText: '{"action": "list_plugins", "limit": 10, "offset": 240}' }), 'list_plugins');
+			assertEqual(bag.foldedOf({ argsText: '{"action":"install_bundle","target":"@linxin666/dsh-web-all@0.4.18"}' }), 'install_bundle @linxin666/dsh-web-all@0.4.18');
+			assertEqual(bag.timelineTextOf((k) => k, { toolName: 'plugin_manager', argsText: '{"action":"remove_bundle","target":"dsh-cost-meter"}' }), 'remove_bundle dsh-cost-meter');
+			assertEqual(bag.foldedOf({ argsText: '{"action":"x","command":"git status"}' }), null, '有真命令就照旧拆包');
+			assertEqual(bag.foldedOf({ argsText: '{"file_path":"D:/x/a.md","content":"body"}' }), null, '文件行不受影响');
+			assertEqual(bag.foldedOf({ argsText: 'not json' }), null);
 		},
 	},
 	{
