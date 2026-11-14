@@ -94,7 +94,7 @@ window.__ModuleLoader__.load({
       'memory.fileApproved': '已批准 {n} 次',
       'memory.fileAuto': '自动放行',
       'memory.fileAutoHint': '开启后，这个文件累计批准满阈值就自动放行。高危操作永远例外。',
-      'memory.canArm': '可在已记忆中开启自动放行',
+      'memory.canArm': '可在「已记忆」中开启自动放行',
       'memory.canArmShort': '可开启自动放行',
       'memory.full': '记忆已满',
       'memory.confirm': '再点 {n} 次确认',
