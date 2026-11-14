@@ -141,8 +141,6 @@ window.__ModuleLoader__.load({
       'config.strictVerdictNote': '只认严格的 {decision, risk, reason} 格式，有一点不合规就转人工（记 unparsed）。默认关，小模型开了会多问人',
       'config.debugHeaders': '记录请求头',
     'config.debugHeadersNote': '把请求头与 cookie 的**名字**记进 http-probe.log（不记值）。只在排查「设置存不下」时才开，默认关',
-    'setting.showFileSize': '显示文件体积',
-      'setting.showFileSizeNote': '在审批时间线的写文件行后面加「7.9 KB / 68 行」',
       'setting.hideKnobs': '隐藏无用旋钮',
       'setting.hideKnobsNote': '隐藏命令中如 limit、offset 等无关键值的显示（复制仍给完整命令）',
       'setting.autoExpand': '自动展开描述',
@@ -283,7 +281,6 @@ window.__ModuleLoader__.load({
       'row.aiSkipLabel': '未送 AI：',
       'row.writeFile': '写文件',
       'row.editFile': '改文件',
-      'row.linesN': '{n} 行',
       'dock.pendingSkipped': '未送 AI 审查（{why}）—— 由你判断',
       'preview.kindTimeout': 'AI 超时/无结论',
       'preview.owner': '开关：{name}',
@@ -445,8 +442,6 @@ window.__ModuleLoader__.load({
       'config.strictVerdictNote': 'Accepts one shape only — {decision, risk, reason}: a wrong field name, value or risk level goes to a human (recorded as unparsed). Off by default; small models end up asking more often',
       'config.debugHeaders': 'Record request headers',
     'config.debugHeadersNote': 'Writes each request\'s header and cookie names into http-probe.log (names only, never values, 400-line cap). Use it to pick the write-fence cookie; leave it off otherwise',
-    'setting.showFileSize': 'Show file size',
-      'setting.showFileSizeNote': 'Append “7.9 KB / 68 lines” to write rows in the approval timeline',
       'setting.hideKnobs': 'Hide knob arguments',
       'setting.hideKnobsNote': 'Hides limit, offset and friends from the displayed command (copy still gives the full one)',
       'setting.autoExpand': 'Expand descriptions automatically',
@@ -587,7 +582,6 @@ window.__ModuleLoader__.load({
       'row.aiSkipLabel': 'not reviewed:',
       'row.writeFile': 'write',
       'row.editFile': 'edit',
-      'row.linesN': '{n} lines',
       'dock.pendingSkipped': 'not sent to the reviewer ({why}) — your call',
       'preview.kindTimeout': 'reviewer timed out',
       'preview.owner': 'switch: {name}',
@@ -1291,25 +1285,6 @@ window.__ModuleLoader__.load({
       return deltaOf(argsOf(entry));
     }
 
-    /** Bytes → a short human size ("7.9 KB"). */
-    function sizeText(bytes) {
-      const n = Number(bytes) || 0;
-      if (n < 1024) return String(n) + ' B';
-      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-      return (n / (1024 * 1024)).toFixed(1) + ' MB';
-    }
-
-    /** The body size of a write, or '' when it is unknown (truncated row, or switch off). */
-    function fileSizeOf(entry, t) {
-      if (settings().showFileSize !== true) return '';
-      if (entry !== null && entry !== undefined && entry.argsTextTruncated === true) return '';
-      const payload = argsOf(entry);
-      const body = payload !== null && typeof payload.content === 'string' ? payload.content : '';
-      if (body === '') return '';
-      const bytes = typeof TextEncoder === 'function' ? new TextEncoder().encode(body).length : body.length;
-      return sizeText(bytes) + ' / ' + t('row.linesN', { n: String(lineCountOf(body)) });
-    }
-
     /**
      * The one line the approval timeline prints under the tool name. File tools answer
      * "which file" (the ±N/−M chip on the right already answers "how much"); everything
@@ -1328,11 +1303,7 @@ window.__ModuleLoader__.load({
             try { path = JSON.parse('"' + hit[1] + '"'); } catch { path = hit[1]; }
           }
         }
-        if (path !== '') {
-          const head = (tool === 'write' ? t('row.writeFile') : t('row.editFile')) + ' · ' + path;
-          const size = fileSizeOf(entry, t);
-          return size === '' ? head : head + ' · ' + size;
-        }
+        if (path !== '') return path;
       }
       const cmd = commandOf(entry);
       return cmd === '' ? '' : displayCommand(cmd);
@@ -1350,14 +1321,7 @@ window.__ModuleLoader__.load({
         ? ''
         : (typeof payload.file_path === 'string' ? payload.file_path : (typeof payload.path === 'string' ? payload.path : ''));
       if (path !== '' && (tool === 'write' || tool === 'edit' || tool === 'str_replace_editor')) {
-        if (tool === 'write') {
-          const body = typeof payload.content === 'string' ? payload.content : '';
-          const bytes = typeof TextEncoder === 'function' ? new TextEncoder().encode(body).length : body.length;
-          return t('row.writeFile') + ' · ' + path + ' · ' + sizeText(bytes) + ' / ' + t('row.linesN', { n: String(lineCountOf(body)) });
-        }
-        const delta = rowDelta(entry);
-        const change = delta === null ? '' : ' · +' + String(delta.add) + ' −' + String(delta.del);
-        return t('row.editFile') + ' · ' + path + change;
+        return path;
       }
       return tool + ' · ' + String(entry.argsSummary || reasonOf(entry) || '').slice(0, 160);
     }
@@ -3143,7 +3107,6 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ah-section', key: 'sec-card' }, t('setting.secCard')),
         row('autoExpandDescription', t('setting.autoExpand'), t('setting.autoExpandNote'), config.autoExpandDescription === true, flip('autoExpandDescription')),
         row('hideKnobs', t('setting.hideKnobs'), t('setting.hideKnobsNote'), config.hideKnobs !== false, flip('hideKnobs')),
-        row('showFileSize', t('setting.showFileSize'), t('setting.showFileSizeNote'), config.showFileSize === true, flip('showFileSize')),
         row('hint', t('setting.hint'), t('setting.hintNote'), config.composerHint === true, flip('composerHint')),
         row('pendingCard', t('setting.pendingCard'), t('setting.pendingNote'), config.pendingCard === true, flip('pendingCard')),
         row('aiAdviceCard', t('setting.aiAdviceCard'), t('setting.aiAdviceCardNote'), config.aiAdviceCard !== false, flip('aiAdviceCard')),
