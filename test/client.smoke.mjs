@@ -358,6 +358,11 @@ export const cases = [
 			assertEqual(bag.valueOf({ argsText: '{"query":"needle"}' }, tp), 'needle', '短标识符直接显示');
 			assertEqual(bag.valueOf({ argsText: '{"foo":1,"bar":"x"}' }, tp), 'foo: 1 · bar: x', '认不出的参数降级，不铺 JSON');
 			assertTrue(bag.valueOf({ argsText: '{"foo":1,"bar":"x"}' }, tp).indexOf('{"') < 0, '正文里不再出现 JSON 花括号');
+			// 复制给"能粘贴的东西"：正文型给正文本身（理由/描述留在台账里），记账型给完整原始参数
+			const codeMeta = JSON.stringify({ code: 'line1\nline2', description: 'why', justification: 'because' });
+			assertEqual(bag.copyTextOf({ argsText: codeMeta }), 'line1\nline2', 'run_code 复制的是代码，不是带理由的外壳');
+			assertEqual(bag.copyTextOf({ argsText: '{"action":"list_plugins","limit":10}' }), '{"action":"list_plugins","limit":10}', '记账型复制仍是完整原始参数');
+			assertEqual(bag.copyTextOf({ argsText: '{"command":"git status","description":"d"}' }), 'git status', '命令型复制的是命令');
 		},
 	},
 	{

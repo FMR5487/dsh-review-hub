@@ -224,6 +224,11 @@ window.__ModuleLoader__.load({
       'dock.otherWaitingBody': '{title}（{n} 条）',
       'dock.otherWaitingAgainBody': '仍未处理：{title}（{n} 条）',
       'config.reset': '恢复默认',
+      'config.secTally': '全部会话的审批结果',
+      'config.tallyLoading': '读取中…',
+      'config.tallyTotal': '合计 {n} 条 · 记过 {s} 个会话（含已删除）',
+      'config.tallyMain': '人工通过 {human} · 记忆通过 {memory} · AI 通过 {ai}',
+      'config.tallyRest': 'AI 转人工 {escalated} · 人工拒绝 {denied} · 其他 {other}（取消 {cancelled} · 不可用 {unavailable}）',
       'config.secRhythm': '① 审查节奏',
       'config.secPrompt': '② 提示词',
       'config.secScope': '③ 范围与工具',
@@ -528,6 +533,11 @@ window.__ModuleLoader__.load({
       'dock.otherWaitingBody': '{title} ({n})',
       'dock.otherWaitingAgainBody': 'Still waiting: {title} ({n})',
       'config.reset': 'restore default',
+      'config.secTally': 'Every session, ever',
+      'config.tallyLoading': 'Reading…',
+      'config.tallyTotal': '{n} decisions · {s} sessions recorded (deleted ones included)',
+      'config.tallyMain': 'human {human} · memory {memory} · AI {ai}',
+      'config.tallyRest': 'AI escalated {escalated} · human denied {denied} · other {other} (cancelled {cancelled} · unavailable {unavailable})',
       'config.secRhythm': '1 — review rhythm',
       'config.secPrompt': '2 — prompt',
       'config.secScope': '3 — scope and tools',
@@ -1430,10 +1440,19 @@ window.__ModuleLoader__.load({
       return raw;
     }
 
+    /** Argument keys whose value is the call's body rather than one of its parameters. */
+    const BODY_KEYS = ['code', 'content', 'prompt', 'objective', 'body'];
+    /** Wrapper noise: never the operation itself, so it never earns a slot in a summary. */
+    const NOISE_KEYS = ['description', 'justification', 'sandbox_permissions', 'timeoutMs', 'graceMs', 'workdir'];
+
     /** One scalar as it can appear inside a summary line: never an escape-laden blob. */
     function scalarText(value) {
       if (typeof value === 'string') return value.length > 60 ? value.slice(0, 60) + '…' : value;
-      if (Array.isArray(value)) return '[' + String(value.length) + ']';
+      if (Array.isArray(value)) {
+        const head = typeof value[0] === 'string' ? scalarText(value[0]) : '';
+        if (head === '') return '[' + String(value.length) + ']';
+        return value.length > 1 ? head + ' +' + String(value.length - 1) : head;
+      }
       if (isPlainObject(value)) return '{…}';
       if (value === null || value === undefined) return '—';
       return String(value);
@@ -1455,7 +1474,7 @@ window.__ModuleLoader__.load({
       const literal = commandOf(entry);
       if (literal !== raw) return literal;
       // Bodies: the first line is the only part that tells you what the call does.
-      for (const key of ['code', 'content', 'prompt', 'objective', 'body']) {
+      for (const key of BODY_KEYS) {
         const value = payload[key];
         if (typeof value !== 'string' || value.trim() === '') continue;
         const first = value.split('\n')[0].trim();
@@ -1469,11 +1488,34 @@ window.__ModuleLoader__.load({
       const pairs = [];
       for (const key of Object.keys(payload)) {
         if (pairs.length >= 3) break;
+        if (NOISE_KEYS.indexOf(key) >= 0) continue;
         const value = payload[key];
         if (typeof value === 'string' && value === '') continue;
         pairs.push(key + ': ' + scalarText(value));
       }
       return pairs.join(' · ');
+    }
+
+    /**
+     * What "copy" hands over: the thing you would paste.
+     *
+     * For a body call that is the body itself — the stored wrapper (`description`,
+     * `justification`, `sandbox_permissions`) was never part of the code, and pasting it
+     * produced neither a command nor a program. Bookkeeping calls keep their whole original
+     * arguments, because there is no single value to hand over there.
+     */
+    function copyTextOf(entry) {
+      if (entry === null || typeof entry !== 'object') return '';
+      const payload = argsOf(entry);
+      if (payload !== null) {
+        for (const key of BODY_KEYS) {
+          const value = payload[key];
+          if (typeof value === 'string' && value.trim() !== '') return value;
+        }
+      }
+      const raw = typeof entry.argsText === 'string' ? entry.argsText.trim() : '';
+      if (raw !== '' && foldedOf(entry) !== null) return raw;
+      return commandOf(entry) || reasonOf(entry) || String(entry.argsSummary || '');
     }
 
     /**
@@ -3498,10 +3540,7 @@ window.__ModuleLoader__.load({
         // `commandOf` reads the stored arguments instead.
         // A folded row shows "install_bundle @scope/pkg", which is a summary: the copy
         // hands over the whole original arguments (that is what a paste needs).
-        const raw = typeof entry.argsText === 'string' ? entry.argsText.trim() : '';
-        const text = foldedOf(entry) !== null && raw !== ''
-          ? raw
-          : (commandOf(entry) || reasonOf(entry) || String(entry.argsSummary || ''));
+        const text = copyTextOf(entry);
         void copyToClipboard(text).then(function (ok) { if (ok === true) setCopiedId(entry.id); });
       };
 
@@ -4008,6 +4047,17 @@ window.__ModuleLoader__.load({
       const statusState = React.useState('idle');
       const status = statusState[0];
       const setStatus = statusState[1];
+      // The ledger's own memory: every session it ever recorded, dropped ones included.
+      // Fetched once on mount and again when the group is opened, never on a timer.
+      const tallyState = React.useState(null);
+      const tally = tallyState[0];
+      const setTally = tallyState[1];
+      const loadTally = function () {
+        api('/stats?all=1').then(function (body) {
+          if (isPlainObject(body) === true && isPlainObject(body.all) === true) setTally(body.all);
+        }).catch(function () { /* keep the last numbers */ });
+      };
+      React.useEffect(function () { loadTally(); }, []);
 
       React.useEffect(function () {
         let alive = true;
@@ -4214,6 +4264,38 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ah-motto', key: 'motto' }, t('config.motto')),
         h('div', { className: 'ah-section', key: 'sec-adv' }, t('config.secAdvanced')),
         h('div', { className: 'ah-settings-row', key: 'adv-warn' }, h('span', { className: 'ah-hint ah-tone-warn' }, t('config.advancedWarn'))),
+
+        // Collapsed by default: it is a record, not a control. Opening it refreshes.
+        (function () {
+          const open = openMap.allstats === true;
+          const body = tally === null
+            ? [h('div', { key: 'loading', className: 'ah-hint' }, t('config.tallyLoading'))]
+            : [
+              h('div', { key: 'total', className: 'ah-stat-line' }, t('config.tallyTotal', {
+                n: Number(tally.total) || 0, s: Number(tally.sessions) || 0,
+              })),
+              h('div', { key: 'main', className: 'ah-stat-line' }, t('config.tallyMain', {
+                human: Number(tally.human) || 0, memory: Number(tally.memory) || 0, ai: Number(tally.ai) || 0,
+              })),
+              h('div', { key: 'rest', className: 'ah-stat-line' }, t('config.tallyRest', {
+                escalated: Number(tally.escalated) || 0, denied: Number(tally.denied) || 0,
+                other: Number(tally.other) || 0, cancelled: Number(tally.cancelled) || 0,
+                unavailable: Number(tally.unavailable) || 0,
+              })),
+            ];
+          return [
+            h('button', {
+              type: 'button',
+              key: 'allstats-head',
+              className: 'ah-group-head',
+              onClick: function () {
+                if (open !== true) loadTally();
+                setOpen('allstats', open !== true);
+              },
+            }, (open === true ? '▾ ' : '▸ ') + t('config.secTally')),
+            open === true ? h('div', { key: 'allstats-body', className: 'ah-group-body' }, body) : null,
+          ];
+        })(),
 
         ...section('rhythm', t('config.secRhythm'), [
           numberField('maxEntriesPerSession', t('config.maxEntries')),
@@ -5089,6 +5171,7 @@ window.__ModuleLoader__.load({
         actionOf: actionOf,
         actionLabelOf: actionLabelOf,
         valueOf: valueOf,
+        copyTextOf: copyTextOf,
         store: store,
         isMerged: isMerged,
         memoryBucketId: memoryBucketId,

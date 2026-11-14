@@ -839,6 +839,36 @@ export function createStore(options = {}) {
 		return settingsSnapshot();
 	}
 
+	/**
+	 * Every session's decisions as one partition — including sessions the host has since
+	 * dropped, which is the point: this is the ledger's own memory, not the session list.
+	 * The buckets are mutually exclusive, so they add up to `total`.
+	 */
+	async function tallyAll() {
+		await ensureLoaded();
+		const out = { total: 0, sessions: 0, human: 0, memory: 0, ai: 0, escalated: 0, denied: 0, cancelled: 0, unavailable: 0, other: 0 };
+		for (const [key, list] of sessions) {
+			out.sessions += 1;
+			const floor = clearedAt(key);
+			for (const row of list) {
+				if ((Number(row.ts) || 0) <= floor) continue;
+				out.total += 1;
+				if (row.outcome === 'cancelled') { out.cancelled += 1; continue; }
+				if (row.outcome === 'rejected') { out.denied += 1; continue; }
+				if (row.outcome !== 'allowed-once') { out.unavailable += 1; continue; }
+				if (row.decidedBy === 'ai') { out.ai += 1; continue; }
+				if (row.decidedBy === 'memory') { out.memory += 1; continue; }
+				if (row.decidedBy !== 'human') { out.other += 1; continue; }
+				// A human decision the reviewer had already handed over is the one case where
+				// "who decided" is not the whole story.
+				const source = typeof row.aiSource === 'string' ? row.aiSource : '';
+				if (source === 'ai' || source === 'cache') out.escalated += 1;
+				else out.human += 1;
+			}
+		}
+		return out;
+	}
+
 	async function health() {
 		await ensureLoaded();
 		let entries = 0;
@@ -856,6 +886,7 @@ export function createStore(options = {}) {
 		fileCount,
 		fileCounts,
 		stats,
+		tallyAll,
 		clear,
 		memoryRows,
 		memoryEntry,

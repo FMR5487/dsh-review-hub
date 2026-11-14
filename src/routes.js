@@ -410,7 +410,14 @@ export function createRoutes(deps) {
 			kind: 'exact',
 			path: ROUTES.stats,
 			handler: guard(async (req, res) => {
-				const tally = await store.stats({ session: urlOf(req).searchParams.get('session') ?? undefined });
+				const params = urlOf(req).searchParams;
+				// ?all=1 is the tally across every session the ledger remembers (dropped sessions
+				// included); the settings card asks for it once, so the poll path stays unchanged.
+				if (params.get('all') === '1') {
+					sendJson(res, 200, { all: await store.tallyAll() });
+					return;
+				}
+				const tally = await store.stats({ session: params.get('session') ?? undefined });
 				// The lane breakdown rides along so the panel can show "which reviewer
 				// allowed what" without a second request. Row-derived numbers win: they cover
 				// every call this session ever made, while the live counters start again with

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.1.18 — 复制只给能粘贴的东西；拆包补齐数组与噪音键；高级设置顶部加全量统计
+
+- 复制改成"给你能粘的东西"：正文型调用（`run_code` 的 `code`、`memory` 的 `content`、`skill_manage` 的 `body`、`ralph` 的 `objective`）复制正文本身，不再带 `description` / `justification` / `sandbox_permissions` 那圈外壳——那圈东西台账里有，粘出来既不是命令也不是程序。记账型（`plugin_manager` 等）仍复制完整原始参数，命令型仍复制那条命令。
+- 拆包阶梯补两处：字符串数组（如 `web_search` 的 `queries`）显示首项 + `+N`；摘要层的噪音键（`description` / `justification` / `sandbox_permissions` / `timeoutMs` / `graceMs` / `workdir`）不再占名额。
+- 高级设置最顶上加一个**默认折叠**的「全部会话的审批结果」，跨台账里所有会话（宿主已删除的会话也算）。五桶互斥：人工通过 / 记忆通过 / AI 通过 / AI 转人工 / 人工拒绝，另有其他（取消 · 不可用）。
+  - 「AI 转人工」= 评审给了 ask、最后由人决定；「人工通过」= 没经过 AI 的人工放行。两者相加才是面板上全部「人工通过」。
+  - 展开时刷新一次，不订阅、不轮询；请求走 `/stats?all=1`，不占定时统计那条路。
+
 ## 1.1.17 — 正文类调用不再铺 JSON；动作中文化改为默认关、非中文界面不显示
 
 - `run_code` 这类"参数里只有一段正文"的调用不再把转义过的 JSON 铺在时间线上（以前是 `{"code": "const fs = await import(\\"node:fs\\");\\n…"}`）。现在显示首行 + 行数：`const fs = await import("node:fs"); · 9 行`。

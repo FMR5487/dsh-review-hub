@@ -72,6 +72,33 @@ export const cases = [
 		},
 	},
 	{
+		name: 'tallyAll：跨会话（含已删除会话）的互斥分桶',
+		async fn() {
+			const store = createStore({ root: await freshRoot('store-tally-all') });
+			await store.record(row({ id: 'a1', ts: 1, sessionId: 's1', decidedBy: 'human' }));
+			await store.record(row({ id: 'a2', ts: 2, sessionId: 's1', decidedBy: 'memory' }));
+			await store.record(row({ id: 'a3', ts: 3, sessionId: 's1', decidedBy: 'ai' }));
+			// 一个宿主已经不存在的会话：台账照样记住它
+			await store.record(row({ id: 'b1', ts: 4, sessionId: 'gone-session', decidedBy: 'human', aiSource: 'ai' }));
+			await store.record(row({ id: 'b2', ts: 5, sessionId: 'gone-session', decidedBy: 'human', aiSource: 'cache' }));
+			await store.record(row({ id: 'b3', ts: 6, sessionId: 'gone-session', outcome: 'rejected', decidedBy: 'human' }));
+			await store.record(row({ id: 'b4', ts: 7, sessionId: 'gone-session', outcome: 'cancelled', decidedBy: 'external' }));
+			await store.record(row({ id: 'b5', ts: 8, sessionId: 'gone-session', outcome: 'unavailable', decidedBy: 'fallback' }));
+			const all = await store.tallyAll();
+			assertEqual(all.sessions, 2);
+			assertEqual(all.human, 1, '没人接手的人工通过');
+			assertEqual(all.memory, 1);
+			assertEqual(all.ai, 1);
+			assertEqual(all.escalated, 2, 'AI 打回后由人决定（含缓存打回）');
+			assertEqual(all.denied, 1);
+			assertEqual(all.cancelled, 1);
+			assertEqual(all.unavailable, 1);
+			assertEqual(all.other, 0);
+			assertEqual(all.total, 8);
+			assertEqual(all.human + all.memory + all.ai + all.escalated + all.denied + all.cancelled + all.unavailable + all.other, all.total, '五桶互斥，加起来等于总数');
+		},
+	},
+	{
 		name: 'stats：审查器合计按台账行派生（重启不丢、缓存不算调用、失败计入调用）',
 		async fn() {
 			const store = createStore({ root: await freshRoot('store-stats-reviewer') });
