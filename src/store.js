@@ -78,6 +78,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	promptAppend: '',
 	// Two card switches, default on: users who find the floating card noisy can silence
 	// one without silencing the plain waiting hint.
+	// Adds the body size to a write row in the approval timeline. Off by default: the
+	// ±N/−M chip already answers "how much", and the size costs a parse per row.
+	showFileSize: false,
 	aiAdviceCard: true,
 	dangerCard: true,
 	// Per-session AI switch: a key here wins over the global aiEnabled, which is how one
@@ -244,7 +247,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	const langOk = (value) => value === '' || (typeof value === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value));
 	if (langOk(patch.reviewerLocale)) next.reviewerLocale = patch.reviewerLocale;
 	if (langOk(patch.panelLocale)) next.panelLocale = patch.panelLocale;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'showFileSize']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {
