@@ -94,7 +94,7 @@ window.__ModuleLoader__.load({
       'memory.fileApproved': '已批准 {n} 次',
       'memory.fileAuto': '自动放行',
       'memory.fileAutoHint': '开启后，这个文件累计批准满阈值就自动放行。高危操作永远例外。',
-      'memory.canArm': '可在「明镜 · 记忆」中开启自动放行',
+      'memory.canArm': '可在已记忆中开启自动放行',
       'memory.canArmShort': '可开启自动放行',
       'memory.full': '记忆已满',
       'memory.confirm': '再点 {n} 次确认',
@@ -703,6 +703,12 @@ window.__ModuleLoader__.load({
     };
     const listeners = new Set();
     let memoryAt = 0;
+    /**
+     * Per-session "already looked at" watermark, held for the life of the page. The
+     * localStorage copy behind it is written on a timer, so a session switch between the
+     * visit and that write used to re-count rows the human had already cleared.
+     */
+    const seenMarks = new Map();
 
     function notify() {
       for (const listener of [...listeners]) {
@@ -817,6 +823,31 @@ window.__ModuleLoader__.load({
       } catch (error) {
         /* private mode: the in-memory value still works for this page */
       }
+    }
+
+    /** The watermark for one session: the in-memory mark first, the stored copy behind it. */
+    function seenMarkOf(sid) {
+      if (sid === '') return 0;
+      const held = Number(seenMarks.get(sid));
+      return Math.max(Number.isFinite(held) ? held : 0, storageGet('review-hub:seen:' + sid));
+    }
+
+    /** Advance a session's mark now, instead of waiting for the timer that writes it out. */
+    function raiseSeenMark(sid, ts) {
+      if (sid === '') return 0;
+      const value = Math.max(seenMarkOf(sid), Number(ts) || 0);
+      seenMarks.set(sid, value);
+      return value;
+    }
+
+    /** Highest row on screen for one session: what a visit consumes. */
+    function maxTsOf(sid) {
+      let max = 0;
+      for (const row of store.entries) {
+        if (sid !== '' && row.sessionId !== sid) continue;
+        max = Math.max(max, Number(row.ts) || 0);
+      }
+      return max;
     }
 
     /** Only a stable automatic decision becomes a card, only once, only after the baseline. */
@@ -1038,6 +1069,9 @@ window.__ModuleLoader__.load({
      * a span per width, so a sidebar opening can never clip the date off the right edge.
      */
     function memoryText(entry, t) {
+      // A memory decision already says "memory passed": the sentence it satisfied
+      // ("合并记忆 3/3 次") repeated the same number on the same line.
+      if (entry !== null && entry !== undefined && entry.decidedBy === 'memory') return null;
       const live = liveThreshold();
       const threshold = rowThreshold(entry, live);
       // Three pieces, because a narrow pane drops the unit word ("次") while keeping the
@@ -2339,7 +2373,7 @@ window.__ModuleLoader__.load({
         // the session you just left until you clicked the button.
         store.memory = null;
         void loadMemory(true, sid);
-        store.seenAt = storageGet('review-hub:seen:' + sid);
+        store.seenAt = seenMarkOf(sid);
         if (store.hintFloorSid !== sid) {
           store.hintFloorSid = sid;
           store.hintFloor = storageGet('review-hub:floor:' + sid);
@@ -2365,7 +2399,9 @@ window.__ModuleLoader__.load({
           // This session only: the store outlives a switch, and counting the rows we
           // just left is what kept the badge alive on a session with nothing unread.
           const own = store.entries.filter(function (row) { return row.sessionId === sid; });
-          const next = unreadCount(own, store.seenAt);
+          // The in-memory mark outranks `seenAt`: a visit consumes the badge at once,
+          // while the stored watermark only catches up when its timer fires.
+          const next = unreadCount(own, Math.max(Number(store.seenAt) || 0, seenMarkOf(sid)));
           if (next !== store.unread) store.unread = next;
           pushTabLabel();
         };
@@ -3327,13 +3363,19 @@ window.__ModuleLoader__.load({
         // the list can draw "new since last visit" above it.
         const session = sessionId === '' ? store.sessionId : sessionId;
         if (store.seenTimer !== null) {
-          clearTimeout(store.seenTimer);
+          // A pending commit for another session is the only copy of that watermark:
+          // write it out instead of dropping it with the timer.
+          if (store.seenTimer.session !== session) store.seenTimer.flush();
+          clearTimeout(store.seenTimer.handle);
           store.seenTimer = null;
         }
         if (store.pageSid !== session) {
           store.pageSid = session;
           store.pageSeenAt = store.seenAt;
         }
+        // Consuming is per session and immediate: leaving and coming back must not
+        // re-count the rows you just looked at, whatever the stored watermark says.
+        raiseSeenMark(session, maxTsOf(session));
         store.unread = 0;
         pushTabLabel();
         notify();
@@ -3341,17 +3383,23 @@ window.__ModuleLoader__.load({
           // Coming back within 8s is still the same visit: commit the watermark on a
           // timer, so flicking between tabs does not erase the divider.
           store.pageSid = '';
-          if (store.seenTimer !== null) clearTimeout(store.seenTimer);
-          store.seenTimer = setTimeout(function () {
-            store.seenTimer = null;
-            let max = store.seenAt;
-            for (const row of store.entries) max = Math.max(max, Number(row.ts) || 0);
-            store.seenAt = max;
+          if (store.seenTimer !== null) clearTimeout(store.seenTimer.handle);
+          const flush = function () {
+            const max = raiseSeenMark(session, maxTsOf(session));
             if (session !== '') storageSet('review-hub:seen:' + session, max);
-            store.pageSeenAt = 0;
+            if (store.sessionId === session) store.seenAt = max;
+            if (store.pageSid !== session) store.pageSeenAt = 0;
             pushTabLabel();
             notify();
-          }, 8000);
+          };
+          store.seenTimer = {
+            session: session,
+            flush: flush,
+            handle: setTimeout(function () {
+              store.seenTimer = null;
+              flush();
+            }, 8000),
+          };
         };
       }, [sessionId]);
 
