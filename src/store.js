@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	/** Hide knob arguments (limit/offset/…) in the displayed command; copy stays verbatim. */
 	hideKnobs: true,
 	/** Show bookkeeping actions (list_bundles, install_bundle) in Chinese; display only. */
-	translateActions: true,
+	translateActions: false,
 	/**
 	 * Header forensics for the HTTP fence: record every request's header *names* (never
 	 * values) so a proof cookie/header can be chosen from evidence instead of a guess.

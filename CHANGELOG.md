@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 1.1.17 — 正文类调用不再铺 JSON；动作中文化改为默认关、非中文界面不显示
+
+- `run_code` 这类"参数里只有一段正文"的调用不再把转义过的 JSON 铺在时间线上（以前是 `{"code": "const fs = await import(\\"node:fs\\");\\n…"}`）。现在显示首行 + 行数：`const fs = await import("node:fs"); · 9 行`。
+- 拆包阶梯补齐三层，任何情况下都不再出现原始 JSON：
+  1. 命令 / 路径 / 目标是原值（不变）；
+  2. 正文类键 `code` / `content` / `prompt` / `objective` / `body` → 首行（超 80 字符截断）+ 行数；
+  3. 短标识符 `query` / `pattern` / `url` / `selector` / `ref` / `name` / `id` → 值本身；
+  4. 都不认识 → `键: 值 · …` 最多三对，长值截 60 字符。
+- 提示卡与预览的标题行走同一条阶梯（以前用 `argsSummary` 的紧凑 JSON）。
+- 「工具动作显示成中文」改为**默认关**，且宿主界面语言不是中文时**整行不显示**（那种环境下它翻不出任何东西）。
+- 复制不受影响：仍是台账里的完整 `argsText`。
 ## 1.1.16 — 工具动作显示成中文（可关）；搜索中英双语
 
 - 记账型调用的动作可以显示成中文：`install_bundle @linxin666/dsh-web-all@0.4.18` → `安装包 @linxin666/dsh-web-all@0.4.18`，`list_plugins` → `列出插件`。

@@ -280,6 +280,7 @@ window.__ModuleLoader__.load({
       'preview.kindPending': '等待审批',
       'preview.kindReviewing': 'AI 审阅中',
       'row.aiNoVerdict': 'AI 未给出结论',
+      'row.bodyLine': '{text} · {n} 行',
       'row.aiSkipLabel': '未送 AI：',
       'row.writeFile': '写文件',
       'row.editFile': '改文件',
@@ -583,6 +584,7 @@ window.__ModuleLoader__.load({
       'preview.kindPending': 'Awaiting approval',
       'preview.kindReviewing': 'reviewer thinking',
       'row.aiNoVerdict': 'no reviewer verdict',
+      'row.bodyLine': '{text} · {n} lines',
       'row.aiSkipLabel': 'not reviewed:',
       'row.writeFile': 'write',
       'row.editFile': 'edit',
@@ -1345,7 +1347,7 @@ window.__ModuleLoader__.load({
       }
       const folded = foldedOf(entry);
       if (folded !== null) return folded;
-      const cmd = commandOf(entry);
+      const cmd = valueOf(entry, t);
       return cmd === '' ? '' : displayCommand(cmd);
     }
 
@@ -1365,7 +1367,8 @@ window.__ModuleLoader__.load({
       }
       const folded = foldedOf(entry);
       if (folded !== null) return tool + ' · ' + folded;
-      return tool + ' · ' + String(entry.argsSummary || reasonOf(entry) || '').slice(0, 160);
+      const value = valueOf(entry, t);
+      return tool + ' · ' + String(value !== '' ? value : (entry.argsSummary || reasonOf(entry) || '')).slice(0, 160);
     }
 
     /** The "+N −N" chip, or null when the row changes no text. */
@@ -1427,6 +1430,52 @@ window.__ModuleLoader__.load({
       return raw;
     }
 
+    /** One scalar as it can appear inside a summary line: never an escape-laden blob. */
+    function scalarText(value) {
+      if (typeof value === 'string') return value.length > 60 ? value.slice(0, 60) + '…' : value;
+      if (Array.isArray(value)) return '[' + String(value.length) + ']';
+      if (isPlainObject(value)) return '{…}';
+      if (value === null || value === undefined) return '—';
+      return String(value);
+    }
+
+    /**
+     * The one line a human needs from a call's arguments — the ladder that used to end in
+     * "whatever JSON we stored". A `run_code` call has no command and no path, so it fell
+     * through to the raw text and the timeline showed `{"code": "const fs = …\"node:fs\"",
+…`:
+     * escapes, no content. Now a body reads as its first line plus its size, and anything
+     * unrecognised degrades to `key: value` pairs instead of a JSON dump.
+     */
+    function valueOf(entry, t) {
+      const raw = typeof entry.argsText === 'string' ? entry.argsText : '';
+      const payload = argsOf(entry);
+      if (payload === null) return raw;
+      // command / path / target: the literal a human pastes, unchanged.
+      const literal = commandOf(entry);
+      if (literal !== raw) return literal;
+      // Bodies: the first line is the only part that tells you what the call does.
+      for (const key of ['code', 'content', 'prompt', 'objective', 'body']) {
+        const value = payload[key];
+        if (typeof value !== 'string' || value.trim() === '') continue;
+        const first = value.split('\n')[0].trim();
+        return t('row.bodyLine', { n: lineCountOf(value), text: first.length > 80 ? first.slice(0, 80) + '…' : first });
+      }
+      // Short identifiers worth showing on their own.
+      for (const key of ['query', 'pattern', 'url', 'selector', 'ref', 'name', 'id']) {
+        const value = payload[key];
+        if (typeof value === 'string' && value !== '') return value;
+      }
+      const pairs = [];
+      for (const key of Object.keys(payload)) {
+        if (pairs.length >= 3) break;
+        const value = payload[key];
+        if (typeof value === 'string' && value === '') continue;
+        pairs.push(key + ': ' + scalarText(value));
+      }
+      return pairs.join(' · ');
+    }
+
     /**
      * The verb half of a bookkeeping call, in Chinese. Deliberately *not* in the locale
      * dictionary: `translator()` falls back to the zh table when a key is missing, so a
@@ -1463,9 +1512,8 @@ window.__ModuleLoader__.load({
       return ACTION_ZH[action] === undefined ? '' : ACTION_ZH[action];
     }
 
-    /** Chinese verbs only when the setting is on and the panel is Chinese. */
-    function wantsChineseActions() {
-      if (settings().translateActions === false) return false;
+    /** The host's own UI language, as far as this page can see it. */
+    function panelIsChinese() {
       try {
         const lang = String(document.documentElement.lang || '').toLowerCase();
         return lang === '' || lang.indexOf('zh') === 0;
@@ -1473,6 +1521,11 @@ window.__ModuleLoader__.load({
         // No document (tests) or no language: the panel's own fallback is Chinese.
         return true;
       }
+    }
+
+    /** Chinese verbs only when the setting is on *and* the panel speaks Chinese. */
+    function wantsChineseActions() {
+      return settings().translateActions === true && panelIsChinese() === true;
     }
 
     /**
@@ -3228,7 +3281,10 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ah-section', key: 'sec-card' }, t('setting.secCard')),
         row('autoExpandDescription', t('setting.autoExpand'), t('setting.autoExpandNote'), config.autoExpandDescription === true, flip('autoExpandDescription')),
         row('hideKnobs', t('setting.hideKnobs'), t('setting.hideKnobsNote'), config.hideKnobs !== false, flip('hideKnobs')),
-        row('translateActions', t('setting.translateActions'), t('setting.translateActionsNote'), config.translateActions !== false, flip('translateActions')),
+        // Only offered on a Chinese host: outside it the row would toggle nothing.
+        panelIsChinese() === true
+          ? row('translateActions', t('setting.translateActions'), t('setting.translateActionsNote'), config.translateActions === true, flip('translateActions'))
+          : null,
         row('hint', t('setting.hint'), t('setting.hintNote'), config.composerHint === true, flip('composerHint')),
         row('pendingCard', t('setting.pendingCard'), t('setting.pendingNote'), config.pendingCard === true, flip('pendingCard')),
         row('aiAdviceCard', t('setting.aiAdviceCard'), t('setting.aiAdviceCardNote'), config.aiAdviceCard !== false, flip('aiAdviceCard')),
@@ -5032,6 +5088,8 @@ window.__ModuleLoader__.load({
         timelineTextOf: timelineTextOf,
         actionOf: actionOf,
         actionLabelOf: actionLabelOf,
+        valueOf: valueOf,
+        store: store,
         isMerged: isMerged,
         memoryBucketId: memoryBucketId,
         rowFingerprintOf: rowFingerprintOf,

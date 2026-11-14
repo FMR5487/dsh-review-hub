@@ -336,13 +336,28 @@ export const cases = [
 			assertEqual(bag.actionOf({ argsText: '{"action":"install_bundle","target":"x"}' }), 'install_bundle', '原始动作名要留出来，搜索用');
 			assertEqual(bag.actionLabelOf({ argsText: '{"action":"set_bundle"}' }), '设置包', '名词型动作按工具覆盖');
 			assertEqual(bag.actionLabelOf({ argsText: '{"action":"frobnicate"}' }), '', '不认识的动作用英文原文，不猜');
+			// 动作中文化是开关（默认关）：开着看中文，关着看英文原名；搜索语料与开关无关
+			const savedConfig = bag.store.config;
+			bag.store.config = { translateActions: true };
 			assertEqual(bag.foldedOf({ argsText: '{"action": "list_plugins", "limit": 10, "offset": 240}' }), '列出插件');
 			assertEqual(bag.timelineTextOf((k) => k, { toolName: 'plugin_manager', argsText: '{"action":"list_plugins","limit":10,"offset":240}' }), '列出插件');
-			assertEqual(bag.foldedOf({ argsText: '{"action":"install_bundle","target":"@linxin666/dsh-web-all@0.4.18"}' }), '安装包 @linxin666/dsh-web-all@0.4.18', '目标一个字节都不翻');
 			assertEqual(bag.timelineTextOf((k) => k, { toolName: 'plugin_manager', argsText: '{"action":"remove_bundle","target":"dsh-cost-meter"}' }), '卸载包 dsh-cost-meter');
+			bag.store.config = { translateActions: false };
+			assertEqual(bag.foldedOf({ argsText: '{"action":"install_bundle","target":"@linxin666/dsh-web-all@0.4.18"}' }), 'install_bundle @linxin666/dsh-web-all@0.4.18', '关掉开关回到英文原名');
+			assertEqual(bag.actionLabelOf({ argsText: '{"action":"set_bundle"}' }), '设置包', '中文标签照样算进搜索语料');
+			bag.store.config = savedConfig;
 			assertEqual(bag.foldedOf({ argsText: '{"action":"x","command":"git status"}' }), null, '有真命令就照旧拆包');
 			assertEqual(bag.foldedOf({ argsText: '{"file_path":"D:/x/a.md","content":"body"}' }), null, '文件行不受影响');
 			assertEqual(bag.foldedOf({ argsText: 'not json' }), null);
+			// 没有命令也没有路径的调用：正文只给首行 + 行数，认不出的参数降级成 key: value
+			const tp = function (k, p) { return p === undefined ? k : k + '|' + String(p.text) + '|' + String(p.n); };
+			const codeArgs = JSON.stringify({ code: 'const fs = await import("node:fs");\nconst link = "C:/x";' });
+			assertEqual(bag.valueOf({ argsText: codeArgs }, tp), 'row.bodyLine|const fs = await import("node:fs");|2', 'run_code 只给首行 + 行数');
+			assertEqual(bag.timelineTextOf(tp, { toolName: 'run_code', argsText: codeArgs }), 'row.bodyLine|const fs = await import("node:fs");|2', '时间线不再铺转义过的 JSON');
+			assertEqual(bag.valueOf({ argsText: '{"content":"line1\\nline2\\nline3"}' }, tp), 'row.bodyLine|line1|3');
+			assertEqual(bag.valueOf({ argsText: '{"query":"needle"}' }, tp), 'needle', '短标识符直接显示');
+			assertEqual(bag.valueOf({ argsText: '{"foo":1,"bar":"x"}' }, tp), 'foo: 1 · bar: x', '认不出的参数降级，不铺 JSON');
+			assertTrue(bag.valueOf({ argsText: '{"foo":1,"bar":"x"}' }, tp).indexOf('{"') < 0, '正文里不再出现 JSON 花括号');
 		},
 	},
 	{
