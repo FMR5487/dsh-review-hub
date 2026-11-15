@@ -206,6 +206,10 @@ window.__ModuleLoader__.load({
       'risk.low': '低',
       'risk.unknown': '未知',
       'row.copy': '复制命令',
+      'row.aiAdd': '将该工具加入 AI 预审',
+      'row.aiOn': '已加入 AI 预审，点击移出',
+      'row.aiNeed': '未知工具 · 再通过 {n} 次可开 AI 预审',
+      'row.aiHint': '也可在设置里手动填写',
       'row.waiting': '正在等待人工审批…',
       'row.highRisk': '高危',
       'band.advice': 'AI 建议人工 · {risk} · {reason}',
@@ -515,6 +519,10 @@ window.__ModuleLoader__.load({
       'risk.low': 'low',
       'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
+      'row.aiAdd': 'Send this tool to the AI reviewer',
+      'row.aiOn': 'Listed for AI review — click to remove',
+      'row.aiNeed': 'Unknown tool · {n} more approvals to enable AI review',
+      'row.aiHint': 'You can also add it in Settings',
       'row.waiting': 'Waiting for you…',
       'row.highRisk': 'High risk',
       'band.advice': 'AI suggests a human · {risk} · {reason}',
@@ -700,6 +708,8 @@ window.__ModuleLoader__.load({
       pageVisible: false,
       /** Rows newer than seenAt from AI/memory/external: the tab badge reads this. */
       unread: 0,
+      /** Per-tool counts across every session ({tool:{total,approved,rejected}}). */
+      byTool: {},
       /** Per-session "already looked at" watermark (localStorage, per browser). */
       seenAt: 0,
       /** Hint baseline: rows at or below this ts are history, never a card. */
@@ -922,6 +932,8 @@ window.__ModuleLoader__.load({
       search: 'M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3zM13.4 13.4 18 18',
       // A near-full circle with a corner bracket: the catalog refetch.
       refresh: 'M16.5 10a6.5 6.5 0 1 1-2.4-5M16.5 3v3.6h-3.6',
+      // A four-point sparkle: "let the reviewer look at this tool".
+      ai: 'M10 2.6l1.7 5.7 5.7 1.7-5.7 1.7L10 17.4l-1.7-5.7L2.6 10l5.7-1.7z',
     };
 
     /** One inline stroke glyph; no emoji, no text, no icon font. */
@@ -974,6 +986,57 @@ window.__ModuleLoader__.load({
         store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
         notify();
       }, ttl);
+    }
+
+    /** Per-tool counts for the whole ledger; the row icon is the only consumer. */
+    let byToolAt = 0;
+    async function loadByTool(force) {
+      const now = Date.now();
+      if (force !== true && now - byToolAt < 15000) return;
+      byToolAt = now;
+      try {
+        const body = await api('/stats?all=1');
+        if (isPlainObject(body) === true && isPlainObject(body.all) === true && isPlainObject(body.all.byTool) === true) {
+          store.byTool = body.all.byTool;
+          notify();
+        }
+      } catch (error) {
+        /* no counts: the icon stays dim rather than guessing */
+      }
+    }
+
+    /**
+     * The row's "send this tool to the reviewer" control.
+     *
+     * Only for tools no layer knew (`unknownTool`): that is the one question worth asking
+     * once per tool instead of once per call. The icon states are the whole contract —
+     * too few human approvals to be worth it (dim), ready (clickable), already listed (click
+     * to remove) — so no dialog and no settings trip is needed.
+     */
+    function aiPickerOf(entry) {
+      if (entry === null || typeof entry !== 'object' || entry.unknownTool !== true) return null;
+      const tool = String(entry.toolName || '');
+      if (tool === '') return null;
+      const listed = Array.isArray(settings().aiTools) ? settings().aiTools : [];
+      if (listed.indexOf(tool) >= 0) return { state: 'on', tool: tool, need: 0 };
+      const bucket = isPlainObject(store.byTool) && isPlainObject(store.byTool[tool]) ? store.byTool[tool] : null;
+      const approved = bucket === null ? 0 : Number(bucket.approved) || 0;
+      const threshold = Math.max(1, liveThreshold());
+      if (approved >= threshold) return { state: 'ready', tool: tool, need: 0 };
+      return { state: 'dim', tool: tool, need: Math.max(1, threshold - approved) };
+    }
+
+    /** Add or remove one tool from the global AI list; the server clamps and echoes it back. */
+    async function toggleAiTool(tool, on) {
+      const listed = Array.isArray(settings().aiTools) ? settings().aiTools.slice() : [];
+      const next = on
+        ? listed.filter(function (name) { return name !== tool; })
+        : listed.concat([tool]);
+      try {
+        await saveConfig({ aiTools: next });
+      } catch (error) {
+        /* the icon keeps its old state; nothing was written */
+      }
     }
 
     /** The session's live threshold, for rows that never froze one. */
@@ -2375,6 +2438,10 @@ window.__ModuleLoader__.load({
       '.ah-risk-medium{color:var(--ah-human-fg,#f7ad31)}',
       '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
       '.ah-risk-unknown{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+      // The "send this tool to the reviewer" control: one glyph, three states.
+      '.ah-ai-pick{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+      '.ah-ai-pick.ah-ai-ready,.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
+      '.ah-ai-pick.ah-ai-dim{opacity:.4;cursor:not-allowed}',
       '.ah-row-reason-ai-solo{margin-top:0;padding-top:0;border-top:0}',
       '.ah-row-reason-label{color:var(--dsw-alias-label-primary,#fff)}',
       '.ah-row-model{flex:0 1 auto;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
@@ -3450,6 +3517,27 @@ window.__ModuleLoader__.load({
                 entry.hasSnapshot === true
                   ? iconButton('pencil', opts.t('diff.change'), function () { void opts.openDiff(entry.callId); })
                   : null,
+                // Unknown tool: one click puts it on the reviewer's list, permanently.
+                (function () {
+                  const picker = aiPickerOf(entry);
+                  if (picker === null) return null;
+                  const base = picker.state === 'on'
+                    ? opts.t('row.aiOn')
+                    : (picker.state === 'ready' ? opts.t('row.aiAdd') : opts.t('row.aiNeed', { n: picker.need }));
+                  // Two lines: what the state is, then where else this can be changed.
+                  const label = base + '\n' + opts.t('row.aiHint');
+                  const cls = 'ah-ai-pick ah-ai-' + picker.state;
+                  if (picker.state === 'dim') {
+                    return h('button', {
+                      type: 'button',
+                      className: 'ah-icon-btn ' + cls,
+                      title: label,
+                      'aria-label': base,
+                      disabled: true,
+                    }, icon('ai'));
+                  }
+                  return iconButton('ai', label, function () { void toggleAiTool(picker.tool, picker.state === 'on'); }, cls);
+                })(),
                 reason.own === '' && reason.ai === ''
                   ? null
                   : iconButton(
@@ -3547,6 +3635,9 @@ window.__ModuleLoader__.load({
         const text = copyTextOf(entry);
         void copyToClipboard(text).then(function (ok) { if (ok === true) setCopiedId(entry.id); });
       };
+
+      // Per-tool counts decide the row's AI icon; one fetch per visit, not a poll.
+      React.useEffect(function () { void loadByTool(true); }, [sessionId]);
 
       React.useEffect(function () {
         // Opening the tab consumes the badge; the watermark we consumed is kept so
@@ -5176,6 +5267,7 @@ window.__ModuleLoader__.load({
         actionLabelOf: actionLabelOf,
         valueOf: valueOf,
         copyTextOf: copyTextOf,
+        aiPickerOf: aiPickerOf,
         store: store,
         isMerged: isMerged,
         memoryBucketId: memoryBucketId,

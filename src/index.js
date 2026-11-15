@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { createStore, fileFingerprintOf, filePathOf, fingerprintOf, splitRoute } from './store.js';
 import { diffStatsFor } from './routes.js';
-import { classify, DEFAULT_TOOLS_POLICY, toolsPolicyOf } from './policy.js';
+import { classify, DEFAULT_TOOLS_POLICY, isUnjudgedTool, toolsPolicyOf } from './policy.js';
 import { classifyAgent, clampByAgent } from './agentPolicy.js';
 import { evidenceFor, eventsOf } from './evidence.js';
 import { createReviewer } from './review.js';
@@ -299,11 +299,13 @@ async function answerer(request, next) {
 	const { tier: baseTier, hardRisk, coarse } = classify(toolName, argsText, { toolsPolicy: toolsPolicyOf(settings) });
 	// One gate for both deterministic blockers: hard risk (L0) and the coarse-key layer (D).
 	// Either one means "no AI, no memory, no file switch — a human decides".
-	const gate = hardRisk === undefined ? coarse : hardRisk;
+	// `coarse` (the D layer) only blocks the reviewer: it is a shape we cannot judge, not a
+	// proven danger like L0. Memory and the file switch stay gated by `hardRisk` alone, so a
+	// human approving the same call three times can still teach it.
 	const tier = clampByAgent(baseTier, agentKind, settings?.agentPolicy);
 	// Opt-in per file, and never for a hard-risk call: the switch widens what may
 	// auto-pass, it does not disable the deterministic L0 layer.
-	const fileArmed = fileKey !== '' && gate === undefined
+	const fileArmed = fileKey !== '' && hardRisk === undefined
 		&& (settings?.fileFingerprint === true || settings?.fileAutoPass?.[fileKey] === true);
 	// Record the lane of every request, not only the ones the reviewer sees: the
 	// settings menu is built from real lanes, and an AI-off approval still proves one.
@@ -341,7 +343,7 @@ async function answerer(request, next) {
 	let aiNote;
 	try {
 		// L2 memory: a repeatable operation the human already approved N times.
-		const hit = gate === undefined ? await decideMemory(store, sessionId, fp, settings) : undefined;
+		const hit = hardRisk === undefined ? await decideMemory(store, sessionId, fp, settings) : undefined;
 		const fileHits = fileArmed === false || store === undefined
 			? 0
 			: await store.fileCount(sessionId, filePath).catch(() => 0);
@@ -453,9 +455,7 @@ async function answerer(request, next) {
 			}
 			// Only a human approval teaches memory: AI and memory passes must never
 			// compound into a rule nobody ever agreed to.
-			// `gate` also covers the coarse-key layer: a shape nobody could judge must not be
-			// learned into an auto-pass, even when a human approves it today.
-			if (decidedBy === 'human' && outcome === 'allowed-once' && gate === undefined && fp !== undefined && settings?.memoryEnabled === true && store !== undefined) {
+			if (decidedBy === 'human' && outcome === 'allowed-once' && hardRisk === undefined && fp !== undefined && settings?.memoryEnabled === true && store !== undefined) {
 				const bumped = await store.memoryBump({
 					sessionId,
 					fingerprint: fp,
@@ -508,6 +508,9 @@ async function answerer(request, next) {
 	// question a human asks when the pass history looks silent.
 	finished.agentKind = agentKind;
 	finished.tier = tier;
+	// Did any layer actually know this tool? The panel offers "send this tool to the reviewer"
+	// only where that question is true, so the fact has to travel with the row.
+	finished.unknownTool = isUnjudgedTool(toolName, toolsPolicyOf(settings)) === true;
 	// The one case that silently costs a review: the tool was AI-eligible but the
 	// requester kind clamped it to a human decision.
 	if (baseTier === 'ai' && tier !== 'ai') finished.clampedBy = 'agent:' + agentKind;

@@ -846,13 +846,22 @@ export function createStore(options = {}) {
 	 */
 	async function tallyAll() {
 		await ensureLoaded();
-		const out = { total: 0, sessions: 0, human: 0, memory: 0, ai: 0, escalated: 0, denied: 0, cancelled: 0, unavailable: 0, other: 0 };
+		const out = { total: 0, sessions: 0, human: 0, memory: 0, ai: 0, escalated: 0, denied: 0, cancelled: 0, unavailable: 0, other: 0, byTool: {} };
 		for (const [key, list] of sessions) {
 			out.sessions += 1;
 			const floor = clearedAt(key);
 			for (const row of list) {
 				if ((Number(row.ts) || 0) <= floor) continue;
 				out.total += 1;
+				// Per-tool counts across every session: the panel needs them to decide whether
+				// an unknown tool has been human-approved often enough to offer "send it to the
+				// reviewer", and a single session only ever sees a fraction of that history.
+				const tool = typeof row.toolName === 'string' && row.toolName !== '' ? row.toolName : '—';
+				const toolBucket = out.byTool[tool] ?? { total: 0, approved: 0, rejected: 0 };
+				toolBucket.total += 1;
+				if (row.decidedBy === 'human' && row.outcome === 'allowed-once') toolBucket.approved += 1;
+				if (row.decidedBy === 'human' && row.outcome === 'rejected') toolBucket.rejected += 1;
+				out.byTool[tool] = toolBucket;
 				if (row.outcome === 'cancelled') { out.cancelled += 1; continue; }
 				if (row.outcome === 'rejected') { out.denied += 1; continue; }
 				if (row.outcome !== 'allowed-once') { out.unavailable += 1; continue; }

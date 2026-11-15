@@ -314,6 +314,19 @@ export const cases = [
 			const nonFile = bag.memoryText({ memoryCount: 3, decidedBy: 'human' }, (k) => k);
 			assertEqual(nonFile.parts.frac, '3/3', '非文件行到达阈值仍显示 n/N');
 			bag.store.files = savedFiles;
+			// 「加入 AI 预审」图标的三态：只对未知工具出现，阈值按台账跨会话的人工通过数算
+			bag.store.config = { aiTools: [], threshold: 3 };
+			bag.store.byTool = { weird_tool: { total: 4, approved: 1, rejected: 1 } };
+			const dim = bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: true });
+			assertEqual(dim.state, 'dim');
+			assertEqual(dim.need, 2, '还差几次要算出来给 tooltip');
+			bag.store.byTool = { weird_tool: { total: 4, approved: 3, rejected: 0 } };
+			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: true }).state, 'ready', '人批到阈值就亮');
+			bag.store.config = { aiTools: ['weird_tool'], threshold: 3 };
+			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: true }).state, 'on', '已在名单里点亮');
+			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool' }), null, '已知工具不出图标');
+			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: false }), null);
+			bag.store.byTool = {};
 			bag.store.config = savedCfg;
 			assertEqual(memoryChip.merged, undefined, '徽章不再自带合并段');
 			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 3 }, (k) => k);

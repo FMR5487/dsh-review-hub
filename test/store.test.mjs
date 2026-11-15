@@ -171,6 +171,11 @@ export const cases = [
 			assertEqual(all.other, 0);
 			assertEqual(all.total, 8);
 			assertEqual(all.human + all.memory + all.ai + all.escalated + all.denied + all.cancelled + all.unavailable + all.other, all.total, '五桶互斥，加起来等于总数');
+			// 跨会话的按工具计数：审批页那枚「加入 AI 预审」图标靠它判状态
+			assertEqual(all.byTool.ops_bash.approved, 3, '两个会话的人工通过要合并计数');
+			assertEqual(all.byTool.ops_bash.rejected, 1);
+			assertEqual(all.byTool.ops_bash.total, 8);
+			assertEqual(all.byTool.edit, undefined, '没出现过的工具不占位');
 		},
 	},
 	{

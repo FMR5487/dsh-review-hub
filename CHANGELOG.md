@@ -8,6 +8,8 @@
 - 本地账本类工具显式归记忆档，不再靠工具名撞运气：`task_board_*` / `team_*` / `todo_write` / `fact_register`。
 - 用户显式加白（「AI 预审工具」）可以把整个工具抬到 AI，黑名单（「不交给 AI 的工具」）可以把它压回人工——两者都优先于动作档。
 - 测试夹具把现有 **28 个动作组合**逐个钉死（`plugin_manager` 8 / `memory` 6 / `dtodo` 5 / `skill_manage` 4 / `update_goal` 5）；新增动作必须先过它。
+- **C 行内「加入 AI 预审」图标**（审批页行操作区，改动右边、展开左边）：只对`unknownTool`（任何一层都不认识的工具）出现，三态——灰色不可点（人工还差几次）、可点（人批到阈值）、已加入（点击移出）。tooltip 两行：状态 + 「也可在设置里手动填写」。点击直接写全局「AI 预审工具」（`aiTools`），服务端 clamp 后回显。
+- `/stats?all=1` 的应答新增 **`byTool`**：跨所有会话按工具统计 `total/approved/rejected`——图标靠它判断"人批够没够"，单个会话看不到这个数。台账行同时新增 `unknownTool` 字段，回答"这款工具到底有没有被任何一层认识"。
 - **D 粗筛（新增一层）**：只对"工具档与动词表都没裁决"的工具生效——参数里出现能执行的键（`command`/`cmd`/`script`/`code`）或能外发的键（`url`/`target`/`channels`/`recipient`）→ 直接人工，不送 AI、**不进记忆**、文件开关也绕不过去；台账写 `aiSkip = coarse-key:<键>`。键匹配会看到顶层 + 一层数组内的对象（`files:[{path,content}]` 也算）。已知工具不受影响（否则 `edit` 一身的 `content` 会被误伤）。
 
 
