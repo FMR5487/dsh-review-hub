@@ -4,7 +4,13 @@ import { KNOB_KEYS } from '../src/store.js';
 
 const REACT_STUB = {
 	createElement: function (type, props) {
-		return { type: type, props: props || {} };
+		// Children are kept: without them a rendered tree stops at its first level and no test
+		// can assert that a nested control (e.g. the row's AI picker) really rendered.
+		const kids = Array.prototype.slice.call(arguments, 2);
+		const merged = Object.assign({}, props || {});
+		if (kids.length === 1) merged.children = kids[0];
+		else if (kids.length > 1) merged.children = kids;
+		return { type: type, props: merged };
 	},
 	useState: function (initial) { return [typeof initial === 'function' ? initial() : initial, function () {}]; },
 	useEffect: function () {},
@@ -325,6 +331,27 @@ export const cases = [
 			bag.store.config = { aiTools: ['weird_tool'], threshold: 3 };
 			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: true }).state, 'on', '已在名单里点亮');
 			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool' }), null, '已知工具不出图标');
+			// 行渲染：未知工具那一行必须真的挂出图标按钮（灰色 = disabled）
+			const pickerOpts = { t: (k) => k, view: { diff: null }, copiedId: '', isReasonOpen: function () { return false; }, openDiff: function () {}, copyRow: function () {}, toggleReason: function () {} };
+			const collectClass = function (node, out) {
+				if (node === null || typeof node !== 'object') return out;
+				const props = node.props || {};
+				if (typeof props.className === 'string' && props.className.indexOf('ah-ai-pick') >= 0) out.push({ className: props.className, disabled: props.disabled === true, title: props.title });
+				const kids = props.children;
+				const list = Array.isArray(kids) ? kids : (kids === undefined || kids === null ? [] : [kids]);
+				for (const kid of list) collectClass(kid, out);
+				return out;
+			};
+			bag.store.byTool = {};
+			bag.store.config = { threshold: 3, aiTools: [] };
+			const unknownRow = bag.approvalRowNode({ id: 'u1', ts: 20, toolName: 'weird_tool', unknownTool: true, decidedBy: 'human', outcome: 'allowed-once', argsText: '{"foo":1}' }, pickerOpts);
+			const unknownButtons = collectClass(unknownRow, []);
+			assertEqual(unknownButtons.length, 1, '未知工具的行上要有一枚 AI 图标');
+			assertEqual(unknownButtons[0].disabled, true, '没批够次数时不可点');
+			assertTrue(String(unknownButtons[0].className).indexOf('ah-ai-dim') >= 0, '灰色态用 ah-ai-dim');
+			assertTrue(String(unknownButtons[0].title).indexOf('row.aiHint') >= 0, 'tooltip 带「也可在设置里手动填写」');
+			const knownRow = bag.approvalRowNode({ id: 'k1', ts: 21, toolName: 'pwsh', unknownTool: false, decidedBy: 'human', outcome: 'allowed-once', argsText: '{"command":"echo hi"}' }, pickerOpts);
+			assertEqual(collectClass(knownRow, []).length, 0, '已知工具的行不该出现这枚图标');
 			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: false }), null);
 			bag.store.byTool = {};
 			bag.store.config = savedCfg;
