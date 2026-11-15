@@ -1,6 +1,6 @@
 import { assertEqual, assertTrue, freshRoot } from './helpers.mjs';
 import { createStore, clampAiTools, clampSettings, DEFAULT_SETTINGS, filePathOf, fingerprint } from '../src/store.js';
-import { hardRisk, tierOf, toolsPolicyOf } from '../src/policy.js';
+import { actionOf, callTierOf, hardRisk, tierOf, toolsPolicyOf, verbClassOf } from '../src/policy.js';
 
 const row = (over) => Object.assign({ id: 'r', ts: 1, sessionId: 's1', toolName: 'ops_bash', outcome: 'allowed-once', decidedBy: 'human', decisionMs: 10 }, over);
 
@@ -50,6 +50,52 @@ export const cases = [
 			assertEqual(all.entries.length, 2, '同一 callId 只留一行');
 			assertEqual(all.entries[0].id, 'b', '最新在上');
 			assertEqual(all.entries[1].decidedBy, 'memory', '后写的字段覆盖');
+		},
+	},
+	{
+		name: '动作档位：mixed 工具按动作判，未知动词一律人工',
+		async fn() {
+			const base = toolsPolicyOf({});
+			const call = (tool, action) => callTierOf(tool, action === undefined ? '{}' : JSON.stringify({ action }), base);
+			assertEqual(actionOf('{"action":" list_bundles "}'), 'list_bundles');
+			assertEqual(actionOf('{"action":"list_bundles"'), '', '截断的参数不猜');
+			assertEqual(verbClassOf('list_version_exemptions'), 'read');
+			assertEqual(verbClassOf('remove_bundle'), 'write');
+			assertEqual(verbClassOf('frobnicate'), '');
+			// 全量动作清单：28 个组合，逐个钉死
+			const expected = {
+				plugin_manager: { list_plugins: 'ai', list_bundles: 'ai', list_version_exemptions: 'ai', install_bundle: 'human', remove_bundle: 'human', set_plugin: 'human', set_bundle: 'human', set_version_exemption: 'human' },
+				memory: { list: 'ai', expand: 'ai', add: 'memory', replace: 'memory', archive: 'memory', remove: 'human' },
+				dtodo: { list: 'ai', add: 'memory', done: 'memory', update: 'memory', remove: 'memory' },
+				skill_manage: { read: 'human', list: 'human', create: 'human', patch: 'human' },
+				update_goal: { edit: 'human', pause: 'human', resume: 'human', complete: 'human', blocked: 'human' },
+			};
+			let total = 0;
+			for (const [tool, actions] of Object.entries(expected)) {
+				for (const [action, tier] of Object.entries(actions)) {
+					assertEqual(call(tool, action), tier, tool + '.' + action);
+					total += 1;
+				}
+			}
+			assertEqual(total, 28, '夹具覆盖全部动作');
+			// 未知动词 / 没有 action / 截断 → 人工
+			assertEqual(call('plugin_manager', 'frobnicate'), 'human');
+			assertEqual(call('plugin_manager'), 'human', '没有 action 的 plugin_manager 仍是人工');
+			assertEqual(callTierOf('plugin_manager', '{"action":"install_bu', base), 'human', '截断参数 → 人工');
+			// 本地账本归 memory；外部副作用与未知工具落人工
+			assertEqual(call('task_board_create'), 'memory');
+			assertEqual(call('team_task_create'), 'memory');
+			assertEqual(call('todo_write'), 'memory');
+			assertEqual(call('fact_register'), 'memory');
+			assertEqual(call('browser_click'), 'human');
+			assertEqual(call('de_channel_send'), 'human');
+			// 既有档位不受影响：记忆档最强，AI 基线照旧
+			assertEqual(call('edit', undefined), 'memory');
+			assertEqual(call('ops_bash'), 'ai');
+			assertEqual(call('write'), 'memory');
+			// 用户显式加白可以整工具抬到 ai；黑名单可以整工具压回人工
+			assertEqual(callTierOf('plugin_manager', '{"action":"install_bundle"}', toolsPolicyOf({ aiTools: ['plugin_manager'] })), 'ai', '显式加白压过动作档');
+			assertEqual(callTierOf('memory', '{"action":"list"}', toolsPolicyOf({ aiToolsDeny: ['memory'] })), 'human', '黑名单压过只读动作');
 		},
 	},
 	{

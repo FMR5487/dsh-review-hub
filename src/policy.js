@@ -173,6 +173,119 @@ export function isSecretLike(text) {
 	return false;
 }
 
+/**
+ * Action-aware tiers.
+ *
+ * Some tools are a *wrapper* around a dozen verbs: `plugin_manager list_bundles` is a
+ * read, `plugin_manager install_bundle` changes the host. Judging the tool alone made
+ * every one of them pop a human panel — 10 of the 52 `plugin_manager` rows in the
+ * ledger were pure reads.
+ *
+ * So a tool can be declared `mixed`: its verb decides (action parameter first, tool-name
+ * suffix second). The verb tables are deliberately short and closed — an unknown verb
+ * falls through to the tool's write tier, and finally to `human`. A wrong guess here
+ * means an auto-pass, which costs more than one extra question.
+ */
+const READ_VERBS = new Set([
+	'list', 'get', 'read', 'show', 'status', 'count', 'stat', 'search', 'find', 'query',
+	'inspect', 'describe', 'peek', 'expand', 'history',
+]);
+
+const WRITE_VERBS = new Set([
+	'install', 'remove', 'delete', 'set', 'update', 'write', 'send', 'run', 'exec', 'create',
+	'add', 'archive', 'patch', 'replace', 'move', 'copy', 'done', 'complete', 'pause',
+	'resume', 'blocked', 'edit', 'clear', 'bump', 'touch',
+]);
+
+/**
+ * Tools whose risk lives in the action rather than in the tool. `write` is the tier an
+ * unrecognised mutating verb falls back to; `actions` names the exceptions that the verb
+ * table would judge wrong in either direction.
+ *
+ * Two of them are security decisions, not conveniences:
+ *   - `skill_manage.read`/'list' stay `human`: reading a skill body pulls untrusted text
+ *     into the context, which is a prompt-injection surface, not a harmless read.
+ *   - `memory.remove` is `human`: deleting a learned rule silently changes what will be
+ *     auto-passed later, so it must not ride on a counter.
+ */
+const MIXED_TOOLS = Object.freeze({
+	plugin_manager: { write: 'human' },
+	memory: { write: 'memory', actions: { remove: 'human' } },
+	dtodo: { write: 'memory' },
+	skill_manage: { write: 'human', actions: { read: 'human', list: 'human' } },
+	update_goal: { write: 'human' },
+});
+
+/** Tools that only write the agent's own bookkeeping: learnable, never dangerous. */
+const LOCAL_LEDGER_TOOLS = new Set(['todo_write', 'fact_register']);
+const LOCAL_LEDGER_PREFIXES = ['task_board_', 'team_'];
+
+/** The `action` a call carries, lower-cased; '' when it has none or the JSON is cut. */
+export function actionOf(argsText) {
+	const text = typeof argsText === 'string' ? argsText : '';
+	if (text.trim().charAt(0) !== '{') return '';
+	try {
+		const parsed = JSON.parse(text);
+		if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return '';
+		return typeof parsed.action === 'string' ? parsed.action.trim().toLowerCase() : '';
+	} catch {
+		// A truncated argument block is exactly the case that must not be guessed at.
+		return '';
+	}
+}
+
+/** read / write / '' — the verb class of an action or a tool name. */
+export function verbClassOf(verb) {
+	const value = String(verb || '').toLowerCase();
+	if (value === '') return '';
+	if (READ_VERBS.has(value)) return 'read';
+	if (WRITE_VERBS.has(value)) return 'write';
+	// Compound verbs: `list_bundles` → list, `remove_bundle` → remove.
+	for (const part of value.split('_')) {
+		if (READ_VERBS.has(part)) return 'read';
+		if (WRITE_VERBS.has(part)) return 'write';
+	}
+	return '';
+}
+
+function isLocalLedger(lower) {
+	if (LOCAL_LEDGER_TOOLS.has(lower)) return true;
+	return LOCAL_LEDGER_PREFIXES.some((prefix) => lower.startsWith(prefix));
+}
+
+/**
+ * The tier a *call* is allowed up to: the tool's explicit tier first (memory is the
+ * strongest rule and settings may only raise to `ai`), then the mixed-tool verb, then the
+ * local-ledger families, then the policy default.
+ */
+export function callTierOf(toolName, argsText, policy) {
+	const name = String(toolName ?? '');
+	const lower = name.toLowerCase();
+	const table = policy ?? DEFAULT_TOOLS_POLICY;
+	const overrides = table?.overrides ?? {};
+	const explicit = overrides[name];
+	if (explicit === 'memory') return 'memory';
+	const raised = Array.isArray(table?.raised) ? table.raised : [];
+	const denied = Array.isArray(table?.denied) ? table.denied : [];
+	if (raised.includes(name)) return 'ai';
+	if (denied.includes(name)) return 'human';
+	const mixed = MIXED_TOOLS[lower];
+	if (mixed !== undefined) {
+		const action = actionOf(argsText);
+		const exceptions = mixed.actions ?? {};
+		if (action !== '' && typeof exceptions[action] === 'string') return exceptions[action];
+		const verb = action !== '' ? action : lower;
+		const kind = verbClassOf(verb);
+		if (kind === 'read') return 'ai';
+		if (kind === 'write') return mixed.write === 'memory' ? 'memory' : 'human';
+		return 'human';
+	}
+	if (explicit === 'ai') return 'ai';
+	if (isLocalLedger(lower)) return 'memory';
+	const fallback = table?.default;
+	return fallback === 'ai' || fallback === 'memory' ? fallback : 'human';
+}
+
 export const DEFAULT_TOOLS_POLICY = Object.freeze({
 	default: 'human',
 	overrides: Object.freeze({
@@ -234,7 +347,17 @@ export function toolsPolicyOf(settings) {
 	raise(DEFAULT_AI_TOOLS);
 	raise(settings?.aiTools);
 	lower(settings?.aiToolsDeny);
-	return { default: DEFAULT_TOOLS_POLICY.default, overrides };
+	// `raised` / `denied` keep the *intent* of each list: a merged map alone cannot tell
+	// "the baseline happens to be ai" from "the human explicitly asked for this tool".
+	const raised = [];
+	for (const tool of [...DEFAULT_AI_TOOLS, ...(Array.isArray(settings?.aiTools) ? settings.aiTools : [])]) {
+		if (typeof tool === 'string' && tool !== '') raised.push(tool);
+	}
+	const denied = [];
+	for (const tool of Array.isArray(settings?.aiToolsDeny) ? settings.aiToolsDeny : []) {
+		if (typeof tool === 'string' && tool !== '') denied.push(tool);
+	}
+	return { default: DEFAULT_TOOLS_POLICY.default, overrides, raised, denied };
 }
 
 const TIERS = new Set(['ai', 'memory', 'human']);
@@ -270,5 +393,5 @@ export function classify(toolName, argsText, options = {}) {
 	}
 	// The per-agent ceiling is applied by the caller (agentPolicy.clampByAgent) so
 	// this stays a pure function of the tool and its arguments.
-	return { tier: tierOf(toolName, options.toolsPolicy), riskLevel: 'unknown' };
+	return { tier: callTierOf(toolName, argsText, options.toolsPolicy), riskLevel: 'unknown' };
 }
