@@ -483,6 +483,12 @@ export const cases = [
 			const firstHook = card.search(/React\.use(State|Effect|Ref|Memo)\(/);
 			assertTrue(early > 0, 'ConfigCard 里找不到早退');
 			assertTrue(firstHook > 0 && firstHook < early, 'ConfigCard 的 Hook 必须全部声明在早退之前');
+			// 卡片预览 = 设置内的「假会话页」：悬浮卡在假页里绝对定位，不再往真实页面弹
+			assertTrue(src.includes('ah-fake-chat'), '缺少假会话页容器');
+			assertTrue(src.includes('ah-fake-float'), '悬浮卡必须挂在假页内部');
+			assertTrue(src.includes('ah-fake-panel'), '缺少假宿主审批面板');
+			assertTrue(src.includes('PREVIEW_WIDTHS'), '缺少宽度三档');
+			assertTrue(src.includes('tryFloat(') === false, '不该再往真实页面弹卡');
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));
