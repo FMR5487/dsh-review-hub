@@ -203,6 +203,21 @@ export const cases = [
 		},
 	},
 	{
+		name: 'stats：AI 返回时间按模型平均，缓存命中不算一次调用',
+		async fn() {
+			const store = createStore({ root: await freshRoot('store-ai-ms') });
+			await store.record(row({ id: 'm1', ts: 1, decidedBy: 'ai', aiSource: 'ai', aiModel: 'p/rev', aiMs: 1000 }));
+			await store.record(row({ id: 'm2', ts: 2, decidedBy: 'ai', aiSource: 'ai', aiModel: 'p/rev', aiMs: 3000 }));
+			await store.record(row({ id: 'm3', ts: 3, decidedBy: 'human', aiSource: 'cache', aiModel: 'p/rev', aiMs: 0 }));
+			await store.record(row({ id: 'm4', ts: 4, decidedBy: 'human', aiSource: 'error', aiModel: 'q/other' }));
+			const stats = await store.stats({ session: 's1' });
+			assertEqual(stats.reviewer.byModel['p/rev'].avgMs, 2000, '同一车道取平均');
+			assertEqual(stats.reviewer.byModel['p/rev'].msCount, 2, '缓存命中不算一次模型耗时');
+			assertEqual(stats.reviewer.byModel['q/other'].avgMs, 0, '没有耗时的车道给 0');
+			assertEqual(stats.reviewer.avgMs, 2000, '整体也按真实调用平均');
+		},
+	},
+	{
 		name: 'memory：计数、读取、按会话隔离、清空',
 		async fn() {
 			const store = createStore({ root: await freshRoot('store-memory') });

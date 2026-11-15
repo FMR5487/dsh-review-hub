@@ -377,6 +377,10 @@ export const DEFAULT_AI_TOOLS = Object.freeze([
 	'ops_read_files', 'ops_inspect_local_file', 'ops_grep', 'ops_glob', 'read', 'grep', 'glob',
 	'web_fetch', 'read_page', 'web_search', 'x_search',
 	'job_output', 'job_list', 'ops_status',
+	// Read-only, argument-less listings: the reviewer only ever sees the tool name, so there is
+	// no content to leak, and asking a human every time is pure noise. `tool_activate` is NOT
+	// here on purpose — it widens what the session may call, which is a decision for a human.
+	'list_agents', 'list_subagent_models', 'get_goal',
 ]);
 
 /**

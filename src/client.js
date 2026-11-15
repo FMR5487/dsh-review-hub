@@ -180,6 +180,7 @@ window.__ModuleLoader__.load({
       'stats.tokensOut': '输出',
       'stats.tokensSum': '合计',
       'stats.cacheRead': '缓存读取',
+      'stats.avgMs': '平均返回',
       'stats.hitRate': '缓存命中',
       'stats.lane': '车道',
       'stats.calls': '调用',
@@ -206,6 +207,7 @@ window.__ModuleLoader__.load({
       'risk.low': '低',
       'risk.unknown': '未知',
       'row.copy': '复制命令',
+      'row.aiMs': 'AI {t}',
       'row.aiAdd': '将该工具加入 AI 预审',
       'row.aiOn': '已加入 AI 预审，点击移出',
       'row.aiNeed': '未知工具 · 再通过 {n} 次可开 AI 预审',
@@ -493,6 +495,7 @@ window.__ModuleLoader__.load({
       'stats.tokensOut': 'out',
       'stats.tokensSum': 'total',
       'stats.cacheRead': 'cache read',
+      'stats.avgMs': 'avg',
       'stats.hitRate': 'cache hit',
       'stats.lane': 'Lane',
       'stats.calls': 'calls',
@@ -519,6 +522,7 @@ window.__ModuleLoader__.load({
       'risk.low': 'low',
       'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
+      'row.aiMs': 'AI {t}',
       'row.aiAdd': 'Send this tool to the AI reviewer',
       'row.aiOn': 'Listed for AI review — click to remove',
       'row.aiNeed': 'Unknown tool · {n} more approvals to enable AI review',
@@ -1326,6 +1330,15 @@ window.__ModuleLoader__.load({
     const RISK_WORDS = { high: 'risk.high', medium: 'risk.medium', low: 'risk.low', unknown: 'risk.unknown' };
 
     /** The reviewer's own risk word, in the reader's language; anything else is printed as-is. */
+    /** A reviewer latency the way a human reads it: 840ms / 1.2s / 65s. */
+    function formatMs(ms) {
+      const value = Number(ms);
+      if (Number.isFinite(value) === false || value < 0) return '—';
+      if (value < 1000) return Math.round(value) + 'ms';
+      if (value < 60000) return (value / 1000).toFixed(1) + 's';
+      return Math.round(value / 1000) + 's';
+    }
+
     function riskLabel(risk, t) {
       const key = RISK_WORDS[String(risk)];
       return key === undefined ? String(risk) : t(key);
@@ -2438,6 +2451,7 @@ window.__ModuleLoader__.load({
       '.ah-risk-medium{color:var(--ah-human-fg,#f7ad31)}',
       '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
       '.ah-risk-unknown{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+      '.ah-risk-ms{color:var(--dsw-alias-label-tertiary,#9aa0a6);white-space:nowrap}',
       // The "send this tool to the reviewer" control: one glyph, three states.
       '.ah-ai-pick{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-ai-pick.ah-ai-ready,.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
@@ -3564,6 +3578,9 @@ window.__ModuleLoader__.load({
                       reason.risk === ''
                         ? null
                         : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, opts.t('row.risk') + ' · ' + riskLabel(reason.risk, opts.t))),
+                    Number.isFinite(Number(entry.aiMs))
+                      ? h('span', { className: 'ah-risk-ms', key: 'ms' }, opts.t('row.aiMs', { t: formatMs(entry.aiMs) }))
+                      : null,
                     h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
               : null,
             opts.view.diff !== null && opts.view.diff.callId === entry.callId && opts.view.diff.inline === true ? renderDiff(opts.t, opts.view) : null,
@@ -4964,6 +4981,7 @@ window.__ModuleLoader__.load({
               t('stats.aborted') + ' ' + num(bucket.aborted),
               t('stats.fallback') + ' ' + num(bucket.fallbacks),
               t('stats.cache') + ' ' + num(bucket.cacheHits),
+              t('stats.avgMs') + ' ' + (num(bucket.msCount) === 0 ? '—' : formatMs(bucket.avgMs)),
             ].join(' · ')),
             h('span', { key: 'tokens' }, [
               t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
@@ -5268,6 +5286,7 @@ window.__ModuleLoader__.load({
         valueOf: valueOf,
         copyTextOf: copyTextOf,
         aiPickerOf: aiPickerOf,
+        formatMs: formatMs,
         store: store,
         isMerged: isMerged,
         memoryBucketId: memoryBucketId,

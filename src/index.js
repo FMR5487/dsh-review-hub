@@ -403,7 +403,7 @@ async function answerer(request, next) {
 							row.aiSource = verdict.source;
 							if (verdict.risk !== undefined) row.aiRisk = verdict.risk;
 							if ((verdict.source === 'ai' || verdict.source === 'cache') && typeof verdict.reason === 'string' && verdict.reason !== '') row.aiReason = verdict.reason.slice(0, 160);
-							aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage };
+							aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 						}
 						activeStore?.announce?.({ kind: 'pending' });
 						if (!(verdict !== undefined && verdict.decision === 'allow')) {
@@ -425,7 +425,7 @@ async function answerer(request, next) {
 				verdict = await review;
 			}
 			if (verdict !== undefined) {
-				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage };
+				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 			}
 			row.aiReviewed = true;
 			// AI-eligible but the reviewer returned nothing (disabled, no llm, no verdict):
@@ -549,6 +549,10 @@ async function answerer(request, next) {
 		// left every cache-served escalation with nothing to show under "AI 打回理由".
 		if ((aiNote.source === 'ai' || aiNote.source === 'cache') && typeof aiNote.reason === 'string' && aiNote.reason !== '') finished.aiReason = aiNote.reason;
 		if (aiNote.usage !== undefined) finished.aiUsage = aiNote.usage;
+		// How long the reviewer itself took. decisionMs covers the whole wait (AI + handover +
+		// human), so it cannot answer "is this lane slow?" on its own.
+		const reviewerMs = Number(aiNote.ms);
+		if (Number.isFinite(reviewerMs) && reviewerMs >= 0) finished.aiMs = Math.round(reviewerMs);
 	}
 	if (store !== undefined) await store.record(finished).catch(() => undefined);
 

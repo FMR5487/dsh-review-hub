@@ -331,6 +331,12 @@ export const cases = [
 			bag.store.config = { aiTools: ['weird_tool'], threshold: 3 };
 			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: true }).state, 'on', '已在名单里点亮');
 			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool' }), null, '已知工具不出图标');
+			// AI 返回时间的显示口径：短用 ms，长用 s
+			assertEqual(bag.formatMs(840), '840ms');
+			assertEqual(bag.formatMs(1200), '1.2s');
+			assertEqual(bag.formatMs(65200), '65s');
+			assertEqual(bag.formatMs(undefined), '—');
+			assertEqual(bag.formatMs(-1), '—');
 			// 行渲染：未知工具那一行必须真的挂出图标按钮（灰色 = disabled）
 			const pickerOpts = { t: (k) => k, view: { diff: null }, copiedId: '', isReasonOpen: function () { return false; }, openDiff: function () {}, copyRow: function () {}, toggleReason: function () {} };
 			const collectClass = function (node, out) {
