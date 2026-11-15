@@ -8,6 +8,8 @@
 - 本地账本类工具显式归记忆档，不再靠工具名撞运气：`task_board_*` / `team_*` / `todo_write` / `fact_register`。
 - 用户显式加白（「AI 预审工具」）可以把整个工具抬到 AI，黑名单（「不交给 AI 的工具」）可以把它压回人工——两者都优先于动作档。
 - 测试夹具把现有 **28 个动作组合**逐个钉死（`plugin_manager` 8 / `memory` 6 / `dtodo` 5 / `skill_manage` 4 / `update_goal` 5）；新增动作必须先过它。
+- **D 粗筛（新增一层）**：只对"工具档与动词表都没裁决"的工具生效——参数里出现能执行的键（`command`/`cmd`/`script`/`code`）或能外发的键（`url`/`target`/`channels`/`recipient`）→ 直接人工，不送 AI、**不进记忆**、文件开关也绕不过去；台账写 `aiSkip = coarse-key:<键>`。键匹配会看到顶层 + 一层数组内的对象（`files:[{path,content}]` 也算）。已知工具不受影响（否则 `edit` 一身的 `content` 会被误伤）。
+
 
 ## 1.1.19 — 文件行到达阈值就说「已满」；详情里的「风险」对齐
 

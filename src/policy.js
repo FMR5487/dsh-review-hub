@@ -163,6 +163,68 @@ export function hardRisk(toolName, argsText) {
 	return undefined;
 }
 
+/**
+ * The D layer: a *deterministic* look at the arguments of a tool nobody has classified.
+ *
+ * L0 reads the command text; this reads the argument *shape*. An unknown tool carrying an
+ * execution key (`command`/`code`/`script`) or an outbound key (`url`/`target`/`channels`)
+ * is handed to a human before memory, the file switch or the reviewer can see it — a shape
+ * we cannot judge must not be learned into an auto-pass. No model call, no counters.
+ */
+const EXEC_KEYS = ['command', 'cmd', 'script', 'code'];
+const SEND_KEYS = ['url', 'target', 'channels', 'recipient'];
+
+/** Lower-cased argument keys, top level and one level in (so `files:[{path,content}]` counts). */
+export function keysOf(argsText) {
+	const text = typeof argsText === 'string' ? argsText : '';
+	if (text.trim().charAt(0) !== '{') return [];
+	try {
+		const parsed = JSON.parse(text);
+		if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+		const keys = [];
+		const walk = (value) => {
+			if (Array.isArray(value)) {
+				for (const item of value) walk(item);
+				return;
+			}
+			if (value === null || typeof value !== 'object') return;
+			for (const [key, inner] of Object.entries(value)) {
+				keys.push(key.toLowerCase());
+				walk(inner);
+			}
+		};
+		walk(parsed);
+		return keys;
+	} catch {
+		return [];
+	}
+}
+
+/** The coarse rule a call trips, or undefined. Only meaningful for unjudged tools. */
+export function coarseKeyOf(argsText) {
+	const keys = keysOf(argsText);
+	for (const key of keys) if (EXEC_KEYS.includes(key)) return { kind: 'exec', key, rule: key };
+	for (const key of keys) if (SEND_KEYS.includes(key)) return { kind: 'send', key, rule: key };
+	return undefined;
+}
+
+/**
+ * Is this tool one that no layer could judge? D runs *only* here: a tool with an explicit
+ * tier, a mixed action table or a local-ledger family has already been decided, and letting
+ * D judge it too would drag e.g. `edit` (which always carries `content`) down to a human.
+ */
+export function isUnjudgedTool(toolName, policy) {
+	const name = String(toolName ?? '');
+	const lower = name.toLowerCase();
+	const table = policy ?? DEFAULT_TOOLS_POLICY;
+	if ((table?.overrides ?? {})[name] !== undefined) return false;
+	if (Array.isArray(table?.raised) && table.raised.includes(name)) return false;
+	if (Array.isArray(table?.denied) && table.denied.includes(name)) return false;
+	if (MIXED_TOOLS[lower] !== undefined) return false;
+	if (isLocalLedger(lower)) return false;
+	return true;
+}
+
 /** Does this text name a credential file? Path-shaped only — used by snapshot redaction. */
 export function isSecretLike(text) {
 	const value = typeof text === 'string' ? text : '';
@@ -390,6 +452,12 @@ export function classify(toolName, argsText, options = {}) {
 	if (hit !== undefined) {
 		// Hard risk wins outright: no AI, no memory, no counting.
 		return { tier: 'human', hardRisk: hit, riskLevel: 'high' };
+	}
+	// D layer: an unjudged tool whose arguments could execute or send something never
+	// reaches memory, the file switch or the reviewer.
+	if (isUnjudgedTool(toolName, options.toolsPolicy)) {
+		const coarse = coarseKeyOf(argsText);
+		if (coarse !== undefined) return { tier: 'human', coarse, riskLevel: 'unknown' };
 	}
 	// The per-agent ceiling is applied by the caller (agentPolicy.clampByAgent) so
 	// this stays a pure function of the tool and its arguments.
