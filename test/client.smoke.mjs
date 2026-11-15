@@ -301,6 +301,20 @@ export const cases = [
 			assertEqual(plainText.parts.unit, 'memory.progressUnit');
 			const memoryChip = bag.chipOf({ decidedBy: 'memory', outcome: 'allowed-once' }, (k) => k);
 			assertEqual(memoryChip.text, 'chip.memory');
+			// 文件行：达到阈值就算「已满」（那一刻起单文件开关能自动放行）；非文件行仍显示 n/N
+			const savedFiles = bag.store.files;
+			const savedCfg = bag.store.config;
+			bag.store.config = null;
+			bag.store.files = [{ path: 'D:/x/a.md', count: 3 }];
+			const fileFull = bag.memoryText({ id: 'f1', ts: 10, filePath: 'D:/x/a.md', memoryCount: 3, decidedBy: 'human' }, (k) => k);
+			assertEqual(fileFull.long, 'memory.full · memory.canArm', '文件行 3/3 直接说已满');
+			bag.store.files = [{ path: 'D:/x/a.md', count: 2 }];
+			const fileTwo = bag.memoryText({ id: 'f2', ts: 11, filePath: 'D:/x/a.md', memoryCount: 2, decidedBy: 'human' }, (k) => k);
+			assertEqual(fileTwo.parts.frac, '2/3', '没满的文件行仍给分数');
+			const nonFile = bag.memoryText({ memoryCount: 3, decidedBy: 'human' }, (k) => k);
+			assertEqual(nonFile.parts.frac, '3/3', '非文件行到达阈值仍显示 n/N');
+			bag.store.files = savedFiles;
+			bag.store.config = savedCfg;
 			assertEqual(memoryChip.merged, undefined, '徽章不再自带合并段');
 			const escalatedChip = bag.chipOf({ decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', fpMode: 'normalized', droppedKeys: ['limit'], memoryCount: 3 }, (k) => k);
 			assertEqual(escalatedChip.pre, 'chip.aiRejected');

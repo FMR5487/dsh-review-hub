@@ -1110,9 +1110,11 @@ window.__ModuleLoader__.load({
       if (file !== null) {
         const running = fileRunningCount(entry, file.path);
         const count = running === null ? file.count : running;
-        // "已满" means *past* the threshold: the row that reaches it still shows n/N,
-        // which is what that approval actually completed.
-        if (count > threshold) {
+        // A file tool is the one case where "reached the threshold" *is* the actionable
+        // fact: from here on the per-file switch can auto-pass this file, so the row says
+        // 已满 instead of a fraction nobody needs. Non-file rows keep n/N (see below):
+        // there, reaching the threshold already means the call was auto-passed.
+        if (count >= threshold) {
           const full = merged ? t('memory.fullMerged') : t('memory.full');
           return { long: full + ' · ' + t('memory.canArm'), short: full + ' · ' + t('memory.canArmShort') };
         }
@@ -2365,8 +2367,10 @@ window.__ModuleLoader__.load({
       // The reviewer's reason is its own paragraph: a hairline separates "what the caller
       // said" from "why the reviewer stopped it", so neither can be mistaken for the other.
       '.ah-row-reason-ai{margin-top:5px;padding-top:5px;border-top:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.22))}',
-      '.ah-row-reason-head{display:flex;align-items:center;gap:6px}',
-      '.ah-risk{font-size:10.5px;line-height:15px;white-space:nowrap}',
+      '.ah-row-reason-head{display:flex;align-items:baseline;gap:6px}',
+      // Baseline-aligned with the label and inheriting its size: the smaller font sat
+      // its glyphs a pixel off the label it belongs to.
+      '.ah-risk{font-size:inherit;line-height:inherit;white-space:nowrap}',
       '.ah-risk-high{color:var(--dsw-alias-state-error-primary,#d93a3a)}',
       '.ah-risk-medium{color:var(--ah-human-fg,#f7ad31)}',
       '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
