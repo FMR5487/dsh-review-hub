@@ -505,7 +505,12 @@ export const cases = [
 			assertTrue(src.includes('ah-fake-float'), '悬浮卡必须挂在假页内部');
 			assertTrue(src.includes('ah-fake-panel'), '缺少假宿主审批面板');
 			assertTrue(src.includes('PREVIEW_WIDTHS'), '缺少宽度三档');
+			assertTrue(src.includes('PREVIEW_STATES'), '预览状态必须按座位分组');
+			assertTrue(src.includes('buildFloatCard(t, previewFloatRow'), '悬浮卡预览必须用真实构建函数');
+			assertTrue(src.includes('ah-float-preview'), '假页里的悬浮卡需要自己的定位覆盖');
 			assertTrue(src.includes('tryFloat(') === false, '不该再往真实页面弹卡');
+			assertTrue(src.includes('previewSamples') === false, '按颜色分的样张表应已删除');
+			assertTrue(src.includes('PREVIEW_KINDS') === false, '旧的六色状态表应已删除');
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));

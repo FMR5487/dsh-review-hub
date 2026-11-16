@@ -289,6 +289,14 @@ window.__ModuleLoader__.load({
       'model.refresh': '刷新模型目录',
       'model.skipped': '{n} 个 provider 没返回目录（缺凭据或超时），已跳过',
       'preview.widthLabel': '宽度',
+      'preview.stateDockReviewing': '提示卡 · 审阅中',
+      'preview.stateDockAi': '提示卡 · AI 通过',
+      'preview.stateDockMemory': '提示卡 · 记忆通过',
+      'preview.stateFloatReviewing': '悬浮卡 · 交权后仍在审',
+      'preview.stateFloatAdvice': '悬浮卡 · AI 建议',
+      'preview.stateFloatDanger': '悬浮卡 · 高危',
+      'preview.stateFloatTimeout': '悬浮卡 · 超时',
+      'preview.floatReason': '预览：一条样例命令的理由',
       'preview.widthNarrow': '窄',
       'preview.widthMid': '中',
       'preview.widthWide': '宽',
@@ -616,6 +624,14 @@ window.__ModuleLoader__.load({
       'model.refresh': 'Refresh the provider list',
       'model.skipped': '{n} providers returned no list (missing credentials or a timeout), skipped',
       'preview.widthLabel': 'Width',
+      'preview.stateDockReviewing': 'Dock · reviewing',
+      'preview.stateDockAi': 'Dock · AI passed',
+      'preview.stateDockMemory': 'Dock · memory passed',
+      'preview.stateFloatReviewing': 'Float · reviewing after hand-over',
+      'preview.stateFloatAdvice': 'Float · AI advice',
+      'preview.stateFloatDanger': 'Float · high risk',
+      'preview.stateFloatTimeout': 'Float · timed out',
+      'preview.floatReason': 'Preview: the reason for a sample command',
       'preview.widthNarrow': 'narrow',
       'preview.widthMid': 'mid',
       'preview.widthWide': 'wide',
@@ -2489,7 +2505,16 @@ window.__ModuleLoader__.load({
       '.ah-fake-wide{max-width:100%}',
       '.ah-fake-msg{align-self:flex-start;max-width:80%;padding:4px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:16px}',
       '.ah-fake-msg-ai{align-self:flex-end}',
-      '.ah-fake-float{position:absolute;left:10px;right:10px;top:46px;z-index:3;pointer-events:none}',
+      '.ah-fake-tool{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;color:var(--dsw-alias-label-secondary);max-width:90%}',
+      '.ah-fake-tool-name{flex:none;color:var(--dsw-alias-label-primary)}',
+      '.ah-fake-tool-args{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.ah-fake-float{position:absolute;left:10px;right:10px;top:78px;z-index:3}',
+      // The preview builds the real floating card and reparents it: take it out of the fixed
+      // viewport layer so it participates in the fake page's stacking context.
+      '.ah-fake-float .ah-float{position:absolute;left:0;right:0;top:0;width:100%;transform:none}',
+      '.ah-float-preview .ah-float-close{display:none}',
+      '.ah-fake-dock{display:flex;flex-direction:column;gap:4px}',
+      '.ah-fake-dock .ah-card{max-width:100%}',
       '.ah-fake-float .ah-card{box-shadow:0 6px 18px rgba(0,0,0,.28)}',
       '.ah-fake-panel{margin-top:64px;padding:6px 8px;border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;gap:4px}',
       '.ah-fake-panel-btns{display:flex;gap:6px;flex-wrap:wrap}',
@@ -3954,186 +3979,164 @@ window.__ModuleLoader__.load({
     });
 
 
-    const PREVIEW_KINDS = ['ai', 'memory', 'reviewing', 'timeout', 'danger', 'other'];
-    // Width tiers the fake conversation page can be shown at: the card wraps differently
-    // in each, which is the whole point of previewing it here.
     const PREVIEW_WIDTHS = [
       { id: 'narrow', label: 'preview.widthNarrow' },
       { id: 'mid', label: 'preview.widthMid' },
       { id: 'wide', label: 'preview.widthWide' },
     ];
-    const PREVIEW_LABELS = {
-      ai: 'chip.ai',
-      memory: 'chip.memory',
-      pending: 'preview.kindPending',
-      reviewing: 'preview.kindReviewing',
-      timeout: 'preview.kindTimeout',
-      danger: 'preview.kindDanger',
-      other: 'dock.otherChip',
-    };
-    // Which switch owns each sample, so the preview answers "why did I not see this".
-    const PREVIEW_OWNERS = {
-      ai: 'setting.aiAdviceCard',
-      memory: 'setting.memory',
-      pending: 'setting.pendingCard',
-      reviewing: 'setting.pendingCard',
-      timeout: 'setting.dangerCard',
-      danger: 'setting.dangerCard',
-      other: 'setting.hint',
-    };
 
-    /** The five sample cards, written as data now that the popup window is gone. */
-    function previewSamples(t) {
-      return {
-        ai: { kind: 'ai', chip: t('chip.ai'), main: 'pwsh · Get-ChildItem -Name C:/Users/x', sub: '11-06 10:22:01 · 2958ms', ringMs: 30000, ringSpentMs: 6000 },
-        memory: {
-          kind: 'memory',
-          chip: t('chip.memory'),
-          main: 'pwsh · echo probe',
-          sub: '11-06 10:23:11 · 0ms',
-          ringMs: 8000,
-          ringSpentMs: 2000,
-        },
-        // Nothing decided yet: this is the card you see while the request is still open.
-        pending: {
-          kind: 'pending',
-          chip: '',
-          main: 'edit · C:/Users/x/cordis.patch.yml',
-          sub: t('dock.pendingLine', { time: '11-06 10:24:02' }),
-        },
-        // Still being reviewed: the only card on screen while the reviewer is thinking.
-        reviewing: {
-          kind: 'pending',
-          chip: '',
-          main: 'pwsh · Remove-Item -Recurse -Force D:/tmp',
-          sub: t('dock.pendingReviewing', { sec: 7, spin: '│' }),
-          spin: true,
-        },
-        // Reviewed, but no verdict came back: red edge, no spinner, no pretending.
-        timeout: { kind: 'pending', danger: true, chip: t('row.highRisk'), main: 'pwsh · New-Item C:/Users/x/probe.txt', sub: t('dock.pendingFailed') },
-        danger: { kind: 'pending', danger: true, chip: t('row.highRisk'), main: 'pwsh · Remove-Item -Recurse -Force D:/tmp', sub: '未进 AI 审查：命中 L0 删除类' },
-        other: { kind: 'other', chip: t('dock.otherChip'), main: '审批中心 (1)', sub: '等待审批 1 · AI通过 0 · 记忆通过 1' },
-      };
-    }
-
-    /** A live row's card tone follows the same decision chip the dock prints. */
-    function previewLook(tone) {
-      if (tone === 'learn') return { kind: 'memory', danger: false };
-      if (tone === 'ok') return { kind: 'ai', danger: false };
-      return { kind: 'pending', danger: tone === 'danger' };
-    }
 
     /**
      * Card preview inside the settings card: one sample per kind plus this session's
      * own rows, rendered by the same cardNode the dock uses — a tone or a chip can be
      * checked without opening a second window.
      */
+    /**
+     * The seat each preview state belongs to. Two groups, not six colours: before the host
+     * panel appears the card lives above the composer, once it appears the same row moves to
+     * the floating card. A preview that mixes the two teaches the wrong thing.
+     */
+    const PREVIEW_STATES = [
+      { id: 'dock-reviewing', seat: 'dock', label: 'preview.stateDockReviewing' },
+      { id: 'dock-ai', seat: 'dock', label: 'preview.stateDockAi' },
+      { id: 'dock-memory', seat: 'dock', label: 'preview.stateDockMemory' },
+      { id: 'float-reviewing', seat: 'float', label: 'preview.stateFloatReviewing' },
+      { id: 'float-advice', seat: 'float', label: 'preview.stateFloatAdvice' },
+      { id: 'float-danger', seat: 'float', label: 'preview.stateFloatDanger' },
+      { id: 'float-timeout', seat: 'float', label: 'preview.stateFloatTimeout' },
+    ];
+
+    /** A synthetic pending row for one floating-card state; same shape the server sends. */
+    function previewFloatRow(id, t) {
+      const base = {
+        id: 'preview-' + id,
+        toolName: 'pwsh',
+        argsSummary: 'bash -lc "npm run build --dry-run"',
+        reason: t('preview.floatReason'),
+        aiReviewed: true,
+        startedAt: Date.now() - 7000,
+      };
+      if (id === 'float-reviewing') return Object.assign({}, base, { aiReviewed: false, aiReason: '' });
+      if (id === 'float-timeout') return Object.assign({}, base, { aiSource: 'timeout', aiReason: '' });
+      if (id === 'float-danger') {
+        return Object.assign({}, base, {
+          argsSummary: 'bash -lc "rm -rf D:/tmp/build"',
+          riskLevel: 'high',
+          riskRule: 'delete',
+          aiSkip: 'hard-risk:delete',
+          aiReason: '',
+        });
+      }
+      return Object.assign({}, base, { aiSource: 'ai', aiRisk: 'high', aiReason: t('preview.floatAdvice') });
+    }
+
+    /**
+     * Card preview: a fake conversation page with the real cards in it.
+     *
+     * The floating card is built by buildFloatCard — the very function the live page uses —
+     * and appended into the page like the overlay does, only with position:absolute so it
+     * participates in the fake page's stacking context. That is what makes the preview answer
+     * the only question it exists for: what can cover this card, and what can it cover.
+     */
     function CardPreview(props) {
       const t = translator(props);
-      const view = useStore();
-      const state = React.useState(PREVIEW_KINDS[0]);
-      const kind = state[0];
-      const setKind = state[1];
-      const samples = previewSamples(t);
-      const sample = samples[kind] === undefined ? samples.ai : samples[kind];
-      const buttons = PREVIEW_KINDS.map(function (id) {
-        return h('button', {
-          type: 'button',
-          key: id,
-          className: id === kind ? 'ah-btn ah-btn-active' : 'ah-btn',
-          onClick: function () { setKind(id); },
-        }, t(PREVIEW_LABELS[id]) === undefined ? t('preview.kindPending') : t(PREVIEW_LABELS[id]),
-        // Name the switch that owns this sample: "I never see this card" is almost always
-        // a switch that is off, and the preview is where that gets answered.
-        h('span', { key: 'owner', className: 'ah-hint' }, t('preview.owner', { name: t(PREVIEW_OWNERS[id] || 'setting.pendingCard') })));
-      });
+      const state = React.useState(PREVIEW_STATES[0].id);
+      const id = state[0];
+      const setId = state[1];
       const widthState = React.useState('mid');
       const width = widthState[0];
       const setWidth = widthState[1];
-      const entries = (Array.isArray(view.entries) ? view.entries : []).slice(-6);
-      const pending = Array.isArray(view.pending) ? view.pending : [];
-      const liveCards = entries.map(function (entry) {
-        const chip = chipOf(entry, t);
-        const look = previewLook(chip.tone);
+      const floatBoxRef = React.useRef(null);
+      const current = PREVIEW_STATES.find(function (item) { return item.id === id; }) || PREVIEW_STATES[0];
+
+      React.useEffect(function () {
+        const box = floatBoxRef.current;
+        if (box === null || box === undefined || typeof document === 'undefined') return undefined;
+        const node = buildFloatCard(t, previewFloatRow(current.id, t));
+        node.classList.add('ah-float-preview');
+        box.appendChild(node);
+        return function () {
+          if (node.parentNode === box) box.removeChild(node);
+        };
+      }, [current.id]);
+
+      const dockCard = (function () {
+        if (current.seat !== 'dock') return null;
+        if (current.id === 'dock-reviewing') {
+          return cardNode({
+            key: 'dock-sample',
+            kind: 'pending',
+            spin: true,
+            chip: '',
+            main: 'pwsh · npm run build --dry-run',
+            sub: t('dock.pendingReviewing', { sec: 3, spin: '' }),
+          });
+        }
+        if (current.id === 'dock-memory') {
+          return cardNode({
+            key: 'dock-sample',
+            kind: 'memory',
+            chip: t('chip.memory'),
+            main: 'pwsh · echo probe',
+            sub: t('preview.fakeHintSub'),
+            ringMs: 8000,
+            ringSpentMs: 2500,
+          });
+        }
         return cardNode({
-          key: 'live-' + String(entry.id),
-          kind: look.kind,
-          danger: look.danger,
-          chip: chip.text,
-          main: headlineOf(t, entry),
-          sub: stampOf(entry.ts),
+          key: 'dock-sample',
+          kind: 'ai',
+          chip: t('chip.ai'),
+          main: 'pwsh · Get-ChildItem -Name C:/Users/x',
+          sub: t('preview.fakeHintSub'),
+          ringMs: 30000,
+          ringSpentMs: 9000,
         });
+      })();
+      const seatButtons = PREVIEW_STATES.map(function (item) {
+        return h('button', {
+          type: 'button',
+          key: item.id,
+          className: item.id === current.id ? 'ah-btn ah-btn-active' : 'ah-btn',
+          onClick: function () { setId(item.id); },
+        }, t(item.label));
       });
-      const pendingCards = pending.map(function (row) {
-        const high = row.riskLevel === 'high';
-        const reason = typeof row.aiReason === 'string' && row.aiReason !== '' ? row.aiReason : '';
-        return cardNode({
-          key: 'preview-' + String(row.id),
-          kind: 'pending',
-          danger: high,
-          chip: high ? t('row.highRisk') : t('chip.human'),
-          main: String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160),
-          sub: reason !== '' ? reason : t('dock.pendingLine', { time: stampOf(row.startedAt) }),
-        });
+      const widthButtons = PREVIEW_WIDTHS.map(function (item) {
+        return h('button', {
+          type: 'button',
+          key: item.id,
+          className: width === item.id ? 'ah-btn ah-btn-active' : 'ah-btn',
+          onClick: function () { setWidth(item.id); },
+        }, t(item.label));
       });
-      // The sample card once had a button that popped the real overlay onto the live page.
-      // That only ever proved it could appear; here it is drawn at real size inside a fake
-      // conversation, absolutely positioned, so what it can *cover* — and what can cover it —
-      // is visible in one glance.
-      const fakeCard = cardNode({
-        key: 'fake-float',
-        kind: sample.kind,
-        danger: sample.danger === true,
-        chip: sample.chip,
-        main: sample.main,
-        sub: sample.sub,
-        ringMs: sample.ringMs,
-        ringSpentMs: sample.ringSpentMs,
-      });
-      const fakeHint = cardNode({
-        key: 'fake-hint',
-        kind: 'memory',
-        chip: t('chip.memory'),
-        main: 'pwsh · echo probe',
-        sub: t('preview.fakeHintSub'),
-      });
+      const showPanel = current.seat === 'float';
       return h('div', { className: 'ah-preview' }, [
-        h('div', { className: 'ah-preview-btns', key: 'btns' }, buttons),
+        h('div', { className: 'ah-preview-btns', key: 'btns' }, seatButtons),
         h('div', { className: 'ah-preview-widths', key: 'widths' }, [
           h('span', { className: 'ah-hint', key: 'label' }, t('preview.widthLabel')),
-          ...PREVIEW_WIDTHS.map(function (item) {
-            return h('button', {
-              type: 'button',
-              key: item.id,
-              className: width === item.id ? 'ah-btn ah-btn-active' : 'ah-btn',
-              onClick: function () { setWidth(item.id); },
-            }, t(item.label));
-          }),
+          ...widthButtons,
         ]),
         h('div', { className: 'ah-fake-chat ah-fake-' + width, key: 'fake' }, [
           h('div', { className: 'ah-fake-msg', key: 'u' }, t('preview.fakeUser')),
           h('div', { className: 'ah-fake-msg ah-fake-msg-ai', key: 'a' }, t('preview.fakeAi')),
-          h('div', { className: 'ah-fake-float', key: 'float' }, fakeCard),
-          h('div', { className: 'ah-fake-panel', key: 'panel' }, [
-            h('span', { className: 'ah-hint', key: 'label' }, t('preview.fakePanel')),
-            h('div', { className: 'ah-fake-panel-btns', key: 'btns' }, [
-              h('span', { className: 'ah-fake-btn', key: 'once' }, t('preview.fakeAllow')),
-              h('span', { className: 'ah-fake-btn', key: 'always' }, t('preview.fakeAllowAlways')),
-              h('span', { className: 'ah-fake-btn ah-fake-btn-deny', key: 'deny' }, t('preview.fakeDeny')),
-            ]),
+          h('div', { className: 'ah-fake-tool', key: 'tool' }, [
+            h('span', { className: 'ah-fake-tool-name', key: 'n' }, 'pwsh'),
+            h('span', { className: 'ah-fake-tool-args', key: 'c' }, 'npm run build --dry-run'),
           ]),
-          h('div', { className: 'ah-fake-hint', key: 'hint' }, fakeHint),
+          current.seat === 'float' ? h('div', { className: 'ah-fake-float', key: 'float', ref: floatBoxRef }) : null,
+          current.seat === 'dock' ? h('div', { className: 'ah-fake-dock', key: 'dock' }, dockCard) : null,
+          showPanel
+            ? h('div', { className: 'ah-fake-panel', key: 'panel' }, [
+              h('span', { className: 'ah-hint', key: 'label' }, t('preview.fakePanel')),
+              h('div', { className: 'ah-fake-panel-btns', key: 'btns' }, [
+                h('span', { className: 'ah-fake-btn', key: 'once' }, t('preview.fakeAllow')),
+                h('span', { className: 'ah-fake-btn', key: 'always' }, t('preview.fakeAllowAlways')),
+                h('span', { className: 'ah-fake-btn ah-fake-btn-deny', key: 'deny' }, t('preview.fakeDeny')),
+              ]),
+            ])
+            : null,
           h('div', { className: 'ah-fake-input', key: 'input' }, t('preview.fakeInput')),
         ]),
-        h('div', { className: 'ah-hint', key: 'sample-hint' }, t('preview.sampleHint')),
-        h('div', { className: 'ah-hint', key: 'recent-title' }, t('preview.recent')),
-        liveCards.length === 0
-          ? h('div', { className: 'ah-hint', key: 'recent-empty' }, t('empty.session'))
-          : liveCards,
-        h('div', { className: 'ah-hint', key: 'pending-title' }, t('preview.pending')),
-        pendingCards.length === 0
-          ? h('div', { className: 'ah-hint', key: 'pending-empty' }, t('preview.noPending'))
-          : pendingCards,
       ]);
     }
     // ─── 05 · 组件 · ConfigCard：插件页「高级设置」卡 ────────────
