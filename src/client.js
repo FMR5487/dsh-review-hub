@@ -2477,13 +2477,14 @@ window.__ModuleLoader__.load({
       '.ah-card-main{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       // Advice card only: the command reads as a quote, the reason below as the commentary.
       '.ah-float-quoted{border-left:1px solid var(--dsw-alias-border-l2);padding-left:8px}',
-      '.ah-float-quoted+.ah-float-reason{padding-left:9px}',
+      // The reason gets the same hairline: one quote block, two lines of it.
+      '.ah-float-reason{border-left:1px solid var(--dsw-alias-border-l2);padding-left:8px}',
       '.ah-card-sub{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.ah-float-close{flex:none;font-size:14px}',
       '.ah-float .ah-card-body{flex:1 1 auto;min-width:0}',
       '.ah-float-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}',
 
-      '.ah-float-reason{min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary)}',
+      '.ah-float-reason{min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary);border-left:1px solid var(--dsw-alias-border-l2);padding-left:8px}',
       '.ah-tag{flex:none;font-size:10px;line-height:16px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
       '.ah-tag-suggest{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
       '.ah-tag-risk-high{background:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 16%, transparent);color:var(--dsw-alias-state-error-primary,#d93a3a)}',
