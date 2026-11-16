@@ -466,7 +466,7 @@ async function answerer(request, next) {
 			// compound into a rule nobody ever agreed to.
 			// B layer: an unknown tool becomes "known" the first time a human approves it, so the
 			// *next* call may go to the reviewer. One approval is the human's own answer to "may the
-			// AI look at this tool?" — per tool, never per operation. A row the coarse-key layer
+			// AI look at this tool?" — per tool, never per operation. A row the L1 coarse layer
 			// (D) blocked is excluded: letting that approval unlock AI would defeat D entirely.
 			if (decidedBy === 'human' && outcome === 'allowed-once' && store !== undefined && coarse === undefined
 				&& isUnjudgedTool(toolName, toolsPolicyOf(settings))) {
