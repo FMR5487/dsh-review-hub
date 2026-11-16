@@ -508,6 +508,11 @@ export const cases = [
 			assertTrue(src.includes('PREVIEW_STATES'), '预览状态必须按座位分组');
 			assertTrue(src.includes('buildFloatCard(t, previewFloatRow'), '悬浮卡预览必须用真实构建函数');
 			assertTrue(src.includes('ah-float-preview'), '假页里的悬浮卡需要自己的定位覆盖');
+			// 悬浮卡与提示卡同形：胶囊 + 风险色，不再有自造的表头样式
+			assertTrue(src.includes('ah-tag-suggest'), 'AI 建议人工要套胶囊');
+			assertTrue(src.includes("ah-tag ah-tag-risk-' + riskText"), '风险等级要按等级换色');
+			assertTrue(src.includes('ah-float-head') === false, '悬浮卡不该再有自造表头');
+			assertTrue(src.includes('row.aiSuggest'), '缺少 AI 建议人工的文案键');
 			assertTrue(src.includes('tryFloat(') === false, '不该再往真实页面弹卡');
 			assertTrue(src.includes('previewSamples') === false, '按颜色分的样张表应已删除');
 			assertTrue(src.includes('PREVIEW_KINDS') === false, '旧的六色状态表应已删除');

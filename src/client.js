@@ -208,6 +208,7 @@ window.__ModuleLoader__.load({
       'risk.unknown': '未知',
       'row.copy': '复制命令',
       'row.aiMs': 'AI {t}',
+      'row.aiSuggest': 'AI 建议人工',
       'row.aiAdd': '将该工具加入 AI 预审',
       'row.aiOn': '已加入 AI 预审，点击移出',
       'row.aiNeed': '未知工具 · 再通过 {n} 次可开 AI 预审',
@@ -543,6 +544,7 @@ window.__ModuleLoader__.load({
       'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
       'row.aiMs': 'AI {t}',
+      'row.aiSuggest': 'AI suggests a human',
       'row.aiAdd': 'Send this tool to the AI reviewer',
       'row.aiOn': 'Listed for AI review — click to remove',
       'row.aiNeed': 'Unknown tool · {n} more approvals to enable AI review',
@@ -1891,53 +1893,74 @@ window.__ModuleLoader__.load({
       const reviewing = row.aiReviewed !== true;
       const reviewedNow = reviewing === false && typeof row.aiSource === 'string' && row.aiSource !== '';
       const failed = reviewedNow === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
-      const dangerous = row.riskLevel === 'high' || failed === true;
+      const hardRisk = row.riskLevel === 'high';
+      const dangerous = hardRisk === true || failed === true;
+      const advice = reviewing === false && failed === false && typeof row.aiReason === 'string' && row.aiReason !== '';
       const node = document.createElement('div');
-      node.className = 'ah-float ah-card-pending' + (dangerous ? ' ah-card-danger ah-float-danger' : '');
-      const head = document.createElement('div');
-      head.className = 'ah-float-head';
-      const chip = document.createElement('span');
-      chip.className = 'ah-card-chip ' + (dangerous ? 'ah-card-chip-danger' : 'ah-card-chip-pending');
-      chip.textContent = failed === true ? t('row.aiNoVerdict') : (dangerous === true ? t('row.highRisk') : t('dock.pending'));
+      // Same shape as the dock card — [spinner][chip][body][close] in one row — because the two
+      // seats show the same row at two moments; they must not look like two products.
+      node.className = 'ah-float ah-card-pending' + (dangerous === true ? ' ah-card-danger' : '');
+      if (reviewing === true) node.appendChild(spinnerNode());
+      // The chip is the only thing allowed on the left: 高危 / AI 未给出结论. A plain waiting row
+      // carries none — "等待人工审批" as a chip repeated what the open panel already says.
+      const chipText = hardRisk === true ? t('row.highRisk') : (failed === true ? t('row.aiNoVerdict') : '');
+      if (chipText !== '') {
+        const chip = document.createElement('span');
+        chip.className = 'ah-card-chip ' + (dangerous === true ? 'ah-card-chip-danger' : 'ah-card-chip-pending');
+        chip.textContent = chipText;
+        node.appendChild(chip);
+      }
+      const body = document.createElement('div');
+      body.className = 'ah-card-body';
+      const main = document.createElement('span');
+      main.className = 'ah-card-main';
+      main.textContent = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160);
+      const sub = document.createElement('span');
+      sub.className = 'ah-card-sub';
+      const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
+      if (reviewing === true) {
+        sub.textContent = t('dock.pendingReviewing', { sec: waited, spin: '' });
+      } else if (failed === true) {
+        sub.textContent = t('dock.pendingFailed');
+      } else if (advice === true) {
+        // Verdict and risk as capsules, the reason as plain text underneath: the level is then
+        // the only thing that changes colour, and the sentence stays readable.
+        sub.className = 'ah-card-sub ah-float-advice';
+        const suggest = document.createElement('span');
+        suggest.className = 'ah-tag ah-tag-suggest';
+        suggest.textContent = t('row.aiSuggest');
+        const riskText = String(row.aiRisk || 'unknown');
+        const risk = document.createElement('span');
+        risk.className = 'ah-tag ah-tag-risk-' + riskText;
+        risk.textContent = t('row.risk') + ' ' + riskLabel(riskText, t);
+        const reason = document.createElement('span');
+        reason.className = 'ah-float-reason';
+        reason.textContent = String(row.aiReason);
+        sub.appendChild(suggest);
+        sub.appendChild(risk);
+        sub.appendChild(reason);
+      } else if (dangerous === true) {
+        sub.textContent = t('dock.pendingDanger', { rule: String(row.riskRule || t('row.highRisk')) });
+      } else {
+        sub.textContent = t('dock.pendingLine', { time: stampOf(row.startedAt) });
+      }
+      body.appendChild(main);
+      body.appendChild(sub);
+      node.appendChild(body);
       const close = document.createElement('button');
       close.type = 'button';
       close.className = 'ah-icon-btn ah-float-close';
       close.title = t('dock.dismiss');
+      close.setAttribute('aria-label', t('dock.dismiss'));
       close.textContent = '×';
       close.addEventListener('click', function () {
         adviceOverlay.dismissed.add(String(row.id));
         removeAdviceOverlay();
         notify();
       });
-      head.appendChild(chip);
-      head.appendChild(close);
-      const main = document.createElement('div');
-      main.className = 'ah-float-main';
-      main.textContent = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160);
-      const sub = document.createElement('div');
-      sub.className = 'ah-float-sub';
-      const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
-      sub.textContent = reviewing === true
-        ? t('dock.pendingReviewing', { sec: waited, spin: '' })
-        : (failed === true
-          ? t('dock.pendingFailed')
-          : (typeof row.aiReason === 'string' && row.aiReason !== ''
-            ? t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason })
-            : (dangerous
-              ? t('dock.pendingDanger', { rule: String(row.riskRule || t('row.highRisk')) })
-              : t('dock.pendingLine', { time: stampOf(row.startedAt) }))));
-      node.appendChild(head);
-      node.appendChild(main);
-      if (reviewing === true) {
-        // Same ring as the dock card, drawn rather than typed: the two seats show the same
-        // object going through the same state, so they must not animate differently.
-        sub.classList.add('ah-float-sub-spin');
-        sub.appendChild(spinnerNode());
-      }
-      node.appendChild(sub);
+      node.appendChild(close);
       return node;
     }
-
     /** One rotating ring, built with createElementNS so both seats can use it. */
     function spinnerNode() {
       const ns = 'http://www.w3.org/2000/svg';
@@ -2428,10 +2451,19 @@ window.__ModuleLoader__.load({
       // A real ring: an SVG stroke keeps its width and its roundness at any box, while a
       // rotating CSS border turns into an uneven, easily-squashed arc.
       '.ah-spin{display:block;flex:none;align-self:center;transform-origin:50% 50%;animation:ah-spin 900ms linear infinite}',
-      '.ah-float-sub-spin{display:flex;align-items:center;gap:6px}',
       '.ah-card-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}',
       '.ah-card-main{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.ah-card-sub{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.ah-float-close{flex:none;font-size:14px}',
+      '.ah-float .ah-card-body{flex:1 1 auto;min-width:0}',
+      '.ah-float-advice{display:flex;align-items:center;gap:6px;flex-wrap:wrap;white-space:normal;overflow:visible}',
+      '.ah-float-reason{flex:1 1 100%;min-width:0;overflow-wrap:anywhere;color:var(--dsw-alias-label-primary)}',
+      '.ah-tag{flex:none;font-size:10px;line-height:16px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
+      '.ah-tag-suggest{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
+      '.ah-tag-risk-high{background:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 16%, transparent);color:var(--dsw-alias-state-error-primary,#d93a3a)}',
+      '.ah-tag-risk-medium{background:color-mix(in srgb, var(--ah-human-fg,#d9a521) 18%, transparent);color:var(--ah-human-fg,#d9a521)}',
+      '.ah-tag-risk-low{background:color-mix(in srgb, var(--ah-ai-fg,#2fa84f) 18%, transparent);color:var(--ah-ai-fg,#2fa84f)}',
+      '.ah-tag-risk-unknown{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-icon-btn{position:relative;flex:none;line-height:0;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#9aa0a6);cursor:pointer;opacity:.78;transition:opacity 120ms ease,background 120ms ease}',
       '.ah-icon-btn svg{display:block;margin:auto}',
       '.ah-icon-btn:hover{opacity:1;background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.16));color:var(--dsw-alias-label-primary)}',
@@ -2467,14 +2499,9 @@ window.__ModuleLoader__.load({
       '.ah-switch-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform 140ms ease}',
       '.ah-switch-on .ah-switch-knob{transform:translateX(14px)}',
       // Body-level, so no host surface can cover it.
-      '.ah-float{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:min(calc(var(--dsh-chat-content-width,920px) + (var(--dsh-composer-side-clearance,16px) + 16px) * 2),calc(100vw - 36px));display:flex;flex-direction:column;gap:4px;padding:8px calc(var(--dsh-composer-side-clearance,16px) + 16px);border-radius:10px;border:1px solid color-mix(in srgb, var(--ah-human-fg,#d9a521) 60%, transparent);background:var(--dsw-alias-bg-layer-1,#17181a);box-shadow:0 8px 24px rgba(0,0,0,.32);font-size:12px;line-height:17px;color:var(--dsw-alias-label-primary)}',
-      '.ah-float.ah-float-danger{border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 70%, transparent)}',
-      '.ah-float-head{display:flex;align-items:center;gap:8px}',
-      '.ah-float-close{margin-left:auto;font-size:14px}',
-      '.ah-float-main{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;color:var(--dsw-alias-label-secondary,#b6bcc4)}',
+      '.ah-float{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:min(calc(var(--dsh-chat-content-width,920px) + (var(--dsh-composer-side-clearance,16px) + 16px) * 2),calc(100vw - 36px));display:flex;flex-direction:row;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb, var(--ah-human-fg,#d9a521) 60%, transparent);background:var(--dsw-alias-bg-layer-1,#17181a);box-shadow:0 8px 24px rgba(0,0,0,.32);font-size:12px;line-height:17px;color:var(--dsw-alias-label-primary)}',
       // Body colour, not the AI green: on the floating card the advice is the text, and
       // `--dsw-alias-label-primary` is what flips with the theme (white ⇄ ink).
-      '.ah-float-sub{overflow-wrap:anywhere;color:var(--dsw-alias-label-primary,#ffffff)}',
       '.ah-divider{display:flex;align-items:center;gap:8px;padding:6px 12px;color:var(--dsw-alias-label-tertiary,#9aa0a6);font-size:11px}',
       '.ah-divider::before,.ah-divider::after{content:"";flex:1 1 auto;height:1px;background:var(--dsw-alias-border-l2)}',
       '.ah-divider-text{flex:none}',
