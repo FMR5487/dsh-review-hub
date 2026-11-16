@@ -1760,7 +1760,27 @@ window.__ModuleLoader__.load({
         // A decision chip only makes sense once there *is* a decision: the pending
         // card is rendered before one exists, so it shows the risk (if any) and no verdict.
         props.chip === '' || props.chip === undefined ? null : h('span', { className: cardChipClass(props.kind, props.danger) }, props.chip),
-        props.spin === true ? h('span', { className: 'ah-spin', key: 'spin', 'aria-hidden': 'true' }) : null,
+        props.spin === true
+          ? h('svg', {
+            className: 'ah-spin',
+            key: 'spin',
+            viewBox: '0 0 20 20',
+            width: 13,
+            height: 13,
+            'aria-hidden': 'true',
+            focusable: 'false',
+          }, h('circle', {
+            cx: 10,
+            cy: 10,
+            r: 7,
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: 2.2,
+            strokeLinecap: 'round',
+            // A three-quarter ring: the gap is what reads as "moving", the rest as "a circle".
+            strokeDasharray: '33 11',
+          }))
+          : null,
         h('span', { className: 'ah-card-body' },
           h('span', { className: 'ah-card-main' }, props.main),
           h('span', { className: 'ah-card-sub' }, props.sub)
@@ -1784,7 +1804,9 @@ window.__ModuleLoader__.load({
     // While the reviewer is still thinking, the card has nothing to report but must not look
     // frozen: a 500ms tick cycles the spinner glyph. The timer is owned here and cleared the
     // moment no pending row is being reviewed, so a re-mount cannot leak it.
-    const reviewSpin = { frame: 0, timer: null, glyphs: ['│', '/', '─', '\\'] };
+    // The tick no longer changes a glyph — the ring is drawn and animates in CSS — but the
+    // re-render it forces is what keeps "已 N 秒" counting up while the reviewer thinks.
+    const reviewSpin = { frame: 0, timer: null };
 
     function removeAdviceOverlay() {
       if (adviceOverlay.node !== null && adviceOverlay.node.parentNode !== null) {
@@ -1896,7 +1918,7 @@ window.__ModuleLoader__.load({
       sub.className = 'ah-float-sub';
       const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
       sub.textContent = reviewing === true
-        ? t('dock.pendingReviewing', { sec: waited, spin: reviewSpin.glyphs[reviewSpin.frame % reviewSpin.glyphs.length] })
+        ? t('dock.pendingReviewing', { sec: waited, spin: '' })
         : (failed === true
           ? t('dock.pendingFailed')
           : (typeof row.aiReason === 'string' && row.aiReason !== ''
@@ -1906,8 +1928,31 @@ window.__ModuleLoader__.load({
               : t('dock.pendingLine', { time: stampOf(row.startedAt) }))));
       node.appendChild(head);
       node.appendChild(main);
+      if (reviewing === true) {
+        // Same ring as the dock card, drawn rather than typed: the two seats show the same
+        // object going through the same state, so they must not animate differently.
+        sub.classList.add('ah-float-sub-spin');
+        sub.appendChild(spinnerNode());
+      }
       node.appendChild(sub);
       return node;
+    }
+
+    /** One rotating ring, built with createElementNS so both seats can use it. */
+    function spinnerNode() {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', 'ah-spin');
+      svg.setAttribute('viewBox', '0 0 20 20');
+      svg.setAttribute('width', '13');
+      svg.setAttribute('height', '13');
+      svg.setAttribute('aria-hidden', 'true');
+      const circle = document.createElementNS(ns, 'circle');
+      for (const [name, value] of [['cx', '10'], ['cy', '10'], ['r', '7'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '2.2'], ['stroke-linecap', 'round'], ['stroke-dasharray', '33 11']]) {
+        circle.setAttribute(name, value);
+      }
+      svg.appendChild(circle);
+      return svg;
     }
 
     /**
@@ -2380,7 +2425,10 @@ window.__ModuleLoader__.load({
       '@keyframes ah-ring-drain{from{stroke-dashoffset:0}to{stroke-dashoffset:31.416}}',
       '@keyframes ah-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}',
       // A drawn spinner: smooth, and the same size at every frame (cycling glyphs jumped).
-      '.ah-spin{display:inline-block;width:10px;height:10px;flex:none;border-radius:50%;border:1.5px solid currentColor;border-top-color:transparent;animation:ah-spin 900ms linear infinite}',
+      // A real ring: an SVG stroke keeps its width and its roundness at any box, while a
+      // rotating CSS border turns into an uneven, easily-squashed arc.
+      '.ah-spin{display:block;flex:none;align-self:center;transform-origin:50% 50%;animation:ah-spin 900ms linear infinite}',
+      '.ah-float-sub-spin{display:flex;align-items:center;gap:6px}',
       '.ah-card-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}',
       '.ah-card-main{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.ah-card-sub{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
