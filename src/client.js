@@ -1744,6 +1744,7 @@ window.__ModuleLoader__.load({
         // A decision chip only makes sense once there *is* a decision: the pending
         // card is rendered before one exists, so it shows the risk (if any) and no verdict.
         props.chip === '' || props.chip === undefined ? null : h('span', { className: cardChipClass(props.kind, props.danger) }, props.chip),
+        props.spin === true ? h('span', { className: 'ah-spin', key: 'spin', 'aria-hidden': 'true' }) : null,
         h('span', { className: 'ah-card-body' },
           h('span', { className: 'ah-card-main' }, props.main),
           h('span', { className: 'ah-card-sub' }, props.sub)
@@ -1893,6 +1894,28 @@ window.__ModuleLoader__.load({
       return node;
     }
 
+    /**
+     * Which pending row owns the floating card.
+     *
+     * One rule: the human options are on screen (`humanAsked`) and the row is still open.
+     * Before that the dock carries the same row, so the two seats never show it at once.
+     * A designed skip stays off the card — it is an audit fact — except L0 hard risk, whose
+     * entire purpose is that a human reads it before deciding.
+     */
+    function floatCandidateOf(rows, session, dismissedSet) {
+      return (Array.isArray(rows) ? rows : []).find(function (item) {
+        if (item === null || typeof item !== 'object') return false;
+        if (typeof item.sessionId === 'string' && item.sessionId !== '' && item.sessionId !== session) return false;
+        if (typeof item.decidedBy === 'string' && item.decidedBy !== '') return false;
+        if (typeof item.outcome === 'string' && item.outcome !== '') return false;
+        if (dismissedSet !== undefined && dismissedSet.has(String(item.id)) === true) return false;
+        if (item.humanAsked !== true) return false;
+        const skipped = typeof item.aiSkip === 'string' && item.aiSkip !== '';
+        if (skipped === true && item.riskLevel !== 'high') return false;
+        return true;
+      });
+    }
+
     function syncAdviceOverlay(t, anchor) {
       if (typeof document === 'undefined' || document.body === null || document.body === undefined) return;
       // Keep the last real measurement: the settings page has no dock of its own, and the
@@ -1900,28 +1923,7 @@ window.__ModuleLoader__.load({
       if (anchor !== null && anchor !== undefined) adviceOverlay.anchor = anchor;
       const placed = anchor === null || anchor === undefined ? adviceOverlay.anchor : anchor;
       const session = store.sessionId;
-      const row = (Array.isArray(store.pending) ? store.pending : []).find(function (item) {
-        if (item === null || item === undefined) return false;
-        if (typeof item.sessionId === 'string' && item.sessionId !== '' && item.sessionId !== session) return false;
-        // A designed skip is an audit fact for the detail page, never a card.
-        if (typeof item.aiSkip === 'string' && item.aiSkip !== '') return false;
-        // Already decided (the human used the native panel, not our card): retire it here
-        // too, or the card lingers for as long as the server takes to drop the row.
-        if (typeof item.decidedBy === 'string' && item.decidedBy !== '') return false;
-        if (typeof item.outcome === 'string' && item.outcome !== '') return false;
-        if (adviceOverlay.dismissed.has(String(item.id)) === true) return false;
-        // Still with the reviewer: this is the "it is thinking, you may decide anyway" card.
-        // It only shows once the human has been asked; before that the dock seat carries it.
-        if (item.aiReviewed !== true) return item.humanAsked === true;
-        // Reviewed but no verdict (timeout / failure): this is the card that must say so.
-        // Without this branch the row matched neither "high risk" nor "has a reason", so the
-        // warning vanished at exactly the moment it became true.
-        if (typeof item.aiSource === 'string' && item.aiSource !== '' && (typeof item.aiReason !== 'string' || item.aiReason === '')) return true;
-        // A hard-risk request never reaches the reviewer, so it has no advice — but it is
-        // still a decision only a human can make, which is exactly what this card is for.
-        if (item.riskLevel === 'high') return true;
-        return typeof item.aiReason === 'string' && item.aiReason !== '';
-      });
+      const row = floatCandidateOf(store.pending, session, adviceOverlay.dismissed);
       const wanted = row !== undefined && settings().composerHint !== false
         && settings().pendingCard === true && store.pageVisible !== true;
       if (wanted === false) {
@@ -2360,6 +2362,9 @@ window.__ModuleLoader__.load({
       '.ah-ring-track{fill:none;stroke:currentColor;stroke-width:1.5;opacity:.3}',
       '.ah-ring-arc{fill:none;stroke:currentColor;stroke-width:3.5;stroke-dasharray:31.416;transform:rotate(-90deg);transform-origin:8px 8px;animation-name:ah-ring-drain;animation-timing-function:linear;animation-fill-mode:forwards}',
       '@keyframes ah-ring-drain{from{stroke-dashoffset:0}to{stroke-dashoffset:31.416}}',
+      '@keyframes ah-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}',
+      // A drawn spinner: smooth, and the same size at every frame (cycling glyphs jumped).
+      '.ah-spin{display:inline-block;width:10px;height:10px;flex:none;border-radius:50%;border:1.5px solid currentColor;border-top-color:transparent;animation:ah-spin 900ms linear infinite}',
       '.ah-card-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}',
       '.ah-card-main{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.ah-card-sub{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
@@ -2967,62 +2972,33 @@ window.__ModuleLoader__.load({
         clearInterval(reviewSpin.timer);
         reviewSpin.timer = null;
       }
-      // The reviewer's card must survive the panel being open: while the native panel is on
-      // screen the dock row below is the part that gets covered, so the floating card is the
-      // only place this signal can live. Advice/high-risk cards still keep the old rule.
-      // Every undecided row is carried by the floating card now, panel open or not: the dock
-      // row below is exactly the surface the native panel covers, so it can never be the place
-      // a warning lives. The dock keeps only finished results.
-      if (view.config !== null && view.config.pendingCard === true && adviceOverlay.node === null) {
+      // Undecided and not handed over yet: the reviewer is still thinking and the human
+      // options are not on screen, so this seat owns the row. The moment it is handed over
+      // (`humanAsked`) the very same row moves to the floating card — one rule, one seat at a
+      // time. That migration is the whole reason the floating card exists; without it the two
+      // card kinds drift into showing the same row in two places.
+      if (view.config !== null && view.config.pendingCard === true) {
         for (const row of view.pending) {
           if (belongsHere(row) === false) continue;
+          if (row.humanAsked === true) continue;
+          if (typeof row.decidedBy === 'string' && row.decidedBy !== '') continue;
+          if (typeof row.outcome === 'string' && row.outcome !== '') continue;
           if (dismissed.has(String(row.id))) continue;
-          if (adviceOverlay.settled.has(String(row.id))) continue;
-          // Every undecided row is drawn here, including the one still being reviewed: the
-          // dock-side rendering never materialised, so gating the reviewing card out of this
-          // overlay left the reviewer's first seconds with no card at all.
-
-          // Three states, not two: the reviewer is still thinking / it answered / it never
-          // answered. The last one must say so plainly instead of spinning forever.
-          const reviewing = row.aiReviewed !== true;
-          // "Never sent to the reviewer" and "sent but no verdict" are different facts. Only a
-          // row that carries an aiSource was actually reviewed; without one there is nothing
-          // to report, so the card stays a plain waiting line instead of claiming a timeout.
-          // A designed skip is not a failure: say why instead of pretending a verdict is
-          // missing.
-          const skipped = typeof row.aiSkip === 'string' && row.aiSkip !== '';
-          const reviewed = reviewing === false && skipped === false && typeof row.aiSource === 'string' && row.aiSource !== '';
-          const failed = reviewed === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
+          if (adviceOverlay.dismissed.has(String(row.id))) continue;
           const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
-          const glyph = reviewSpin.glyphs[reviewSpin.frame % reviewSpin.glyphs.length];
-          // A designed skip is recorded in the approval page, not shouted on screen: the
-          // human is already being asked, and a card saying "nothing happened" is noise.
-          if (skipped === true) continue;
-          const advice = skipped === true
-            ? t('dock.pendingSkipped', { why: String(row.aiSkip || '') })
-            : (reviewing === true
-            ? t('dock.pendingReviewing', { sec: waited, spin: glyph })
-            : (failed === true
-              ? t('dock.pendingFailed')
-              : t('dock.pendingAi', { risk: String(row.aiRisk || 'unknown'), reason: row.aiReason })));
-          // A failed review is as serious as a hard risk: both get the red card.
-          const dangerous = row.riskLevel === 'high' || failed === true;
-          // Two independent switches: the advice card and the high-risk card can each be
-          // silenced without turning off the plain "waiting for you" line.
-          const hasAdvice = typeof row.aiReason === 'string' && row.aiReason !== '';
-          if (hasAdvice === true && view.config.aiAdviceCard === false) continue;
-          if (hasAdvice === false && dangerous === true && view.config.dangerCard === false) continue;
+          const stillReviewing = row.aiReviewed !== true;
           cards.push(cardNode({
-            key: 'p-' + row.id,
+            key: 'w-' + row.id,
             kind: 'pending',
-            danger: dangerous,
-            // "Hard risk" and "no verdict" are different stories; the chip must not claim the
-            // first when the card is telling the second.
-            chip: failed === true ? t('row.aiNoVerdict') : (dangerous === true ? t('row.highRisk') : ''),
+            // A real spinner, not a cycling glyph: this card can sit here for the whole
+            // humanFirstMs window, and text that jitters every 500ms reads as a glitch.
+            spin: stillReviewing,
+            chip: '',
             main: String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160),
-            sub: advice,
+            sub: stillReviewing
+              ? t('dock.pendingReviewing', { sec: waited, spin: '' })
+              : t('dock.pendingLine', { time: stampOf(row.startedAt) }),
             extra: [iconButton('close', t('dock.dismiss'), function () {
-              adviceOverlay.settled.add(String(row.id));
               dismissed.add(String(row.id));
               store.pending = store.pending.filter(function (item) { return item.id !== row.id; });
               notify();
@@ -3030,7 +3006,6 @@ window.__ModuleLoader__.load({
           }));
         }
       }
-
       for (const hint of view.hints) {
         const entry = hint.entry;
         if (belongsHere(entry) === false) continue;
@@ -5301,6 +5276,7 @@ window.__ModuleLoader__.load({
         valueOf: valueOf,
         copyTextOf: copyTextOf,
         aiPickerOf: aiPickerOf,
+        floatCandidateOf: floatCandidateOf,
         formatMs: formatMs,
         store: store,
         isMerged: isMerged,

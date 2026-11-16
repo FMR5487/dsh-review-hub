@@ -331,6 +331,23 @@ export const cases = [
 			bag.store.config = { aiTools: ['weird_tool'], threshold: 3 };
 			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool', unknownTool: true }).state, 'on', '已在名单里点亮');
 			assertEqual(bag.aiPickerOf({ toolName: 'weird_tool' }), null, '已知工具不出图标');
+			// 卡片座位：未交权留在提示卡（渲染层管），交权后才归浮层
+			const none = new Set();
+			const seatRows = [
+				{ id: 'a', aiReviewed: false, humanAsked: false },
+				{ id: 'b', aiReviewed: false, humanAsked: true },
+				{ id: 'c', humanAsked: true, riskLevel: 'high', aiSkip: 'hard-risk:delete' },
+				{ id: 'd', humanAsked: true, aiSkip: 'coarse-key:command' },
+				{ id: 'e', humanAsked: true, decidedBy: 'human' },
+			];
+			assertEqual(bag.floatCandidateOf([seatRows[0]], '', none), undefined, '没交权就先留在提示卡');
+			assertEqual(bag.floatCandidateOf(seatRows, '', none).id, 'b', '交权后的未决行归浮层');
+			assertEqual(bag.floatCandidateOf([seatRows[2]], '', none).id, 'c', 'L0 高危必须出卡（以前被 aiSkip 吃掉）');
+			assertEqual(bag.floatCandidateOf([seatRows[3]], '', none), undefined, 'D 粗筛暂时不出卡');
+			assertEqual(bag.floatCandidateOf([seatRows[4]], '', none), undefined, '已决的行没有卡');
+			assertEqual(bag.floatCandidateOf([{ id: 'x', humanAsked: true, sessionId: 'session-b' }], 'session-a', none), undefined, '别的会话不抢这个座位');
+			assertEqual(bag.floatCandidateOf([{ id: 'y', humanAsked: true }], 'session-a', none).id, 'y', '没有 sessionId 的老行算本会话');
+			assertEqual(bag.floatCandidateOf([{ id: 'x', humanAsked: true }], '', new Set(['x'])), undefined, '关掉的卡不再回来');
 			// AI 返回时间的显示口径：短用 ms，长用 s
 			assertEqual(bag.formatMs(840), '840ms');
 			assertEqual(bag.formatMs(1200), '1.2s');

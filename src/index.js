@@ -386,6 +386,7 @@ async function answerer(request, next) {
 					// when both are ready at the same instant, which this race gives them anyway.
 					row.humanAsked = true;
 					activeStore?.announce?.({ kind: 'pending' });
+					row.humanAsked = true;
 					const humanPromise = next();
 					const second = await Promise.race([
 						review.then(function (value) { return { kind: 'ai', value: value }; }),
@@ -446,6 +447,9 @@ async function answerer(request, next) {
 				counters.ai += 1;
 			} else {
 				// Handover already asked the human: reuse that answer instead of asking twice.
+				// The human options are on screen from here on: the panel is opening above the
+				// composer, so the dock's waiting card must hand the row to the floating one.
+				if (humanOutcome === undefined) row.humanAsked = true;
 				const chainOutcome = humanOutcome !== undefined ? humanOutcome : await next();
 				const elapsed = Date.now() - started;
 				outcome = typeof chainOutcome === 'string' ? chainOutcome : 'unavailable';
