@@ -1899,7 +1899,10 @@ window.__ModuleLoader__.load({
       const node = document.createElement('div');
       // Same shape as the dock card — [spinner][chip][body][close] in one row — because the two
       // seats show the same row at two moments; they must not look like two products.
-      node.className = 'ah-float ah-card-pending' + (dangerous === true ? ' ah-card-danger' : '');
+      // `ah-card` is what carries the border, background and typography; the two kind classes only
+      // recolour the border. Without it the shell had no border at all — and before this, its own
+      // rule overrode the danger colour, which is why a high-risk card stayed amber.
+      node.className = 'ah-float ah-card ah-card-pending' + (dangerous === true ? ' ah-card-danger' : '');
       if (reviewing === true) node.appendChild(spinnerNode());
       // The chip is the only thing allowed on the left: 高危 / AI 未给出结论. A plain waiting row
       // carries none — "等待人工审批" as a chip repeated what the open panel already says.
@@ -2499,7 +2502,7 @@ window.__ModuleLoader__.load({
       '.ah-switch-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform 140ms ease}',
       '.ah-switch-on .ah-switch-knob{transform:translateX(14px)}',
       // Body-level, so no host surface can cover it.
-      '.ah-float{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:min(calc(var(--dsh-chat-content-width,920px) + (var(--dsh-composer-side-clearance,16px) + 16px) * 2),calc(100vw - 36px));display:flex;flex-direction:row;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb, var(--ah-human-fg,#d9a521) 60%, transparent);background:var(--dsw-alias-bg-layer-1,#17181a);box-shadow:0 8px 24px rgba(0,0,0,.32);font-size:12px;line-height:17px;color:var(--dsw-alias-label-primary)}',
+      '.ah-float{position:fixed;top:76px;left:50%;transform:translateX(-50%);z-index:2147483000;box-sizing:border-box;width:min(calc(var(--dsh-chat-content-width,920px) + (var(--dsh-composer-side-clearance,16px) + 16px) * 2),calc(100vw - 36px));display:flex;flex-direction:row;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.32)}',
       // Body colour, not the AI green: on the floating card the advice is the text, and
       // `--dsw-alias-label-primary` is what flips with the theme (white ⇄ ink).
       '.ah-divider{display:flex;align-items:center;gap:8px;padding:6px 12px;color:var(--dsw-alias-label-tertiary,#9aa0a6);font-size:11px}',

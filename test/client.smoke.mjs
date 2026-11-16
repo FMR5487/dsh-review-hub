@@ -512,6 +512,11 @@ export const cases = [
 			assertTrue(src.includes('ah-tag-suggest'), 'AI 建议人工要套胶囊');
 			assertTrue(src.includes("ah-tag ah-tag-risk-' + riskText"), '风险等级要按等级换色');
 			assertTrue(src.includes('ah-float-head') === false, '悬浮卡不该再有自造表头');
+			// 悬浮卡的边框/底色必须由 .ah-card* 决定，否则危险色会被外壳规则盖掉
+			assertTrue(src.includes("'ah-float ah-card ah-card-pending'"), '悬浮卡要挂上 .ah-card 才能继承边框与底色');
+			const floatRule = src.slice(src.indexOf("'.ah-float{position:fixed"), src.indexOf("'.ah-float{position:fixed") + 700);
+			assertTrue(floatRule.includes('border:') === false, '外壳不许再自带 border');
+			assertTrue(floatRule.includes('background:') === false, '外壳不许再自带 background');
 			assertTrue(src.includes('row.aiSuggest'), '缺少 AI 建议人工的文案键');
 			assertTrue(src.includes('tryFloat(') === false, '不该再往真实页面弹卡');
 			assertTrue(src.includes('previewSamples') === false, '按颜色分的样张表应已删除');
