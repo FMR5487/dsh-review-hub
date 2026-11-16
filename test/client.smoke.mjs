@@ -514,6 +514,7 @@ export const cases = [
 			assertTrue(src.includes('ah-float-advice') === false, '旧的同排胶囊样式应已删除');
 			assertTrue(src.includes('row.aiTimeout'), '超时要用自己的胶囊文案');
 			assertTrue(src.includes('dock.pendingTimeout'), '超时要用自己的正文文案');
+			assertTrue(src.includes('ah-float-quoted'), '建议卡的命令要有弱化的引用线');
 			assertTrue(src.includes('row.aiError'), '其它失败要用「AI 错误」胶囊');
 			assertTrue(src.includes('entry.aiError'), '失败信息要进搜索语料');
 			assertTrue(src.includes("ah-tag ah-tag-risk-' + riskText"), '风险等级要按等级换色');

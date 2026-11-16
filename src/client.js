@@ -1943,6 +1943,9 @@ window.__ModuleLoader__.load({
         const reason = document.createElement('span');
         reason.className = 'ah-float-reason';
         reason.textContent = String(row.aiReason);
+        // The command is quoted material, the reason is the commentary: a hairline on the left
+        // and a small inset do that without a background block or a leading glyph.
+        main.classList.add('ah-float-quoted');
         body.appendChild(tags);
         body.appendChild(main);
         body.appendChild(reason);
@@ -2472,6 +2475,9 @@ window.__ModuleLoader__.load({
       '.ah-spin{display:block;flex:none;align-self:center;transform-origin:50% 50%;animation:ah-spin 900ms linear infinite}',
       '.ah-card-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}',
       '.ah-card-main{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      // Advice card only: the command reads as a quote, the reason below as the commentary.
+      '.ah-float-quoted{border-left:1px solid var(--dsw-alias-border-l2);padding-left:8px}',
+      '.ah-float-quoted+.ah-float-reason{padding-left:9px}',
       '.ah-card-sub{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.ah-float-close{flex:none;font-size:14px}',
       '.ah-float .ah-card-body{flex:1 1 auto;min-width:0}',
