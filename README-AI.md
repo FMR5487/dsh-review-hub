@@ -14,7 +14,7 @@
 **层序固定，先命中者独占**（`src/index.js` 的 answerer 主体，约 279–350 行）：
 
 ```
-L0 硬风险（classify/hardRisk）→ 记忆（decideMemory）→ 文件级（fileArmed + fileCount）→ AI（maybeReview）→ 人工（await next()）
+L0 硬风险（classify/hardRisk）→ L1 粗筛（coarseKeyOf/isUnjudgedTool）→ 记忆（decideMemory）→ 文件级（fileArmed + fileCount）→ AI（C 准入 + maybeReview）→ 人工（await next()）
 ```
 
 顺序是语义，不是实现细节：**确定性在概率之前**。记忆命中时 `maybeReview` 根本不会被调用，所以「`decidedBy === 'memory'` 且带 `aiSource`」是**不可达组合**——任何基于"AI 打回后再被记忆放行"的推理都是错的。

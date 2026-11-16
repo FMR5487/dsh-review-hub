@@ -1,5 +1,11 @@
 /**
- * L0 hard-risk classes and the L1 per-tool policy table.
+ * The chain this file implements, in the project's own naming:
+ *
+ *   L0 硬风险（本文件 CLASSES 的正则）→ L1 粗筛（coarseKeyOf：未知工具的键名形状）
+ *   → 记忆 → 文件级 → AI（含 C 准入）→ 人工
+ *
+ * L0 与 L1 都是确定性判定；区别是 L0 读命令正文、对任何工具生效，L1 只读参数「键名」、
+ * 只对没有档位的陌生工具生效。
  *
  * The hard-risk classes exist so the AI layer can never be the reason a
  * destructive action runs: a match here is always handed to a human, never

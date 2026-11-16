@@ -297,7 +297,7 @@ async function answerer(request, next) {
 	const fp = fpInfo === undefined ? undefined : (fileMode === true ? fileFingerprintOf(toolName, filePath) : fpInfo.fp);
 	const agentKind = classifyAgent(request?.agent);
 	const { tier: baseTier, hardRisk, coarse } = classify(toolName, argsText, { toolsPolicy: toolsPolicyOf(settings) });
-	// One gate for both deterministic blockers: hard risk (L0) and the coarse-key layer (D).
+	// Two deterministic blockers, two names: L0 hard risk and L1 coarse keys.
 	// Either one means "no AI, no memory, no file switch — a human decides".
 	// `coarse` (the D layer) only blocks the reviewer: it is a shape we cannot judge, not a
 	// proven danger like L0. Memory and the file switch stay gated by `hardRisk` alone, so a
@@ -342,7 +342,7 @@ async function answerer(request, next) {
 	let memoryCount;
 	let aiNote;
 	try {
-		// L2 memory: a repeatable operation the human already approved N times.
+		// 记忆: a repeatable operation the human already approved N times.
 		const hit = hardRisk === undefined ? await decideMemory(store, sessionId, fp, settings) : undefined;
 		const fileHits = fileArmed === false || store === undefined
 			? 0
