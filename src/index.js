@@ -404,6 +404,10 @@ async function answerer(request, next) {
 							row.aiSource = verdict.source;
 							if (verdict.risk !== undefined) row.aiRisk = verdict.risk;
 							if ((verdict.source === 'ai' || verdict.source === 'cache') && typeof verdict.reason === 'string' && verdict.reason !== '') row.aiReason = verdict.reason.slice(0, 160);
+				// A failure carries the message that explains it (timeout / error / unparsed / …).
+				// It goes in its own field: `aiReason` means "the reviewer's advice", and every card
+				// and filter keys off that meaning.
+				if (verdict.source !== 'ai' && verdict.source !== 'cache' && typeof verdict.reason === 'string' && verdict.reason !== '') row.aiError = verdict.reason.slice(0, 200);
 							aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 						}
 						activeStore?.announce?.({ kind: 'pending' });
@@ -438,6 +442,7 @@ async function answerer(request, next) {
 				// verdict" and friends are diagnostics (aiSource says which), not something
 				// a human should read as the AI's opinion.
 				if ((aiNote.source === 'ai' || aiNote.source === 'cache') && typeof aiNote.reason === 'string' && aiNote.reason !== '') row.aiReason = aiNote.reason.slice(0, 160);
+			if (aiNote.source !== 'ai' && aiNote.source !== 'cache' && typeof aiNote.reason === 'string' && aiNote.reason !== '') row.aiError = aiNote.reason.slice(0, 200);
 			}
 			// The card is already on screen: push the advice into it the moment it exists.
 			activeStore?.announce?.({ kind: 'pending' });
@@ -541,7 +546,7 @@ async function answerer(request, next) {
 	// AI facts travel with whatever the row carries at settle time. The aiNote branch below
 	// only fires when the reviewer answered *before* the human; on the handover path it never
 	// does, so keying off aiNote alone silently dropped aiSource from the ledger.
-	for (const key of ['aiSource', 'aiSkip', 'aiReason', 'aiRisk', 'aiLate', 'aiUsage']) {
+	for (const key of ['aiSource', 'aiSkip', 'aiReason', 'aiRisk', 'aiLate', 'aiUsage', 'aiError']) {
 		if (row[key] !== undefined) finished[key] = row[key];
 	}
 	if (aiNote !== undefined) {

@@ -337,6 +337,7 @@ window.__ModuleLoader__.load({
       'dock.pendingFailed': 'AI 没能给出结论 —— 请你判断',
       'dock.pendingTimeout': 'AI 响应超时，未给出结论 —— 请你判断',
       'row.aiTimeout': 'AI 超时',
+      'row.aiError': 'AI 错误',
       'config.promptAppend': '追加提示词（可为空）',
       'config.promptAppendNote': '接在固定提示词后面，只能加偏好、改不掉红线（冲突部分程序会忽略）。默认空',
       'config.reviewerLocale': 'AI 理由语言',
@@ -675,6 +676,7 @@ window.__ModuleLoader__.load({
       'dock.pendingFailed': 'the reviewer gave no verdict — please decide',
       'dock.pendingTimeout': 'the reviewer timed out without a verdict — please decide',
       'row.aiTimeout': 'AI timed out',
+      'row.aiError': 'AI error',
       'config.promptAppend': 'Extra prompt (optional)',
       'config.promptAppendNote': 'Appended after the fixed prompt. The fixed rules are enforced by code; anything here that conflicts is ignored — this adds preference, never removes a red line',
       'config.reviewerLocale': 'Reviewer reason language',
@@ -1911,7 +1913,7 @@ window.__ModuleLoader__.load({
       if (reviewing === true) node.appendChild(spinnerNode());
       const chipText = hardRisk === true
         ? t('row.highRisk')
-        : (timedOut === true ? t('row.aiTimeout') : (failed === true ? t('row.aiNoVerdict') : ''));
+        : (timedOut === true ? t('row.aiTimeout') : (failed === true ? t('row.aiError') : ''));
       if (chipText !== '') {
         const chip = document.createElement('span');
         chip.className = 'ah-card-chip ' + (dangerous === true ? 'ah-card-chip-danger' : 'ah-card-chip-pending');
@@ -1921,7 +1923,9 @@ window.__ModuleLoader__.load({
       const body = document.createElement('div');
       body.className = 'ah-card-body';
       const main = document.createElement('span');
-      main.className = 'ah-card-main';
+      // The chevron marks the command as quoted material, so the reason below reads as the
+      // commentary instead of competing for the same left edge.
+      main.className = 'ah-card-main ah-float-cmd';
       main.textContent = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160);
       const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
       if (advice === true) {
@@ -1952,7 +1956,9 @@ window.__ModuleLoader__.load({
         } else if (timedOut === true) {
           sub.textContent = t('dock.pendingTimeout');
         } else if (failed === true) {
-          sub.textContent = t('dock.pendingFailed');
+          // Say what actually happened: a budget stop, an unparsable reply and a broken stream
+          // are three different things to act on.
+          sub.textContent = typeof row.aiError === 'string' && row.aiError !== '' ? String(row.aiError) : t('dock.pendingFailed');
         } else if (dangerous === true) {
           sub.textContent = t('dock.pendingDanger', { rule: String(row.riskRule || t('row.highRisk')) });
         } else {
@@ -2472,6 +2478,8 @@ window.__ModuleLoader__.load({
       '.ah-float-close{flex:none;font-size:14px}',
       '.ah-float .ah-card-body{flex:1 1 auto;min-width:0}',
       '.ah-float-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}',
+      '.ah-float-cmd{display:flex;align-items:baseline;gap:6px}',
+      '.ah-float-cmd::before{content:"›";flex:none;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-float-reason{min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary)}',
       '.ah-tag{flex:none;font-size:10px;line-height:16px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
       '.ah-tag-suggest{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
@@ -3897,7 +3905,7 @@ window.__ModuleLoader__.load({
         // Both forms of the action, always: the switch decides what is *shown*, never
         // what is searchable — typing `install_bundle` (the name upstream uses) and
         // typing 安装包 must both find the same row, whichever way the switch is set.
-        const haystack = [entry.toolName, chip.text, actionOf(entry), actionLabelOf(entry), commandOf(entry), reasonOf(entry), entry.riskRule].join(' ').toLowerCase();
+        const haystack = [entry.toolName, chip.text, actionOf(entry), actionLabelOf(entry), commandOf(entry), reasonOf(entry), entry.riskRule, entry.aiReason, entry.aiError].join(' ').toLowerCase();
         return haystack.indexOf(needle) >= 0;
       });
 
