@@ -334,7 +334,9 @@ window.__ModuleLoader__.load({
       'preview.pending': '待你审批',
       'preview.noPending': '当前没有待审',
       'dock.pendingReviewing': 'AI 正在审阅… 已 {sec}s  {spin}',
-      'dock.pendingFailed': 'AI 审批超时，未给出结论 —— 请你判断',
+      'dock.pendingFailed': 'AI 没能给出结论 —— 请你判断',
+      'dock.pendingTimeout': 'AI 响应超时，未给出结论 —— 请你判断',
+      'row.aiTimeout': 'AI 超时',
       'config.promptAppend': '追加提示词（可为空）',
       'config.promptAppendNote': '接在固定提示词后面，只能加偏好、改不掉红线（冲突部分程序会忽略）。默认空',
       'config.reviewerLocale': 'AI 理由语言',
@@ -670,7 +672,9 @@ window.__ModuleLoader__.load({
       'preview.pending': 'Waiting for you',
       'preview.noPending': 'Nothing waiting right now',
       'dock.pendingReviewing': 'the reviewer is thinking… {sec}s  {spin}',
-      'dock.pendingFailed': 'the reviewer timed out without a verdict — please decide',
+      'dock.pendingFailed': 'the reviewer gave no verdict — please decide',
+      'dock.pendingTimeout': 'the reviewer timed out without a verdict — please decide',
+      'row.aiTimeout': 'AI timed out',
       'config.promptAppend': 'Extra prompt (optional)',
       'config.promptAppendNote': 'Appended after the fixed prompt. The fixed rules are enforced by code; anything here that conflicts is ignored — this adds preference, never removes a red line',
       'config.reviewerLocale': 'Reviewer reason language',
@@ -1891,22 +1895,23 @@ window.__ModuleLoader__.load({
     }
     function buildFloatCard(t, row) {
       const reviewing = row.aiReviewed !== true;
-      const reviewedNow = reviewing === false && typeof row.aiSource === 'string' && row.aiSource !== '';
+      const source = typeof row.aiSource === 'string' ? row.aiSource : '';
+      const reviewedNow = reviewing === false && source !== '';
       const failed = reviewedNow === true && (typeof row.aiReason !== 'string' || row.aiReason === '');
+      // "No verdict" has four causes; only one of them is a timeout, and saying 超时 for an
+      // unparsable reply would be a lie the human cannot check.
+      const timedOut = failed === true && source === 'timeout';
       const hardRisk = row.riskLevel === 'high';
       const dangerous = hardRisk === true || failed === true;
       const advice = reviewing === false && failed === false && typeof row.aiReason === 'string' && row.aiReason !== '';
       const node = document.createElement('div');
       // Same shape as the dock card — [spinner][chip][body][close] in one row — because the two
       // seats show the same row at two moments; they must not look like two products.
-      // `ah-card` is what carries the border, background and typography; the two kind classes only
-      // recolour the border. Without it the shell had no border at all — and before this, its own
-      // rule overrode the danger colour, which is why a high-risk card stayed amber.
       node.className = 'ah-float ah-card ah-card-pending' + (dangerous === true ? ' ah-card-danger' : '');
       if (reviewing === true) node.appendChild(spinnerNode());
-      // The chip is the only thing allowed on the left: 高危 / AI 未给出结论. A plain waiting row
-      // carries none — "等待人工审批" as a chip repeated what the open panel already says.
-      const chipText = hardRisk === true ? t('row.highRisk') : (failed === true ? t('row.aiNoVerdict') : '');
+      const chipText = hardRisk === true
+        ? t('row.highRisk')
+        : (timedOut === true ? t('row.aiTimeout') : (failed === true ? t('row.aiNoVerdict') : ''));
       if (chipText !== '') {
         const chip = document.createElement('span');
         chip.className = 'ah-card-chip ' + (dangerous === true ? 'ah-card-chip-danger' : 'ah-card-chip-pending');
@@ -1918,17 +1923,12 @@ window.__ModuleLoader__.load({
       const main = document.createElement('span');
       main.className = 'ah-card-main';
       main.textContent = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160);
-      const sub = document.createElement('span');
-      sub.className = 'ah-card-sub';
       const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
-      if (reviewing === true) {
-        sub.textContent = t('dock.pendingReviewing', { sec: waited, spin: '' });
-      } else if (failed === true) {
-        sub.textContent = t('dock.pendingFailed');
-      } else if (advice === true) {
-        // Verdict and risk as capsules, the reason as plain text underneath: the level is then
-        // the only thing that changes colour, and the sentence stays readable.
-        sub.className = 'ah-card-sub ah-float-advice';
+      if (advice === true) {
+        // Verdict and risk ride on top of the body, the reason underneath: the level is what the
+        // eye should catch first, and it now sits where a chip would sit.
+        const tags = document.createElement('div');
+        tags.className = 'ah-float-tags';
         const suggest = document.createElement('span');
         suggest.className = 'ah-tag ah-tag-suggest';
         suggest.textContent = t('row.aiSuggest');
@@ -1936,19 +1936,31 @@ window.__ModuleLoader__.load({
         const risk = document.createElement('span');
         risk.className = 'ah-tag ah-tag-risk-' + riskText;
         risk.textContent = t('row.risk') + ' ' + riskLabel(riskText, t);
+        tags.appendChild(suggest);
+        tags.appendChild(risk);
         const reason = document.createElement('span');
         reason.className = 'ah-float-reason';
         reason.textContent = String(row.aiReason);
-        sub.appendChild(suggest);
-        sub.appendChild(risk);
-        sub.appendChild(reason);
-      } else if (dangerous === true) {
-        sub.textContent = t('dock.pendingDanger', { rule: String(row.riskRule || t('row.highRisk')) });
+        body.appendChild(tags);
+        body.appendChild(main);
+        body.appendChild(reason);
       } else {
-        sub.textContent = t('dock.pendingLine', { time: stampOf(row.startedAt) });
+        const sub = document.createElement('span');
+        sub.className = 'ah-card-sub';
+        if (reviewing === true) {
+          sub.textContent = t('dock.pendingReviewing', { sec: waited, spin: '' });
+        } else if (timedOut === true) {
+          sub.textContent = t('dock.pendingTimeout');
+        } else if (failed === true) {
+          sub.textContent = t('dock.pendingFailed');
+        } else if (dangerous === true) {
+          sub.textContent = t('dock.pendingDanger', { rule: String(row.riskRule || t('row.highRisk')) });
+        } else {
+          sub.textContent = t('dock.pendingLine', { time: stampOf(row.startedAt) });
+        }
+        body.appendChild(main);
+        body.appendChild(sub);
       }
-      body.appendChild(main);
-      body.appendChild(sub);
       node.appendChild(body);
       const close = document.createElement('button');
       close.type = 'button';
@@ -2459,8 +2471,8 @@ window.__ModuleLoader__.load({
       '.ah-card-sub{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.ah-float-close{flex:none;font-size:14px}',
       '.ah-float .ah-card-body{flex:1 1 auto;min-width:0}',
-      '.ah-float-advice{display:flex;align-items:center;gap:6px;flex-wrap:wrap;white-space:normal;overflow:visible}',
-      '.ah-float-reason{flex:1 1 100%;min-width:0;overflow-wrap:anywhere;color:var(--dsw-alias-label-primary)}',
+      '.ah-float-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}',
+      '.ah-float-reason{min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary)}',
       '.ah-tag{flex:none;font-size:10px;line-height:16px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
       '.ah-tag-suggest{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
       '.ah-tag-risk-high{background:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 16%, transparent);color:var(--dsw-alias-state-error-primary,#d93a3a)}',

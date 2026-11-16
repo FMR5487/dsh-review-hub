@@ -510,6 +510,10 @@ export const cases = [
 			assertTrue(src.includes('ah-float-preview'), '假页里的悬浮卡需要自己的定位覆盖');
 			// 悬浮卡与提示卡同形：胶囊 + 风险色，不再有自造的表头样式
 			assertTrue(src.includes('ah-tag-suggest'), 'AI 建议人工要套胶囊');
+			assertTrue(src.includes('ah-float-tags'), '胶囊要单独占一行、放在正文顶上');
+			assertTrue(src.includes('ah-float-advice') === false, '旧的同排胶囊样式应已删除');
+			assertTrue(src.includes('row.aiTimeout'), '超时要用自己的胶囊文案');
+			assertTrue(src.includes('dock.pendingTimeout'), '超时要用自己的正文文案');
 			assertTrue(src.includes("ah-tag ah-tag-risk-' + riskText"), '风险等级要按等级换色');
 			assertTrue(src.includes('ah-float-head') === false, '悬浮卡不该再有自造表头');
 			// 悬浮卡的边框/底色必须由 .ah-card* 决定，否则危险色会被外壳规则盖掉
