@@ -1923,9 +1923,7 @@ window.__ModuleLoader__.load({
       const body = document.createElement('div');
       body.className = 'ah-card-body';
       const main = document.createElement('span');
-      // The chevron marks the command as quoted material, so the reason below reads as the
-      // commentary instead of competing for the same left edge.
-      main.className = 'ah-card-main ah-float-cmd';
+      main.className = 'ah-card-main';
       main.textContent = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 160);
       const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
       if (advice === true) {
@@ -2478,8 +2476,7 @@ window.__ModuleLoader__.load({
       '.ah-float-close{flex:none;font-size:14px}',
       '.ah-float .ah-card-body{flex:1 1 auto;min-width:0}',
       '.ah-float-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}',
-      '.ah-float-cmd{display:flex;align-items:baseline;gap:6px}',
-      '.ah-float-cmd::before{content:"›";flex:none;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+
       '.ah-float-reason{min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary)}',
       '.ah-tag{flex:none;font-size:10px;line-height:16px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
       '.ah-tag-suggest{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
