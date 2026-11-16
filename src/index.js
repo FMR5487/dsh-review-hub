@@ -464,6 +464,17 @@ async function answerer(request, next) {
 			}
 			// Only a human approval teaches memory: AI and memory passes must never
 			// compound into a rule nobody ever agreed to.
+			// B layer: an unknown tool becomes "known" the first time a human approves it, so the
+			// *next* call may go to the reviewer. One approval is the human's own answer to "may the
+			// AI look at this tool?" — per tool, never per operation. A row the coarse-key layer
+			// (D) blocked is excluded: letting that approval unlock AI would defeat D entirely.
+			if (decidedBy === 'human' && outcome === 'allowed-once' && store !== undefined && coarse === undefined
+				&& isUnjudgedTool(toolName, toolsPolicyOf(settings))) {
+				const listed = Array.isArray(settings?.aiTools) ? settings.aiTools : [];
+				if (listed.indexOf(toolName) < 0) {
+					await store.writeSettings({ aiTools: listed.concat([toolName]) }).catch(() => undefined);
+				}
+			}
 			if (decidedBy === 'human' && outcome === 'allowed-once' && hardRisk === undefined && fp !== undefined && settings?.memoryEnabled === true && store !== undefined) {
 				const bumped = await store.memoryBump({
 					sessionId,
