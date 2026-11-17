@@ -22,7 +22,7 @@ import { createStore, fileFingerprintOf, filePathOf, fingerprintOf, splitRoute }
 import { diffStatsFor } from './routes.js';
 import { classify, DEFAULT_TOOLS_POLICY, isUnjudgedTool, toolsPolicyOf } from './policy.js';
 import { classifyAgent, clampByAgent } from './agentPolicy.js';
-import { evidenceFor, eventsOf } from './evidence.js';
+import { argumentKeysOf, evidenceFor, eventsOf, parseEscalation, toolBriefOf } from './evidence.js';
 import { createReviewer } from './review.js';
 import { createSnapshot } from './snapshot.js';
 import { createCatalog } from './catalog.js';
@@ -76,6 +76,37 @@ export function observedReviewRoutes() {
 	return [...observedRoutes];
 }
 
+/**
+ * What each tool *is*, learned from the tool waterfall because the approval request does not
+ * carry it. Keyed by tool name, bounded: the set of tool names is small but a plugin is not
+ * the only source of them, so an unbounded map would be a leak with no upside.
+ */
+const TOOL_BRIEF_MAX = 200;
+const toolBriefs = new Map();
+
+/** Learn (or refresh) one tool's description and top-level parameter names from `exec.tool`. */
+function rememberTool(exec) {
+	try {
+		const tool = exec?.tool;
+		const name = typeof tool?.name === 'string' && tool.name !== '' ? tool.name : '';
+		if (name === '') return;
+		const description = toolBriefOf(tool?.description);
+		const keys = argumentKeysOf(tool?.parameters);
+		if (description === '' && keys === '') return;
+		toolBriefs.delete(name);
+		toolBriefs.set(name, { description, keys });
+		if (toolBriefs.size > TOOL_BRIEF_MAX) toolBriefs.delete(toolBriefs.keys().next().value);
+	} catch {
+		/* a tool without a readable definition simply stays unknown */
+	}
+}
+
+/** '' for a tool we never saw; the reviewer is told nothing rather than told a guess. */
+function toolBriefFor(name) {
+	const brief = toolBriefs.get(name);
+	return brief === undefined ? { description: '', keys: '' } : brief;
+}
+
 function sessionOf(request) {
 	const id = request?.agent?.id;
 	return id === undefined || id === null ? '' : String(id);
@@ -94,7 +125,11 @@ function pendingRow(request, id, started, extra) {
 		toolName: typeof request?.toolName === 'string' ? request.toolName : '',
 	};
 	if (typeof request?.callId === 'string' && request.callId !== '') row.callId = request.callId;
-	if (typeof request?.reason === 'string') row.reason = request.reason.slice(0, 240);
+	// The escalation sentence in front of the arguments and the boilerplate after them say
+	// nothing about this call; the row shows the operation, and the mode gets its own field.
+	if (typeof extra?.operation === 'string' && extra.operation !== '') row.reason = extra.operation.slice(0, 240);
+	else if (typeof request?.reason === 'string') row.reason = request.reason.slice(0, 240);
+	if (typeof extra?.mode === 'string' && extra.mode !== '') row.reqMode = extra.mode;
 	if (extra?.argsSummary !== undefined) row.argsSummary = extra.argsSummary;
 	row.riskLevel = extra?.riskLevel ?? 'unknown';
 	if (extra?.riskRule !== undefined) row.riskRule = extra.riskRule;
@@ -249,8 +284,13 @@ async function maybeReview(input) {
 		// reaches it, which is why the probe reported an empty tier even though the caller
 		// passed one.
 		tier: input.tier,
-		reason: input.request?.reason,
+		// The operation, not the host's escalation sentence around it: the mode is a separate
+		// field below, and the boilerplate that follows the arguments describes the tool.
+		reason: input.reason !== undefined ? input.reason : input.request?.reason,
 		summary: input.evidence?.argsSummary,
+		reqMode: input.reqMode,
+		toolBrief: input.brief?.description,
+		argKeys: input.brief?.keys,
 		priorApprovals: prior,
 		// The verdict cache is shared across sessions on purpose (the same operation
 		// in a new session is still the same operation); memory counts stay
@@ -284,6 +324,9 @@ async function answerer(request, next) {
 	const store = activeStore;
 
 	const evidence = evidenceFor(request, eventsOf(request));
+	// The host states an escalation as one sentence with the arguments glued in; split it so
+	// the row shows the operation and the mode gets a field of its own.
+	const escalation = parseEscalation(request?.reason);
 	const argsText = typeof evidence.argsText === 'string' ? evidence.argsText : '';
 	const fpInfo = argsText === '' || toolName === ''
 		? undefined
@@ -316,6 +359,8 @@ async function answerer(request, next) {
 	}
 
 	const row = pendingRow(request, id, started, {
+		operation: escalation.operation,
+		mode: escalation.mode,
 		argsSummary: evidence.argsSummary,
 		riskLevel: hardRisk === undefined ? 'unknown' : 'high',
 		riskRule: hardRisk === undefined ? undefined : hardRisk.rule,
@@ -367,7 +412,7 @@ async function answerer(request, next) {
 			// handover timer fires and the human answers first while the reviewer keeps running
 			// — in that case its late answer is recorded as evidence and changes nothing.
 			const reviewControl = new AbortController();
-			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, signal: reviewControl.signal });
+			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settings?.aiToolBrief === true ? toolBriefFor(toolName) : undefined, signal: reviewControl.signal });
 			let verdict;
 			let humanOutcome;
 			let handedOver = false;
@@ -546,7 +591,11 @@ async function answerer(request, next) {
 	// The threshold this decision was actually judged against: raising the setting later
 	// must not rewrite what an already-recorded row says about itself.
 	finished.threshold = Math.max(1, Number(settings?.threshold) || 3);
-	if (typeof request?.reason === 'string') finished.reason = request.reason.slice(0, 240);
+	// The operation as the host wrote it, without the escalation prefix or the sentence it
+	// appends to every escalated call: the panel is for this call, not for the tool class.
+	if (escalation.operation !== '') finished.reason = escalation.operation.slice(0, 240);
+	else if (typeof request?.reason === 'string') finished.reason = request.reason.slice(0, 240);
+	if (escalation.mode !== '') finished.reqMode = escalation.mode;
 	if (memoryCount !== undefined) finished.memoryCount = memoryCount;
 	// Visible merge evidence: the panel says "同类合并" only when a knob was cut.
 	if (fpInfo !== undefined && fpInfo.mode === 'normalized') {
@@ -615,6 +664,9 @@ export function apply(ctx, rawConfig = {}) {
 	ctx.effect(() => {
 		const listener = (exec, next) => {
 			try {
+				// The only place the tool's own definition is in hand: the approval request
+				// carries arguments and a reason, never the description.
+				rememberTool(exec);
 				snapshot.capture(exec);
 			} catch {
 				// A capture failure means "no diff for this row", never a blocked tool.

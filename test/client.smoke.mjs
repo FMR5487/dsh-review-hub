@@ -528,10 +528,18 @@ export const cases = [
 			assertTrue(src.includes('tryFloat(') === false, '不该再往真实页面弹卡');
 			assertTrue(src.includes('previewSamples') === false, '按颜色分的样张表应已删除');
 			assertTrue(src.includes('PREVIEW_KINDS') === false, '旧的六色状态表应已删除');
+			// 提权：mode 单列成字段，行上一个胶囊；说明开关落在「提示词」组里与其它提示词旋钮同排
+			assertTrue(src.includes('function modeChip(entry, t)'), 'mode 胶囊要有独立构建函数');
+			assertTrue(src.includes('modeChip(entry, opts.t)'), 'mode 胶囊要在行上渲染');
+			assertTrue(src.includes("'row.modeTitle'"), '胶囊要有说明用的 tooltip 文案');
+			assertTrue(src.includes("'config.toolBrief'"), '设置里要有「把工具说明送给 AI」开关');
+			assertTrue(src.includes("change('aiToolBrief'"), '开关要能写进设置');
+			assertTrue(src.includes('aiToolBrief: true'), '客户端默认值必须与服务端一致（默认开）');
+			assertTrue(src.includes('.ah-mode{'), '胶囊需要自己的样式');
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));
-			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
+			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'aiToolBrief', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
 				assertTrue(defaultsBlock.includes(field + ':'), 'ADVANCED_DEFAULTS 缺 ' + field);
 			}
 		},

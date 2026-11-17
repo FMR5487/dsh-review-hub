@@ -172,3 +172,91 @@ export function evidenceFor(request, events) {
 		return {};
 	}
 }
+/**
+ * The host states a sandbox escalation as one sentence:
+ * `escalate sandbox to <mode>: <tool> <args>. <a sentence true of every call of that tool>`.
+ * Read as a whole it says "this is dangerous" even for a list command, which is how a
+ * read-only `list_plugins` got asked about. So the mode is lifted out and the appended
+ * sentence dropped: the reviewer judges the operation, the permission only floors the risk.
+ */
+const ESCALATE = /^\s*escalate sandbox to ([a-z][a-z0-9-]*)\s*:\s*/i;
+/** Appended by the host to *every* escalated call; it describes the tool, not this call. */
+const BOILERPLATE = [
+	/persists? across sessions/i,
+	/runs? outside the (workspace|sandbox)/i,
+];
+export const MODE_MAX_CHARS = 40;
+export const OPERATION_MAX_CHARS = 200;
+
+/** Index of the brace closing the one opened at `open`, or -1. String-aware. */
+function matchedBrace(text, open) {
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+	for (let index = open; index < text.length; index += 1) {
+		const char = text[index];
+		if (escaped) { escaped = false; continue; }
+		if (char === '\\') { escaped = true; continue; }
+		if (char === '"') { inString = !inString; continue; }
+		if (inString) continue;
+		if (char === '{') depth += 1;
+		else if (char === '}') {
+			depth -= 1;
+			if (depth === 0) return index;
+		}
+	}
+	return -1;
+}
+
+function operationOf(rest) {
+	const open = rest.indexOf('{');
+	if (open >= 0) {
+		const close = matchedBrace(rest, open);
+		if (close > open) return rest.slice(0, close + 1).trim();
+	}
+	// No arguments in the sentence: keep it, minus the sentences the host appends to all of them.
+	const sentences = rest.split(/(?<=[.!?])\s+/);
+	return sentences.filter((sentence) => BOILERPLATE.some((pattern) => pattern.test(sentence)) === false).join(' ').trim();
+}
+
+/**
+ * Split an approval reason into the requested sandbox mode and the operation it is about.
+ * A reason that is not an escalation comes back with an empty mode and is otherwise untouched.
+ * @returns {{ mode: string, operation: string }}
+ */
+export function parseEscalation(reason) {
+	const text = typeof reason === 'string' ? reason : '';
+	const match = ESCALATE.exec(text);
+	if (match === null) return { mode: '', operation: text.trim().slice(0, OPERATION_MAX_CHARS) };
+	return {
+		mode: match[1].toLowerCase().slice(0, MODE_MAX_CHARS),
+		operation: operationOf(text.slice(match[0].length)).slice(0, OPERATION_MAX_CHARS),
+	};
+}
+
+export const BRIEF_MAX_CHARS = 160;
+export const KEY_LIST_MAX_CHARS = 120;
+
+/**
+ * First sentence of a tool description: what the tool does, before the caveats. A tool whose
+ * description we never saw comes back empty, and the reviewer is told nothing extra rather
+ * than told something invented.
+ */
+export function toolBriefOf(description) {
+	const text = typeof description === 'string' ? description.replace(/\s+/g, ' ').trim() : '';
+	if (text === '') return '';
+	const cut = text.search(/[.。!?！？](\s|$)/);
+	const first = cut < 0 ? text : text.slice(0, cut + 1).trim();
+	return first.slice(0, BRIEF_MAX_CHARS);
+}
+
+/** Top-level parameter names of a tool schema, so "which knobs exist" is not a guess. */
+export function argumentKeysOf(parameters) {
+	try {
+		const props = parameters?.properties;
+		if (props === null || typeof props !== 'object' || Array.isArray(props)) return '';
+		return Object.keys(props).filter((key) => key !== '').join(', ').slice(0, KEY_LIST_MAX_CHARS);
+	} catch {
+		return '';
+	}
+}

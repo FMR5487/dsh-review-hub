@@ -78,6 +78,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// precedence note: the built-in red lines are enforced in code, so this can only add
 	// preference, never remove a rule.
 	promptAppend: '',
+	/**
+	 * Send the tool's own description (first sentence) and its top-level parameter names with
+	 * the request. Off means the reviewer judges from the tool name and arguments alone, which
+	 * is all it had before this existed.
+	 */
+	aiToolBrief: true,
 	// Two card switches, default on: users who find the floating card noisy can silence
 	// one without silencing the plain waiting hint.
 	aiAdviceCard: true,
@@ -246,7 +252,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	const langOk = (value) => value === '' || (typeof value === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value));
 	if (langOk(patch.reviewerLocale)) next.reviewerLocale = patch.reviewerLocale;
 	if (langOk(patch.panelLocale)) next.panelLocale = patch.panelLocale;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'aiToolBrief']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {

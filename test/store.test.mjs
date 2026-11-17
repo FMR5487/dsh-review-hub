@@ -1,10 +1,51 @@
 import { assertEqual, assertTrue, freshRoot } from './helpers.mjs';
 import { createStore, clampAiTools, clampSettings, DEFAULT_SETTINGS, filePathOf, fingerprint } from '../src/store.js';
+import { argumentKeysOf, parseEscalation, toolBriefOf } from '../src/evidence.js';
+import { buildMessages } from '../src/review.js';
 import { actionOf, callTierOf, classify, coarseKeyOf, hardRisk, isUnjudgedTool, keysOf, tierOf, toolsPolicyOf, verbClassOf } from '../src/policy.js';
 
 const row = (over) => Object.assign({ id: 'r', ts: 1, sessionId: 's1', toolName: 'ops_bash', outcome: 'allowed-once', decidedBy: 'human', decisionMs: 10 }, over);
 
 export const cases = [
+	{
+		name: '提权语义：mode 单列，样板尾句丢弃，说明只取首句',
+		async fn() {
+			// 台账里真实的一条：整句被人和模型一起读时，样板尾句会把只读操作说成危险。
+			const real = 'escalate sandbox to danger-full-access: plugin_manager {"action":"list_plugins","limit":3}. Profile changes persist across sessions; installed Host code runs outside the workspace sandbox.';
+			const split = parseEscalation(real);
+			assertEqual(split.mode, 'danger-full-access', 'mode 抽出来当字段');
+			assertEqual(split.operation, 'plugin_manager {"action":"list_plugins","limit":3}', '操作只留工具名与参数，尾句丢弃');
+			assertTrue(split.operation.indexOf('persist') < 0, '样板句不进操作');
+			// 没有参数的提权句：保留正文，仍然丢掉宿主追加的那句。
+			const noArgs = parseEscalation('escalate sandbox to workspace-write: write outside the root. Profile changes persist across sessions.');
+			assertEqual(noArgs.mode, 'workspace-write', '权限名照收');
+			assertEqual(noArgs.operation, 'write outside the root.', '只丢样板句');
+			// 不是提权的 reason 原样返回，mode 为空：否则普通理由会被误读出权限。
+			const plain = parseEscalation('why I need this');
+			assertEqual(plain.mode, '', '非提权没有 mode');
+			assertEqual(plain.operation, 'why I need this', '非提权不改文本');
+			assertEqual(parseEscalation(undefined).mode, '', '缺 reason 不抛');
+			assertEqual(toolBriefOf('Executes a command in a fresh shell. Needs approval.'), 'Executes a command in a fresh shell.', '说明只取首句');
+			assertEqual(toolBriefOf('   '), '', '空说明给空串，不编');
+			assertTrue(toolBriefOf('x'.repeat(400)).length <= 160, '首句有长度上限');
+			assertEqual(argumentKeysOf({ properties: { action: {}, limit: {} } }), 'action, limit', '顶层参数名');
+			assertEqual(argumentKeysOf({ properties: null }), '', '没有 schema 就空');
+			assertEqual(argumentKeysOf(undefined), '', '缺参数不抛');
+			// 读者看到的两行：权限与操作分开，说明只在有值时出现。
+			const withAll = buildMessages({ toolName: 'plugin_manager', reqMode: 'danger-full-access', toolBrief: 'Manages plugins.', argKeys: 'action, target', reason: split.operation, summary: '{}', priorApprovals: 0 });
+			const text = withAll.messages[0].content[0].text;
+			assertTrue(text.indexOf('requested permission: danger-full-access') >= 0, '权限单独一行');
+			assertTrue(text.indexOf('tool brief: Manages plugins.') >= 0, '说明单独一行');
+			assertTrue(text.indexOf('argument keys: action, target') >= 0, '参数名单独一行');
+			assertTrue(text.indexOf('escalate sandbox to') < 0, '提示里不再出现宿主原句');
+			const bare = buildMessages({ toolName: 'x', reason: 'r', summary: '{}' }).messages[0].content[0].text;
+			assertTrue(bare.indexOf('requested permission') < 0, '没有 mode 就不写这一行');
+			assertTrue(bare.indexOf('tool brief') < 0, '没有说明就不写这一行');
+			assertEqual(clampSettings({}).aiToolBrief, true, '说明开关默认开');
+			assertEqual(clampSettings({ aiToolBrief: false }).aiToolBrief, false, '能关掉');
+			assertEqual(clampSettings({ aiToolBrief: 'yes' }).aiToolBrief, true, '非布尔值不覆盖');
+		},
+	},
 	{
 		name: 'aiTools：内置基线 + 追加 + 黑名单（记忆档不许被放宽）',
 		async fn() {

@@ -47,6 +47,15 @@ const PROMPT_LINES = [
 	'  touches git history in a recoverable way, or runs a command whose target is unclear.',
 	'- "high": deletes or discards data, touches credentials, executes remote code, changes',
 	'  system settings, or does something batch-wide and irreversible.',
+	// The permission the tool asked for is a fact about the tool, not about this call:
+	// a read-only list at danger-full-access is still a read, and judging the two together
+	// is how a list command ended up being asked about. The mode floors the risk instead.
+	'Sandbox permission:',
+	'- The request may name a "requested permission". That is the sandbox the tool asked for,',
+	'  not evidence that this operation is dangerous.',
+	'- Judge the operation. A read-only or plainly scoped operation stays "allow" even at',
+	'  danger-full-access; raise its risk to at least "medium" instead.',
+	'- A requested permission never by itself justifies "ask".',
 	'Write "reason" in %LANG%.',
 ];
 
@@ -164,15 +173,24 @@ export function parseVerdict(raw, opts = {}) {
 	return undefined;
 }
 
-/** What the reviewer sees. Redacted summary only: never the raw argument blob. */
+/**
+ * What the reviewer sees. Redacted summary only: never the raw argument blob.
+ *
+ * Every added line is a field the reviewer would otherwise have to guess at: the sandbox mode
+ * it asked for, what the tool *is* (first sentence of its description), and which knobs it has.
+ * Each is dropped when unknown — an empty line teaches the model that the value is empty.
+ */
 export function buildMessages(input) {
 	const lines = [
 		'tool: ' + (input.toolName || 'unknown'),
 		'requester: ' + (input.agentKind || 'default'),
-		'reason on the request: ' + String(input.reason ?? '').slice(0, 200),
-		'arguments summary: ' + String(input.summary ?? '').slice(0, 240),
-		'prior human approvals of this same operation in this session: ' + String(input.priorApprovals ?? 0),
 	];
+	if (typeof input.reqMode === 'string' && input.reqMode !== '') lines.push('requested permission: ' + input.reqMode);
+	if (typeof input.toolBrief === 'string' && input.toolBrief !== '') lines.push('tool brief: ' + input.toolBrief);
+	if (typeof input.argKeys === 'string' && input.argKeys !== '') lines.push('argument keys: ' + input.argKeys);
+	lines.push('reason on the request: ' + String(input.reason ?? '').slice(0, 200));
+	lines.push('arguments summary: ' + String(input.summary ?? '').slice(0, 240));
+	lines.push('prior human approvals of this same operation in this session: ' + String(input.priorApprovals ?? 0));
 	if (input.note !== undefined) lines.push('note: ' + String(input.note).slice(0, 200));
 	// Shape matches the host llm seam: system prompt separate, user content as blocks.
 	return {
@@ -453,6 +471,11 @@ function noteShape(kind, keys) {
 			agentKind: String(input.agentKind || ''),
 			// Two spellings: the decision path passes `tier`, older call sites used `tierName`.
 			tier: String(input.tier !== undefined ? input.tier : (input.tierName !== undefined ? input.tierName : '')),
+			// What the new fields actually delivered: 0 chars is the answer to "did the host give
+			// us a description at all", which is otherwise indistinguishable from the switch being off.
+			reqMode: String(input.reqMode || ''),
+			briefChars: String(input.toolBrief || '').length,
+			keyChars: String(input.argKeys || '').length,
 			route: laneOf(input.route),
 			systemChars: String(prompt.system || '').length,
 			userChars: JSON.stringify(prompt.messages || []).length,

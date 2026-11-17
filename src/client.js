@@ -338,6 +338,9 @@ window.__ModuleLoader__.load({
       'dock.pendingTimeout': 'AI 响应超时，未给出结论 —— 请你判断',
       'row.aiTimeout': 'AI 超时',
       'row.aiError': 'AI 错误',
+      'row.modeTitle': '这次调用申请的沙箱：{mode}。判定只看操作，权限只抬风险下限',
+      'config.toolBrief': '把工具说明送给 AI',
+      'config.toolBriefNote': '附上该工具描述的第一句和参数名，陌生工具不必靠猜。默认开',
       'config.promptAppend': '追加提示词（可为空）',
       'config.promptAppendNote': '接在固定提示词后面，只能加偏好、改不掉红线（冲突部分程序会忽略）。默认空',
       'config.reviewerLocale': 'AI 理由语言',
@@ -677,6 +680,9 @@ window.__ModuleLoader__.load({
       'dock.pendingTimeout': 'the reviewer timed out without a verdict — please decide',
       'row.aiTimeout': 'AI timed out',
       'row.aiError': 'AI error',
+      'row.modeTitle': 'This call asked for the {mode} sandbox. Judged on the operation; the permission only floors the risk',
+      'config.toolBrief': 'Send the tool description to the reviewer',
+      'config.toolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess. On by default',
       'config.promptAppend': 'Extra prompt (optional)',
       'config.promptAppendNote': 'Appended after the fixed prompt. The fixed rules are enforced by code; anything here that conflicts is ignored — this adds preference, never removes a red line',
       'config.reviewerLocale': 'Reviewer reason language',
@@ -1505,6 +1511,22 @@ window.__ModuleLoader__.load({
       if (folded !== null) return tool + ' · ' + folded;
       const value = valueOf(entry, t);
       return tool + ' · ' + String(value !== '' ? value : (entry.argsSummary || reasonOf(entry) || '')).slice(0, 160);
+    }
+
+    /**
+     * The sandbox this call asked for, when it asked for a wider one. The escalation sentence
+     * that names it is stripped out of the reason, so without this chip the fact that a read-only
+     * command wanted full access would be invisible.
+     */
+    function modeChip(entry, t) {
+      const mode = typeof entry.reqMode === 'string' ? entry.reqMode.trim() : '';
+      if (mode === '') return null;
+      const short = mode === 'danger-full-access' ? 'full-access' : mode;
+      return h('span', {
+        className: 'ah-mode' + (mode === 'danger-full-access' ? ' ah-mode-wide' : ''),
+        key: 'mode',
+        title: t('row.modeTitle').replace('{mode}', mode),
+      }, short);
     }
 
     /** The "+N −N" chip, or null when the row changes no text. */
@@ -2697,6 +2719,10 @@ window.__ModuleLoader__.load({
       '.ah-mem-group-head:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))}',
       '.ah-delta{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;font-variant-numeric:tabular-nums}',
       '.ah-delta-add{color:var(--dsw-alias-state-success-primary,#2fa84f)}',
+// The sandbox this call asked for. Neutral by default: the mode is a fact about the request,
+// and the decision chip on the line above already carries the risk colour.
+'.ah-mode{flex:0 0 auto;margin-left:6px;padding:0 6px;border-radius:8px;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:10px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.12))}',
+'.ah-mode-wide{color:var(--ah-human-fg,#d9a521);background:color-mix(in srgb, var(--ah-human-fg,#d9a521) 16%, transparent)}',
       '.ah-delta-del{color:var(--dsw-alias-state-error-primary,#d93a3a)}',
       '.ah-mem-progress{flex:0 0 auto;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6);font-variant-numeric:tabular-nums}',
       '.ah-mem-files{display:flex;flex-direction:column;gap:2px;padding-top:8px;margin-top:4px;border-top:1px solid var(--dsw-alias-border-l1,rgba(128,128,128,.14))}',
@@ -3666,7 +3692,8 @@ window.__ModuleLoader__.load({
                   const text = timelineTextOf(opts.t, entry);
                   return text === '' ? '—' : text;
                 })()),
-                deltaChip(rowDelta(entry), 'delta')
+                deltaChip(rowDelta(entry), 'delta'),
+                modeChip(entry, opts.t)
               ),
               // Description, then the change, then the one-click copy of the command.
               h('div', { className: 'ah-row-actions', key: 'actions' },
@@ -4062,6 +4089,7 @@ window.__ModuleLoader__.load({
       aiReasonChars: 80,
       clearEnabled: false,
       promptAppend: '',
+      aiToolBrief: true,
       reviewerLocale: '',
       aiBudgetPerTurn: 20,
       aiBreakerFails: 3,
@@ -4074,7 +4102,7 @@ window.__ModuleLoader__.load({
     });
     const ADVANCED_GROUP_FIELDS = Object.freeze({
       rhythm: ['maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled'],
-      prompt: ['promptAppend', 'reviewerLocale'],
+      prompt: ['promptAppend', 'aiToolBrief', 'reviewerLocale'],
       scope: ['aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny'],
       preview: [],
       debug: ['pollMs', 'snapshotRetentionDays', 'strictVerdict', 'debugHeaders', 'debugReview'],
@@ -4526,6 +4554,18 @@ window.__ModuleLoader__.load({
 
         ...section('prompt', t('config.secPrompt'), [
           blockField('promptAppend', t('config.promptAppend'), t('config.promptAppendNote')),
+        h('div', { className: 'ah-settings-row', key: 'tool-brief' },
+          h('span', { className: 'ah-settings-label' }, t('config.toolBrief'), h('span', { className: 'ah-settings-note' }, t('config.toolBriefNote'))),
+          h('button', {
+            type: 'button',
+            className: 'ah-switch' + (draft.aiToolBrief === true ? ' ah-switch-on' : ''),
+            role: 'switch',
+            'aria-checked': draft.aiToolBrief === true ? 'true' : 'false',
+            title: t('config.toolBrief'),
+            onClick: function () { change('aiToolBrief', draft.aiToolBrief !== true); },
+          }, h('span', { className: 'ah-switch-knob' })),
+          resetButton('aiToolBrief')
+        ),
           h('label', { className: 'ah-settings-row', key: 'reviewer-locale' },
             h('span', { className: 'ah-settings-label' }, t('config.reviewerLocale'), h('span', { className: 'ah-settings-note' }, t('config.reviewerLocaleNote'))),
             h('span', { className: 'ah-field-pair', key: 'pair' },
