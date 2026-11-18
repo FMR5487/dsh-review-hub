@@ -1105,19 +1105,28 @@ window.__ModuleLoader__.load({
       // Two lines: what the state is, then where else this can be changed.
       const label = base + '\n' + t('row.aiHint');
       const cls = 'ah-ai-pick ah-ai-' + picker.state;
+      // Two letters instead of a spark glyph: the button writes the tool into the reviewer's
+      // list, so the word is the honest label — and it stays legible at 10px where a glyph
+      // had to be guessed at.
       if (picker.state === 'dim') {
         return h('button', {
           type: 'button',
-          className: 'ah-icon-btn ' + cls,
+          className: cls,
           title: label,
           'aria-label': base,
           disabled: true,
-        }, icon('ai'));
+        }, 'AI');
       }
       const fire = typeof onPick === 'function'
         ? onPick
         : function () { void toggleAiTool(picker.tool, picker.state === 'on'); };
-      return iconButton('ai', label, fire, cls);
+      return h('button', {
+        type: 'button',
+        className: cls,
+        title: label,
+        'aria-label': base,
+        onClick: fire,
+      }, 'AI');
     }
 
     /** Add or remove one tool from the global AI list; the server clamps and echoes it back. */
@@ -2670,7 +2679,10 @@ window.__ModuleLoader__.load({
       '.ah-preview-ai-item{display:inline-flex;align-items:center;gap:6px}',
       '.ah-preview-ai-note{margin-left:auto}',
       // The "send this tool to the reviewer" control: one glyph, three states.
-      '.ah-ai-pick{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+      // The "AI" control: two letters, three states. Size and padding are fixed so the row's
+      // icon strip does not shift when the state changes.
+      '.ah-ai-pick{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:18px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-tertiary,#9aa0a6);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:10px;font-weight:700;line-height:1;letter-spacing:.3px;cursor:pointer}',
+      '.ah-ai-pick:hover{background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.12))}',
       '.ah-ai-pick.ah-ai-ready,.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
       // Listed vs ready looked identical, and the two actions are opposites: one adds the tool,
       // the other removes it. The listed state now sits on a lit chip.
