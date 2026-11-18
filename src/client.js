@@ -344,6 +344,8 @@ window.__ModuleLoader__.load({
       'row.aiTimeout': 'AI 超时',
       'row.aiError': 'AI 错误',
       'config.toolBrief': '把工具说明送给 AI',
+      'config.contextOn': '上下文增强审批',
+      'config.contextOnNote': '把最近几轮对话带进评审，仅作背景。默认关；关掉时与旧版送的内容逐字一致',
       'config.contextTurns': '带几轮对话进评审',
       'config.contextTurnsNote': '最近 N 轮用户消息 + 每轮一条助手回复，仅作背景。0 = 不送上下文。默认 3，范围 0–10',
       'config.contextTokens': '上下文 token 上限',
@@ -694,6 +696,8 @@ window.__ModuleLoader__.load({
       'row.aiTimeout': 'AI timed out',
       'row.aiError': 'AI error',
       'config.toolBrief': 'Send the tool description to the reviewer',
+      'config.contextOn': 'Context-enhanced review',
+      'config.contextOnNote': 'Sends the last few turns as background. Off by default; while off, the prompt is byte-for-byte what 1.2.x sent',
       'config.contextTurns': 'Conversation turns for the reviewer',
       'config.contextTurnsNote': 'The last N user messages plus one reply each, as background only. 0 disables it. Default 3, range 0-10',
       'config.contextTokens': 'Context token budget',
@@ -4133,7 +4137,8 @@ window.__ModuleLoader__.load({
       clearEnabled: false,
       promptAppend: '',
       aiToolBrief: true,
-      aiContextTurns: 3,
+      aiContextEnabled: false,
+      aiContextTurns: 2,
       aiContextTokens: 1500,
       reviewerLocale: '',
       aiBudgetPerTurn: 20,
@@ -4147,7 +4152,7 @@ window.__ModuleLoader__.load({
     });
     const ADVANCED_GROUP_FIELDS = Object.freeze({
       rhythm: ['maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled'],
-      prompt: ['promptAppend', 'aiToolBrief', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale'],
+      prompt: ['promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale'],
       scope: ['aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny'],
       preview: [],
       debug: ['pollMs', 'snapshotRetentionDays', 'strictVerdict', 'debugHeaders', 'debugReview'],
@@ -4622,8 +4627,22 @@ window.__ModuleLoader__.load({
 
         ...section('prompt', t('config.secPrompt'), [
           blockField('promptAppend', t('config.promptAppend'), t('config.promptAppendNote')),
-        numberField('aiContextTurns', t('config.contextTurns'), t('config.contextTurnsNote')),
-        numberField('aiContextTokens', t('config.contextTokens'), t('config.contextTokensNote')),
+        // One master switch: off restores exactly what 1.2.x sent, and the two knobs below
+        // stop being meaningful, so they are not drawn at all.
+        h('div', { className: 'ah-settings-row', key: 'ctx-on' },
+          h('span', { className: 'ah-settings-label' }, t('config.contextOn'), h('span', { className: 'ah-settings-note' }, t('config.contextOnNote'))),
+          h('button', {
+            type: 'button',
+            className: 'ah-switch' + (draft.aiContextEnabled === true ? ' ah-switch-on' : ''),
+            role: 'switch',
+            'aria-checked': draft.aiContextEnabled === true ? 'true' : 'false',
+            title: t('config.contextOn'),
+            onClick: function () { change('aiContextEnabled', draft.aiContextEnabled !== true); },
+          }, h('span', { className: 'ah-switch-knob' })),
+          resetButton('aiContextEnabled')
+        ),
+        draft.aiContextEnabled === true ? numberField('aiContextTurns', t('config.contextTurns'), t('config.contextTurnsNote')) : null,
+        draft.aiContextEnabled === true ? numberField('aiContextTokens', t('config.contextTokens'), t('config.contextTokensNote')) : null,
         h('div', { className: 'ah-settings-row', key: 'tool-brief' },
           h('span', { className: 'ah-settings-label' }, t('config.toolBrief'), h('span', { className: 'ah-settings-note' }, t('config.toolBriefNote'))),
           h('button', {

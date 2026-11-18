@@ -2,7 +2,7 @@ import { assertEqual, assertTrue, freshRoot } from './helpers.mjs';
 import { createStore, clampAiTools, clampSettings, DEFAULT_SETTINGS, filePathOf, fingerprint } from '../src/store.js';
 import { argumentKeysOf, parseEscalation, toolBriefOf } from '../src/evidence.js';
 import { buildMessages } from '../src/review.js';
-import { contextFor, redactContext } from '../src/context.js';
+import { compactMessage, contextFor, redactContext } from '../src/context.js';
 import { actionOf, callTierOf, classify, coarseKeyOf, hardRisk, isUnjudgedTool, keysOf, tierOf, toolsPolicyOf, verbClassOf } from '../src/policy.js';
 
 const row = (over) => Object.assign({ id: 'r', ts: 1, sessionId: 's1', toolName: 'ops_bash', outcome: 'allowed-once', decidedBy: 'human', decisionMs: 10 }, over);
@@ -50,11 +50,21 @@ export const cases = [
 			assertTrue(withCtx.system.indexOf('Conversation context:') >= 0, '系统提示要声明它只是背景');
 			assertTrue(buildMessages({ toolName: 'pwsh', reason: 'r', summary: '{}' }).messages[0].content[0].text.indexOf('conversation context') < 0, '没有上下文就不写这一段');
 			// 设置：默认值与边界
-			assertEqual(clampSettings({}).aiContextTurns, 3, '默认 3 轮');
+			assertEqual(clampSettings({}).aiContextEnabled, false, '上下文增强默认关');
+			assertEqual(clampSettings({ aiContextEnabled: true }).aiContextEnabled, true, '能打开');
+			assertEqual(clampSettings({ aiContextEnabled: 'yes' }).aiContextEnabled, false, '非布尔值不打开');
+			assertEqual(clampSettings({}).aiContextTurns, 2, '默认 2 轮');
 			assertEqual(clampSettings({}).aiContextTokens, 1500, '默认 1500 token');
 			assertEqual(clampSettings({ aiContextTurns: 0 }).aiContextTurns, 0, '0 是关掉');
 			assertEqual(clampSettings({ aiContextTurns: 99 }).aiContextTurns, 10, '轮数封顶 10');
 			assertEqual(clampSettings({ aiContextTokens: 1 }).aiContextTokens, 200, 'token 下限 200');
+			// 粘贴型消息（日志 / diff / 配置）只留首行 + 行数，这是省 token 的大头
+			const paste = ['第一行：跑一下构建', 'line2', 'line3', 'line4', 'line5'].join('\n');
+			assertEqual(compactMessage(paste, 320), '第一行：跑一下构建 …（5 行）', '多行压成首行 + 行数');
+			assertEqual(compactMessage('短句', 320), '短句', '短消息不动');
+			assertTrue(compactMessage('x'.repeat(400), 320).length <= 321, '超长截断加省略号');
+			const withPaste = contextFor([{ type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: paste }] } }], { turns: 2 });
+			assertTrue(withPaste.text.indexOf('…（5 行）') >= 0, '上下文里也压');
 		},
 	},
 	{

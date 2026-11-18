@@ -420,7 +420,10 @@ async function answerer(request, next) {
 			const reviewControl = new AbortController();
 			// The last few turns, redacted on the way out: a bare command rarely carries its own
 			// intent, and the events are already in hand from the evidence step.
-			ctxGiven = contextFor(events, { turns: settings?.aiContextTurns, tokens: settings?.aiContextTokens });
+			// Off means 1.2.x behaviour, byte for byte: nothing is built, nothing is sent.
+			ctxGiven = settings?.aiContextEnabled === true
+				? contextFor(events, { turns: settings?.aiContextTurns, tokens: settings?.aiContextTokens })
+				: { text: '', redactions: 0, turns: 0 };
 			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settings?.aiToolBrief === true ? toolBriefFor(toolName) : undefined, ctx: ctxGiven, signal: reviewControl.signal });
 			let verdict;
 			let humanOutcome;

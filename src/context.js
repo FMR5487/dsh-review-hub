@@ -16,10 +16,12 @@
 /** Chars per token. CJK is ~1.5, English ~4; 2 over-counts English and under-counts nothing. */
 const CHARS_PER_TOKEN = 2;
 /** One user message may be long; keep enough to carry the intent, not the whole paste. */
-export const MAX_USER_CHARS = 480;
-/** One assistant reply is background, so only its opening survives. */
-export const MAX_ASSISTANT_CHARS = 240;
-export const DEFAULT_TURNS = 3;
+export const MAX_USER_CHARS = 320;
+/** An assistant reply is background: one sentence about what it did is the whole ask. */
+export const MAX_ASSISTANT_CHARS = 120;
+/** Past this many lines a message is a paste (a log, a diff, a config), not a sentence. */
+export const MAX_MESSAGE_LINES = 3;
+export const DEFAULT_TURNS = 2;
 export const DEFAULT_TOKENS = 1500;
 export const MIN_TOKENS = 200;
 export const MAX_TOKENS = 8000;
@@ -48,6 +50,22 @@ const HOME_PATTERNS = [
 ];
 
 export const REDACTED = '[redacted]';
+
+/**
+ * A paste is the expensive kind of message and the least informative one: a log or a diff says
+ * nothing a first line does not. Multi-line blocks keep their opening line and a line count.
+ */
+export function compactMessage(text, limit) {
+	const source = typeof text === 'string' ? text.trim() : '';
+	if (source === '') return '';
+	const lines = source.split('\n');
+	let out = source;
+	if (lines.length > MAX_MESSAGE_LINES) {
+		const head = lines[0].trim().slice(0, 80);
+		out = head + ' …（' + lines.length + ' 行）';
+	}
+	return out.length > limit ? out.slice(0, limit) + '…' : out;
+}
 
 /** Text blocks of one message; reasoning blocks are deliberately not read. */
 function textOf(data) {
@@ -122,7 +140,7 @@ export function contextFor(events, options = {}) {
 			if (seen >= turns) break;
 			seen += 1;
 			answered = false;
-			picked.push({ role: 'user', text: text.slice(0, MAX_USER_CHARS) });
+			picked.push({ role: 'user', text: compactMessage(text, MAX_USER_CHARS) });
 			continue;
 		}
 		if (type === 'assistant/message') {
@@ -130,7 +148,7 @@ export function contextFor(events, options = {}) {
 			const text = textOf(event.data);
 			if (text === '') continue;
 			answered = true;
-			picked.push({ role: 'assistant', text: text.slice(0, MAX_ASSISTANT_CHARS) });
+			picked.push({ role: 'assistant', text: compactMessage(text, MAX_ASSISTANT_CHARS) });
 		}
 	}
 	picked.reverse();

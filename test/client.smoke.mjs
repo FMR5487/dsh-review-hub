@@ -558,7 +558,7 @@ export const cases = [
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));
-			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'aiToolBrief', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
+			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
 				assertTrue(defaultsBlock.includes(field + ':'), 'ADVANCED_DEFAULTS 缺 ' + field);
 			}
 		},

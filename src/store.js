@@ -85,11 +85,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	 */
 	aiToolBrief: true,
 	/**
-	 * Conversation context for the reviewer: how many turns, and how many tokens of them.
-	 * `aiContextTurns: 0` is the off switch — no second boolean to keep in sync. The token
-	 * figure is a budget, not a promise: the oldest turn is dropped until it fits.
+	 * Context-enhanced review — one master switch for everything 1.3.x adds. Off by default:
+	 * with it off the reviewer sees exactly what it saw in 1.2.x, and the sub-settings below
+	 * mean nothing. `aiContextTurns: 0` is still distinct from off — "on but empty" is a
+	 * setting someone chose, not the default.
 	 */
-	aiContextTurns: 3,
+	aiContextEnabled: false,
+	aiContextTurns: 2,
 	aiContextTokens: 1500,
 	// Two card switches, default on: users who find the floating card noisy can silence
 	// one without silencing the plain waiting hint.
@@ -261,7 +263,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	const langOk = (value) => value === '' || (typeof value === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value));
 	if (langOk(patch.reviewerLocale)) next.reviewerLocale = patch.reviewerLocale;
 	if (langOk(patch.panelLocale)) next.panelLocale = patch.panelLocale;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'aiToolBrief']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'aiToolBrief', 'aiContextEnabled']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {
