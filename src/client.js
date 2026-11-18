@@ -372,6 +372,7 @@ window.__ModuleLoader__.load({
       'config.save': '保存',
       'config.saved': '已保存',
       'config.failed': '保存失败',
+      'config.ignored': '当前版本不认这些设置，已忽略：{keys}',
       'config.loading': '载入中…',
     };
 
@@ -724,6 +725,7 @@ window.__ModuleLoader__.load({
       'config.save': 'Save',
       'config.saved': 'Saved',
       'config.failed': 'Save failed',
+      'config.ignored': 'This build has no place for these settings, so they were ignored: {keys}',
       'config.loading': 'Loading…',
     };
 
@@ -797,6 +799,8 @@ window.__ModuleLoader__.load({
       /** Other sessions' activity, aggregated: never a coloured card. */
       others: [],
       othersDismissedAt: 0,
+      /** Config keys the running server refused on the last save; [] when all were accepted. */
+      configIgnored: [],
       /** Other sessions' waiting approvals: [{sessionId,title,count,oldest}] */
       otherPending: [],
       /** Pending 'commit the watermark' timer: leaving briefly must not clear the divider. */
@@ -2248,6 +2252,9 @@ window.__ModuleLoader__.load({
     async function saveConfig(patch) {
       const body = await postJson('/config', patch);
       if (isPlainObject(body)) {
+        // Keys this build could not store. Silently dropping them is what makes a version
+        // mismatch look like "it saved but nothing changed".
+        store.configIgnored = Array.isArray(body.ignored) ? body.ignored.slice(0, 20) : [];
         store.config = body;
         notify();
       }
@@ -4753,7 +4760,10 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ah-settings-row', key: 'actions' },
           h('button', { type: 'button', className: 'ah-btn', onClick: save, disabled: status === 'saving' }, t('config.save')),
           status === 'saved' ? h('span', { className: 'ah-hint' }, t('config.saved')) : null,
-          status === 'failed' ? h('span', { className: 'ah-hint ah-tone-danger' }, t('config.failed')) : null
+          status === 'failed' ? h('span', { className: 'ah-hint ah-tone-danger' }, t('config.failed')) : null,
+          view.configIgnored !== null && Array.isArray(view.configIgnored) && view.configIgnored.length > 0
+            ? h('span', { className: 'ah-hint ah-tone-danger', key: 'ignored' }, t('config.ignored', { keys: view.configIgnored.join(', ') }))
+            : null
         ),
       ]);
     }

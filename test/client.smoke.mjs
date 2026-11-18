@@ -540,6 +540,8 @@ export const cases = [
 			assertTrue(src.includes("'config.toolBrief'"), '设置里要有「把工具说明送给 AI」开关');
 			assertTrue(src.includes("numberField('aiContextTurns'"), '设置里要有「带几轮对话」');
 			assertTrue(src.includes("numberField('aiContextTokens'"), '设置里要有「上下文 token 上限」');
+			assertTrue(src.includes("'config.ignored'"), '认不出的设置键要能被显示出来');
+			assertTrue(src.includes('store.configIgnored = Array.isArray(body.ignored)'), '保存回执里的 ignored 要接住');
 			assertTrue(src.includes("change('aiToolBrief'"), '开关要能写进设置');
 			assertTrue(src.includes('aiToolBrief: true'), '客户端默认值必须与服务端一致（默认开）');
 			// 陌生工具图标：本机做不出真实行，只能在预览里把三态摆出来看

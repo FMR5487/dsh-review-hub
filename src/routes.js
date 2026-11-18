@@ -285,6 +285,16 @@ function project(settings) {
 }
 
 /**
+ * Patch keys this build has no home for. `clampSettings` rebuilds from a whitelist, so an
+ * unknown key is dropped without a word — and a client newer than the server then looks like
+ * "I set it, it saved, nothing happened". Naming them is what turns that into a message.
+ */
+export function ignoredFields(patch) {
+	const body = patch === null || typeof patch !== 'object' || Array.isArray(patch) ? {} : patch;
+	return Object.keys(body).filter((key) => CONFIG_FIELDS.includes(key) === false).slice(0, 20);
+}
+
+/**
  * The lane the *next* approval in this session would use, for the panel's
  * "实际会用哪条" line.
  *
@@ -651,8 +661,9 @@ export function createRoutes(deps) {
 					return;
 				}
 				const body = await readBody(req);
+				const ignored = ignoredFields(body);
 				const written = await store.writeSettings(body);
-				sendJson(res, 200, project(written));
+				sendJson(res, 200, ignored.length === 0 ? project(written) : Object.assign(project(written), { ignored }));
 			}, ['GET', 'HEAD', 'POST']),
 		},
 		{

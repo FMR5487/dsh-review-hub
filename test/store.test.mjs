@@ -3,6 +3,7 @@ import { createStore, clampAiTools, clampSettings, DEFAULT_SETTINGS, filePathOf,
 import { argumentKeysOf, parseEscalation, toolBriefOf } from '../src/evidence.js';
 import { buildMessages } from '../src/review.js';
 import { compactMessage, contextFor, redactContext } from '../src/context.js';
+import { ignoredFields } from '../src/routes.js';
 import { actionOf, callTierOf, classify, coarseKeyOf, hardRisk, isUnjudgedTool, keysOf, tierOf, toolsPolicyOf, verbClassOf } from '../src/policy.js';
 
 const row = (over) => Object.assign({ id: 'r', ts: 1, sessionId: 's1', toolName: 'ops_bash', outcome: 'allowed-once', decidedBy: 'human', decisionMs: 10 }, over);
@@ -58,6 +59,11 @@ export const cases = [
 			assertEqual(clampSettings({ aiContextTurns: 0 }).aiContextTurns, 0, '0 是关掉');
 			assertEqual(clampSettings({ aiContextTurns: 99 }).aiContextTurns, 10, '轮数封顶 10');
 			assertEqual(clampSettings({ aiContextTokens: 1 }).aiContextTokens, 200, 'token 下限 200');
+			// 版本不一致时，认不出的键要被点名，而不是无声丢掉
+			assertEqual(ignoredFields({ aiContextTurns: 2 }).join(','), '', '认得的键不报');
+			assertEqual(ignoredFields({ aiContextTurns: 2, aiSomethingNew: 1 }).join(','), 'aiSomethingNew', '认不出的键要点名');
+			assertEqual(ignoredFields(null).length, 0, '缺 body 不抛');
+			assertEqual(ignoredFields('nope').length, 0, '非对象不抛');
 			// 粘贴型消息（日志 / diff / 配置）只留首行 + 行数，这是省 token 的大头
 			const paste = ['第一行：跑一下构建', 'line2', 'line3', 'line4', 'line5'].join('\n');
 			assertEqual(compactMessage(paste, 320), '第一行：跑一下构建 …（5 行）', '多行压成首行 + 行数');
