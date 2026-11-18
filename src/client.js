@@ -2672,6 +2672,9 @@ window.__ModuleLoader__.load({
       // The "send this tool to the reviewer" control: one glyph, three states.
       '.ah-ai-pick{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-ai-pick.ah-ai-ready,.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
+      // Listed vs ready looked identical, and the two actions are opposites: one adds the tool,
+      // the other removes it. The listed state now sits on a lit chip.
+      '.ah-ai-pick.ah-ai-on{background:color-mix(in srgb, var(--ah-ai-fg,#2fa84f) 20%, transparent)}',
       '.ah-ai-pick.ah-ai-dim{opacity:.4;cursor:not-allowed}',
       '.ah-row-reason-ai-solo{margin-top:0;padding-top:0;border-top:0}',
       '.ah-row-reason-label{color:var(--dsw-alias-label-primary,#fff)}',
