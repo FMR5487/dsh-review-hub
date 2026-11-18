@@ -286,11 +286,11 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI 审批',
       'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
       'setting.aiContext': '上下文增强审批',
-      'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。关掉时模型只看得到命令与参数（每条审批 +0~1,500 Token）',
+      'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。关掉时模型只看得到命令与参数（每条审批最多 +{max} Token）',
       'setting.contextTurnsNote': '带几轮。0 = 不带上下文。默认 2，范围 0–10',
       'setting.contextTokensNote': '最多多少 token，超出先丢最早一轮。默认 1500',
       'setting.aiToolBrief': '把工具说明送给 AI',
-      'setting.aiToolBriefNote': '附上工具描述第一句与参数名，陌生工具不必靠猜（每条审批 +0~140 Token）',
+      'setting.aiToolBriefNote': '附上工具描述第一句与参数名，陌生工具不必靠猜（每条审批最多 +140 Token）',
       'model.none': '—',
       'model.next': '下次审批：{lane}',
       'model.nextNone': '下次审批：跟随会话（本会话还没记录到车道）',
@@ -647,11 +647,11 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI review',
       'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
       'setting.aiContext': 'Context-enhanced review',
-      'setting.aiContextNote': 'Sends the last few turns as background. While off, the model sees only the command and its arguments (+0~1,500 tokens per review)',
+      'setting.aiContextNote': 'Sends the last few turns as background. While off, the model sees only the command and its arguments (at most +{max} tokens per review)',
       'setting.contextTurnsNote': 'Turns to include. 0 = no context. Default 2, range 0-10',
       'setting.contextTokensNote': 'Cap in tokens; past it the oldest turn goes first. Default 1500',
       'setting.aiToolBrief': 'Send the tool description to the reviewer',
-      'setting.aiToolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess (+0~140 tokens per review)',
+      'setting.aiToolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess (at most +140 tokens per review)',
       'model.none': '—',
       'model.next': 'Next review: {lane}',
       'model.nextNone': 'Next review: follows the session (no lane recorded yet)',
@@ -3456,7 +3456,7 @@ window.__ModuleLoader__.load({
       const ctx = settings.aiContextEnabled === true
         ? Math.min(Number(settings.aiContextTokens) || 1500, Math.round((Number(settings.aiContextTurns) || 2) * 440 / 2))
         : 0;
-      return { min: base, max: base + brief + ctx, brief: brief, ctx: ctx };
+      return { min: base, max: base + brief + ctx, brief: brief, ctx: ctx, cap: Number(settings.aiContextTokens) || 1500 };
     }
 
     function SettingsPanel(props) {
@@ -3704,7 +3704,7 @@ window.__ModuleLoader__.load({
         ),
         sid === '' ? null : row('model-local', t('config.modelLocal'), t('config.modelLocalNote'), localPinned, toggleLocal),
         // Everything 1.3.x adds sits behind this one switch.
-        row('ai-context', t('setting.aiContext'), t('setting.aiContextNote'), sessionBool('aiContextEnabled', 'aiContextLocal'), flipSession('aiContextEnabled', 'aiContextLocal')),
+        row('ai-context', t('setting.aiContext'), t('setting.aiContextNote', { max: tokens.cap }), sessionBool('aiContextEnabled', 'aiContextLocal'), flipSession('aiContextEnabled', 'aiContextLocal')),
         // The hairline marks the two knobs as what the switch brought in, not as siblings.
         config.aiContextEnabled === true
           ? h('div', { className: 'ah-sub', key: 'ai-context-sub' }, [
