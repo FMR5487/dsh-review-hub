@@ -207,7 +207,7 @@ window.__ModuleLoader__.load({
       'risk.low': '低',
       'risk.unknown': '未知',
       'row.copy': '复制命令',
-      'row.aiMs': 'AI {t}',
+      'row.aiMs': '耗时{t}',
       'row.aiSuggest': 'AI 建议人工',
       'row.aiAdd': '将该工具加入 AI 预审',
       'row.aiOn': '已加入 AI 预审，点击移出',
@@ -282,7 +282,15 @@ window.__ModuleLoader__.load({
       'config.modelAuto': '跟随会话（默认）',
       'config.modelEmpty': '还没观察到可用车道，先手填 provider/model',
       'config.modelLocal': '不与其他会话同步',
-      'config.modelLocalNote': '开启后本会话的模型选择独立于其他会话',
+      'config.modelLocalNote': '开启后本会话的AI审批设置将独立于其他会话',
+      'setting.secAi': 'AI 审批',
+      'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
+      'setting.aiContext': '上下文增强审批',
+      'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。关掉时与旧版送的内容逐字一致（每条审批 +0~1,500 Token）',
+      'setting.contextTurnsNote': '带几轮。0 = 开着但不带。默认 2，范围 0–10',
+      'setting.contextTokensNote': '超了从最早的一轮开始丢。默认 1500，范围 200–8000',
+      'setting.aiToolBrief': '把工具说明送给 AI',
+      'setting.aiToolBriefNote': '附上工具描述第一句与参数名，陌生工具不必靠猜（每条审批 +0~140 Token）',
       'model.none': '—',
       'model.next': '下次审批：{lane}',
       'model.nextNone': '下次审批：跟随会话（本会话还没记录到车道）',
@@ -560,7 +568,7 @@ window.__ModuleLoader__.load({
       'risk.low': 'low',
       'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
-      'row.aiMs': 'AI {t}',
+      'row.aiMs': '{t}',
       'row.aiSuggest': 'AI suggests a human',
       'row.aiAdd': 'Send this tool to the AI reviewer',
       'row.aiOn': 'Listed for AI review — click to remove',
@@ -635,7 +643,15 @@ window.__ModuleLoader__.load({
       'config.modelAuto': 'Follow the session (default)',
       'config.modelEmpty': 'No lane seen yet — type provider/model',
       'config.modelLocal': 'Do not follow other sessions',
-      'config.modelLocalNote': 'When on, this session picks its own reviewer model',
+      'config.modelLocalNote': 'When on, this session keeps its own AI review settings instead of following the others',
+      'setting.secAi': 'AI review',
+      'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
+      'setting.aiContext': 'Context-enhanced review',
+      'setting.aiContextNote': 'Sends the last few turns as background. While off, the prompt is byte-for-byte what 1.2.x sent (+0~1,500 tokens per review)',
+      'setting.contextTurnsNote': 'How many turns. 0 = on but empty. Default 2, range 0-10',
+      'setting.contextTokensNote': 'Past it, the oldest turn is dropped first. Default 1500, range 200-8000',
+      'setting.aiToolBrief': 'Send the tool description to the reviewer',
+      'setting.aiToolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess (+0~140 tokens per review)',
       'model.none': '—',
       'model.next': 'Next review: {lane}',
       'model.nextNone': 'Next review: follows the session (no lane recorded yet)',
@@ -2698,6 +2714,9 @@ window.__ModuleLoader__.load({
       '.ah-fake-input{margin-top:4px;padding:6px 8px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px}',
       '.ah-preview-ai{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.22))}',
       '.ah-preview-ai-item{display:inline-flex;align-items:center;gap:6px}',
+      // Options an outer switch brought in: a hairline says "these came with it" without
+      // another box or another colour.
+      '.ah-sub{margin:2px 0 6px 10px;padding-left:10px;border-left:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.28))}',
       '.ah-preview-ai-note{margin-left:auto}',
       // The "send this tool to the reviewer" control: one glyph, three states.
       // The "AI" control: two letters, three states, no fill. Fixed box so the row's icon strip
@@ -3425,6 +3444,21 @@ window.__ModuleLoader__.load({
     }
 
     // ─── 05 · 组件 · SettingsPanel：审批页里的日常设置 ────────────
+    /**
+     * Rough token cost of one review, from the settings as they stand. Chars/2 everywhere —
+     * the same rule the context budget uses: conservative for Chinese, over-counts English.
+     * The numbers are labelled as estimates because that is exactly what they are.
+     */
+    function reviewTokensOf(config) {
+      const settings = isPlainObject(config) ? config : {};
+      const base = 840;                                            // system prompt + operation fields
+      const brief = settings.aiToolBrief === true ? 140 : 0;        // description + argument names, at most
+      const ctx = settings.aiContextEnabled === true
+        ? Math.min(Number(settings.aiContextTokens) || 1500, Math.round((Number(settings.aiContextTurns) || 2) * 440 / 2))
+        : 0;
+      return { min: base, max: base + brief + ctx, brief: brief, ctx: ctx };
+    }
+
     function SettingsPanel(props) {
       const t = translator(props);
       const view = useStore();
@@ -3614,6 +3648,7 @@ window.__ModuleLoader__.load({
         }
       })();
 
+      const tokens = reviewTokensOf(config);
       return h('div', { className: 'ah-settings' }, [
         h('div', { className: 'ah-settings-row ah-settings-toggle', key: 'ai' },
           h('span', { className: 'ah-settings-label' },
@@ -3636,11 +3671,23 @@ window.__ModuleLoader__.load({
           },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
+        h('div', { className: 'ah-section', key: 'sec-ai' }, t('setting.secAi')),
+        h('div', { className: 'ah-hint', key: 'ai-tokens' }, t('setting.tokens', { min: tokens.min, max: tokens.max })),
         h('div', { className: 'ah-settings-row', key: 'model' },
           h('span', { className: 'ah-settings-label' }, t('setting.model'), h('span', { className: 'ah-settings-note' }, t('setting.modelNote'))),
           modelField(t, modelDraft, commitModel)
         ),
         sid === '' ? null : row('model-local', t('config.modelLocal'), t('config.modelLocalNote'), localPinned, toggleLocal),
+        // Everything 1.3.x adds sits behind this one switch.
+        row('ai-context', t('setting.aiContext'), t('setting.aiContextNote'), config.aiContextEnabled === true, flip('aiContextEnabled')),
+        // The hairline marks the two knobs as what the switch brought in, not as siblings.
+        config.aiContextEnabled === true
+          ? h('div', { className: 'ah-sub', key: 'ai-context-sub' }, [
+            numRow('aiContextTurns', t('config.contextTurns'), t('setting.contextTurnsNote'), config.aiContextTurns, function (value) { void savePatch({ aiContextTurns: value }); }, 0, 10),
+            numRow('aiContextTokens', t('config.contextTokens'), t('setting.contextTokensNote'), config.aiContextTokens, function (value) { void savePatch({ aiContextTokens: value }); }, 200, 8000),
+          ])
+          : null,
+        row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), config.aiToolBrief === true, flip('aiToolBrief')),
 
         h('div', { className: 'ah-section', key: 'sec-memory' }, t('setting.secMemory')),
         row('memory', t('setting.memory'), t('setting.memoryNote'), config.memoryEnabled === true, flip('memoryEnabled')),
@@ -3800,10 +3847,12 @@ window.__ModuleLoader__.load({
                       h('span', { className: 'ah-row-reason-label', key: 'label' }, opts.t(reason.label)),
                       reason.risk === ''
                         ? null
-                        : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, opts.t('row.risk') + ' · ' + riskLabel(reason.risk, opts.t))),
-                    Number.isFinite(Number(entry.aiMs))
-                      ? h('span', { className: 'ah-risk-ms', key: 'ms' }, opts.t('row.aiMs', { t: formatMs(entry.aiMs) }))
-                      : null,
+                        : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, opts.t('row.risk') + ' · ' + riskLabel(reason.risk, opts.t)),
+                      // Next to the risk level, not on a line of its own: both answer "how much
+                      // did this verdict cost", and the label is shortened to one word.
+                      Number.isFinite(Number(entry.aiMs))
+                        ? h('span', { className: 'ah-risk-ms', key: 'ms' }, opts.t('row.aiMs', { t: formatMs(entry.aiMs) }))
+                        : null),
                     h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
               : null,
             opts.view.diff !== null && opts.view.diff.callId === entry.callId && opts.view.diff.inline === true ? renderDiff(opts.t, opts.view) : null,
@@ -4159,7 +4208,7 @@ window.__ModuleLoader__.load({
     });
     const ADVANCED_GROUP_FIELDS = Object.freeze({
       rhythm: ['maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled'],
-      prompt: ['promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale'],
+      prompt: ['promptAppend', 'reviewerLocale'],
       scope: ['aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny'],
       preview: [],
       debug: ['pollMs', 'snapshotRetentionDays', 'strictVerdict', 'debugHeaders', 'debugReview'],
@@ -4634,34 +4683,7 @@ window.__ModuleLoader__.load({
 
         ...section('prompt', t('config.secPrompt'), [
           blockField('promptAppend', t('config.promptAppend'), t('config.promptAppendNote')),
-        // One master switch: off restores exactly what 1.2.x sent, and the two knobs below
-        // stop being meaningful, so they are not drawn at all.
-        h('div', { className: 'ah-settings-row', key: 'ctx-on' },
-          h('span', { className: 'ah-settings-label' }, t('config.contextOn'), h('span', { className: 'ah-settings-note' }, t('config.contextOnNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.aiContextEnabled === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.aiContextEnabled === true ? 'true' : 'false',
-            title: t('config.contextOn'),
-            onClick: function () { change('aiContextEnabled', draft.aiContextEnabled !== true); },
-          }, h('span', { className: 'ah-switch-knob' })),
-          resetButton('aiContextEnabled')
-        ),
-        draft.aiContextEnabled === true ? numberField('aiContextTurns', t('config.contextTurns'), t('config.contextTurnsNote')) : null,
-        draft.aiContextEnabled === true ? numberField('aiContextTokens', t('config.contextTokens'), t('config.contextTokensNote')) : null,
-        h('div', { className: 'ah-settings-row', key: 'tool-brief' },
-          h('span', { className: 'ah-settings-label' }, t('config.toolBrief'), h('span', { className: 'ah-settings-note' }, t('config.toolBriefNote'))),
-          h('button', {
-            type: 'button',
-            className: 'ah-switch' + (draft.aiToolBrief === true ? ' ah-switch-on' : ''),
-            role: 'switch',
-            'aria-checked': draft.aiToolBrief === true ? 'true' : 'false',
-            title: t('config.toolBrief'),
-            onClick: function () { change('aiToolBrief', draft.aiToolBrief !== true); },
-          }, h('span', { className: 'ah-switch-knob' })),
-          resetButton('aiToolBrief')
-        ),
+
           h('label', { className: 'ah-settings-row', key: 'reviewer-locale' },
             h('span', { className: 'ah-settings-label' }, t('config.reviewerLocale'), h('span', { className: 'ah-settings-note' }, t('config.reviewerLocaleNote'))),
             h('span', { className: 'ah-field-pair', key: 'pair' },

@@ -537,12 +537,17 @@ export const cases = [
 			assertTrue(src.includes('modeChip(') === false, '行上不应再有 mode 胶囊');
 			assertTrue(src.includes('.ah-mode{') === false, '胶囊样式应已删除');
 			// 说明开关落在「提示词」组里，与其它提示词旋钮同排
-			assertTrue(src.includes("'config.toolBrief'"), '设置里要有「把工具说明送给 AI」开关');
-			assertTrue(src.includes("numberField('aiContextTurns'"), '设置里要有「带几轮对话」');
-			assertTrue(src.includes("numberField('aiContextTokens'"), '设置里要有「上下文 token 上限」');
+			assertTrue(src.includes("row('ai-tool-brief'"), '「把工具说明送给 AI」要在设置面板里');
+			assertTrue(src.includes("row('ai-context'"), '「上下文增强审批」要在设置面板里');
+			assertTrue(src.includes("numRow('aiContextTurns'"), '「带几轮对话」要跟着总闸出现');
+			assertTrue(src.includes("numRow('aiContextTokens'"), '「上下文 token 上限」要跟着总闸出现');
+			assertTrue(src.includes("className: 'ah-sub'"), '总闸带来的选项要缩进在一根竖线里');
+			assertTrue(src.includes("'setting.secAi'"), 'AI 审批要有和下方一样的标题');
+			assertTrue(src.includes("t('setting.tokens'"), '分类里要有「一条审批约需 N~M Token」');
 			assertTrue(src.includes("'config.ignored'"), '认不出的设置键要能被显示出来');
+			assertTrue(src.includes('function reviewTokensOf(config)'), '要有一个可算的 token 估算');
 			assertTrue(src.includes('store.configIgnored = Array.isArray(body.ignored)'), '保存回执里的 ignored 要接住');
-			assertTrue(src.includes("change('aiToolBrief'"), '开关要能写进设置');
+			assertTrue(src.includes("flip('aiToolBrief')"), '开关要能写进设置');
 			assertTrue(src.includes('aiToolBrief: true'), '客户端默认值必须与服务端一致（默认开）');
 			// 陌生工具图标：本机做不出真实行，只能在预览里把三态摆出来看
 			assertTrue(src.includes('function aiPickerNode(t, picker, onPick)'), '图标要抽成可复用节点');
