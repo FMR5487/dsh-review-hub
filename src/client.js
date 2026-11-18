@@ -207,7 +207,7 @@ window.__ModuleLoader__.load({
       'risk.low': '低',
       'risk.unknown': '未知',
       'row.copy': '复制命令',
-      'row.aiMs': '耗时{t}',
+      'row.aiMs': '用时{t}',
       'row.aiSuggest': 'AI 建议人工',
       'row.aiAdd': '将该工具加入 AI 预审',
       'row.aiOn': '已加入 AI 预审，点击移出',
@@ -3516,6 +3516,29 @@ window.__ModuleLoader__.load({
         }
       };
 
+      /**
+       * The two switches the per-session pin covers. Pinned: this session's own value when it
+       * has one — presence is the decision, so `false` must not fall back to the global.
+       */
+      const sessionBool = function (field, localField) {
+        const table = isPlainObject(config[localField]) ? config[localField] : {};
+        if (localPinned === true && sid !== '' && Object.prototype.hasOwnProperty.call(table, sid)) return table[sid] === true;
+        return config[field] === true;
+      };
+
+      /** Where such a switch writes: this session's table while pinned, the global setting otherwise. */
+      const flipSession = function (field, localField) {
+        return function () {
+          const next = sessionBool(field, localField) !== true;
+          if (localPinned === true && sid !== '') {
+            const table = isPlainObject(config[localField]) ? config[localField] : {};
+            void savePatch({ [localField]: Object.assign({}, table, { [sid]: next }) });
+            return;
+          }
+          void flip(field)();
+        };
+      };
+
       // "Do not follow other sessions" is the presence of this session's key, not the
       // truth of a flag: an empty value still means "this session picks its own lane".
       const sid = props !== null && props !== undefined && typeof props.sessionId === 'string' && props.sessionId !== ''
@@ -3679,7 +3702,7 @@ window.__ModuleLoader__.load({
         ),
         sid === '' ? null : row('model-local', t('config.modelLocal'), t('config.modelLocalNote'), localPinned, toggleLocal),
         // Everything 1.3.x adds sits behind this one switch.
-        row('ai-context', t('setting.aiContext'), t('setting.aiContextNote'), config.aiContextEnabled === true, flip('aiContextEnabled')),
+        row('ai-context', t('setting.aiContext'), t('setting.aiContextNote'), sessionBool('aiContextEnabled', 'aiContextLocal'), flipSession('aiContextEnabled', 'aiContextLocal')),
         // The hairline marks the two knobs as what the switch brought in, not as siblings.
         config.aiContextEnabled === true
           ? h('div', { className: 'ah-sub', key: 'ai-context-sub' }, [
@@ -3687,7 +3710,7 @@ window.__ModuleLoader__.load({
             numRow('aiContextTokens', t('config.contextTokens'), t('setting.contextTokensNote'), config.aiContextTokens, function (value) { void savePatch({ aiContextTokens: value }); }, 200, 8000),
           ])
           : null,
-        row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), config.aiToolBrief === true, flip('aiToolBrief')),
+        row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), sessionBool('aiToolBrief', 'aiToolBriefLocal'), flipSession('aiToolBrief', 'aiToolBriefLocal')),
 
         h('div', { className: 'ah-section', key: 'sec-memory' }, t('setting.secMemory')),
         row('memory', t('setting.memory'), t('setting.memoryNote'), config.memoryEnabled === true, flip('memoryEnabled')),

@@ -547,7 +547,7 @@ export const cases = [
 			assertTrue(src.includes("'config.ignored'"), '认不出的设置键要能被显示出来');
 			assertTrue(src.includes('function reviewTokensOf(config)'), '要有一个可算的 token 估算');
 			assertTrue(src.includes('store.configIgnored = Array.isArray(body.ignored)'), '保存回执里的 ignored 要接住');
-			assertTrue(src.includes("flip('aiToolBrief')"), '开关要能写进设置');
+			assertTrue(src.includes("flipSession('aiToolBrief'"), '开关要能写进设置（按会话时可以只写本会话）');
 			assertTrue(src.includes('aiToolBrief: true'), '客户端默认值必须与服务端一致（默认开）');
 			// 陌生工具图标：本机做不出真实行，只能在预览里把三态摆出来看
 			assertTrue(src.includes('function aiPickerNode(t, picker, onPick)'), '图标要抽成可复用节点');

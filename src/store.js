@@ -92,6 +92,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	 */
 	aiContextEnabled: false,
 	aiContextTurns: 2,
+	/**
+	 * `{ "<sessionId>": true|false }`: this session's own value for the two switches the
+	 * per-session pin covers. **Presence is the decision** — `false` is a real choice, not an
+	 * absent one, so these must never be normalised away.
+	 */
+	aiContextLocal: Object.freeze({}),
+	aiToolBriefLocal: Object.freeze({}),
 	aiContextTokens: 1500,
 	// Two card switches, default on: users who find the floating card noisy can silence
 	// one without silencing the plain waiting hint.
@@ -246,6 +253,19 @@ function clampFileAutoPass(value) {
 	return out;
 }
 
+/** Session-keyed booleans: an 80-char id, a boolean value, 64 entries, oldest evicted. */
+export function clampBoolMap(value) {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+	const out = {};
+	for (const [key, item] of Object.entries(value)) {
+		if (typeof key !== 'string' || key === '' || key.length > 80) continue;
+		if (typeof item !== 'boolean') continue;
+		out[key] = item;
+		if (Object.keys(out).length >= 64) break;
+	}
+	return out;
+}
+
 export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	const next = {
 		...DEFAULT_SETTINGS,
@@ -254,6 +274,8 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		hintMs: { ...DEFAULT_SETTINGS.hintMs, ...(base?.hintMs ?? {}) },
 		reviewerModelLocal: { ...(base?.reviewerModelLocal ?? {}) },
 		aiEnabledLocal: { ...(base?.aiEnabledLocal ?? {}) },
+		aiContextLocal: { ...(base?.aiContextLocal ?? {}) },
+		aiToolBriefLocal: { ...(base?.aiToolBriefLocal ?? {}) },
 	};
 	if (patch === null || typeof patch !== 'object') return next;
 	// String settings need their own branch: the boolean loop and the numeric bounds both
@@ -286,6 +308,10 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		next.aiTools = clampAiTools(patch.aiTools).filter((name) => DEFAULT_AI_TOOLS.includes(name) === false);
 	}
 	if (patch.aiToolsDeny !== undefined && patch.aiToolsDeny !== null) next.aiToolsDeny = clampAiTools(patch.aiToolsDeny);
+	for (const field of ['aiContextLocal', 'aiToolBriefLocal']) {
+		if (patch[field] === undefined || patch[field] === null) continue;
+		next[field] = clampBoolMap(patch[field]);
+	}
 	if (patch.hintMs !== null && typeof patch.hintMs === 'object') {
 		for (const [kind, bounds] of Object.entries(HINT_BOUNDS)) {
 			const value = patch.hintMs[kind];

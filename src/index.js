@@ -117,6 +117,22 @@ function syncSettings() {
 	return activeStore === undefined ? {} : activeStore.settingsSnapshot();
 }
 
+/**
+ * One boolean setting as this session sees it. A session key in the `...Local` map wins —
+ * the presence of the key is the decision, so `false` must not fall through to the global.
+ */
+export function settingForSession(settings, sessionId, field, localField) {
+	// The map name is not always "<field>Local" (aiContextEnabled lives in aiContextLocal), so
+	// the caller names it; the suffix is only the default.
+	const name = typeof localField === 'string' && localField !== '' ? localField : field + 'Local';
+	const map = settings === null || settings === undefined ? undefined : settings[name];
+	const id = typeof sessionId === 'string' ? sessionId : '';
+	if (id !== '' && map !== null && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, id)) {
+		return map[id] === true;
+	}
+	return (settings === null || settings === undefined ? undefined : settings[field]) === true;
+}
+
 /** The pending map is what the composer hint polls; it must not outlive a request. */
 function pendingRow(request, id, started, extra) {
 	const row = {
@@ -421,10 +437,10 @@ async function answerer(request, next) {
 			// The last few turns, redacted on the way out: a bare command rarely carries its own
 			// intent, and the events are already in hand from the evidence step.
 			// Off means 1.2.x behaviour, byte for byte: nothing is built, nothing is sent.
-			ctxGiven = settings?.aiContextEnabled === true
+			ctxGiven = settingForSession(settings, sessionId, 'aiContextEnabled', 'aiContextLocal') === true
 				? contextFor(events, { turns: settings?.aiContextTurns, tokens: settings?.aiContextTokens })
 				: { text: '', redactions: 0, turns: 0 };
-			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settings?.aiToolBrief === true ? toolBriefFor(toolName) : undefined, ctx: ctxGiven, signal: reviewControl.signal });
+			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settingForSession(settings, sessionId, 'aiToolBrief', 'aiToolBriefLocal') === true ? toolBriefFor(toolName) : undefined, ctx: ctxGiven, signal: reviewControl.signal });
 			let verdict;
 			let humanOutcome;
 			let handedOver = false;

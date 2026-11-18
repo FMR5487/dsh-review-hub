@@ -1,9 +1,10 @@
 import { assertEqual, assertTrue, freshRoot } from './helpers.mjs';
-import { createStore, clampAiTools, clampSettings, DEFAULT_SETTINGS, filePathOf, fingerprint } from '../src/store.js';
+import { clampAiTools, clampBoolMap, clampSettings, createStore, DEFAULT_SETTINGS, filePathOf, fingerprint } from '../src/store.js';
 import { argumentKeysOf, parseEscalation, toolBriefOf } from '../src/evidence.js';
 import { buildMessages } from '../src/review.js';
 import { compactMessage, contextFor, redactContext } from '../src/context.js';
 import { ignoredFields } from '../src/routes.js';
+import { settingForSession } from '../src/index.js';
 import { actionOf, callTierOf, classify, coarseKeyOf, hardRisk, isUnjudgedTool, keysOf, tierOf, toolsPolicyOf, verbClassOf } from '../src/policy.js';
 
 const row = (over) => Object.assign({ id: 'r', ts: 1, sessionId: 's1', toolName: 'ops_bash', outcome: 'allowed-once', decidedBy: 'human', decisionMs: 10 }, over);
@@ -64,6 +65,17 @@ export const cases = [
 			assertEqual(ignoredFields({ aiContextTurns: 2, aiSomethingNew: 1 }).join(','), 'aiSomethingNew', '认不出的键要点名');
 			assertEqual(ignoredFields(null).length, 0, '缺 body 不抛');
 			assertEqual(ignoredFields('nope').length, 0, '非对象不抛');
+			// 按会话独立：键存在就是决定，false 不能被当成「没有」而回落到全局
+			const settings = { aiContextEnabled: true, aiContextLocal: { s1: false, s2: true } };
+			assertEqual(settingForSession(settings, 's1', 'aiContextEnabled', 'aiContextLocal'), false, '本会话的 false 要生效');
+			assertEqual(settingForSession(settings, 's2', 'aiContextEnabled', 'aiContextLocal'), true, '本会话的 true 要生效');
+			assertEqual(settingForSession(settings, 's3', 'aiContextEnabled', 'aiContextLocal'), true, '没有本会话的键才用全局');
+			assertEqual(settingForSession({}, '', 'aiContextEnabled'), false, '缺设置不抛且为关');
+			assertEqual(settingForSession({ aiToolBrief: true, aiToolBriefLocal: { s1: false } }, 's1', 'aiToolBrief'), false, '工具说明同理');
+			assertEqual(clampBoolMap({ a: true, b: false, '': true, c: 'yes', d: 1 }).a, true, '收布尔值');
+			assertEqual(Object.keys(clampBoolMap({ a: true, '': true, c: 'yes', d: 1 })).join(','), 'a', '非布尔与空键丢掉');
+			assertEqual(clampSettings({ aiContextLocal: { s1: false } }).aiContextLocal.s1, false, '设置层保住 false');
+			assertEqual(JSON.stringify(clampSettings({ aiContextLocal: 'nope' }).aiContextLocal), '{}', '脏值回落空表');
 			// 粘贴型消息（日志 / diff / 配置）只留首行 + 行数，这是省 token 的大头
 			const paste = ['第一行：跑一下构建', 'line2', 'line3', 'line4', 'line5'].join('\n');
 			assertEqual(compactMessage(paste, 320), '第一行：跑一下构建 …（5 行）', '多行压成首行 + 行数');
