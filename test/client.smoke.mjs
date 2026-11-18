@@ -535,6 +535,14 @@ export const cases = [
 			assertTrue(src.includes("'config.toolBrief'"), '设置里要有「把工具说明送给 AI」开关');
 			assertTrue(src.includes("change('aiToolBrief'"), '开关要能写进设置');
 			assertTrue(src.includes('aiToolBrief: true'), '客户端默认值必须与服务端一致（默认开）');
+			// 陌生工具图标：本机做不出真实行，只能在预览里把三态摆出来看
+			assertTrue(src.includes('function aiPickerNode(t, picker, onPick)'), '图标要抽成可复用节点');
+			assertTrue(src.includes('aiPickerNode(opts.t, aiPickerOf(entry))'), '行上仍用同一份构建');
+			assertTrue(src.includes('PREVIEW_AI_STATES'), '预览要有三态样张');
+			for (const state of ['dim', 'ready', 'on']) {
+				assertTrue(src.includes("state: '" + state + "'"), '预览缺状态 ' + state);
+			}
+			assertTrue(src.includes('ah-preview-ai-item'), '三态要并排可读');
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));

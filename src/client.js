@@ -308,6 +308,11 @@ window.__ModuleLoader__.load({
       'preview.fakeAllowAlways': '允许并记住',
       'preview.fakeDeny': '拒绝',
       'preview.fakeInput': '输入消息…',
+      'preview.aiLabel': '陌生工具图标：',
+      'preview.aiDim': '未达阈值（灰、不可点）',
+      'preview.aiReady': '可点（一次写进预审名单）',
+      'preview.aiOn': '已加入（再点移出）',
+      'preview.aiNote': '本机没有陌生工具会申请审批，只能在这里看',
       'preview.fakeHintSub': '记忆通过 · 已记忆 19 条',
       'preview.kindPending': '等待审批',
       'preview.kindReviewing': 'AI 审阅中',
@@ -649,6 +654,11 @@ window.__ModuleLoader__.load({
       'preview.fakeAllowAlways': 'Allow and remember',
       'preview.fakeDeny': 'Deny',
       'preview.fakeInput': 'Message…',
+      'preview.aiLabel': 'Unknown-tool picker:',
+      'preview.aiDim': 'below the threshold (dim, not clickable)',
+      'preview.aiReady': 'ready (one click adds it)',
+      'preview.aiOn': 'already listed (click to remove)',
+      'preview.aiNote': 'no unknown tool ever asks for approval here, so this is the only place to see it',
       'preview.fakeHintSub': 'memory passed · 19 memorized',
       'preview.kindPending': 'Awaiting approval',
       'preview.kindReviewing': 'reviewer thinking',
@@ -1080,6 +1090,34 @@ window.__ModuleLoader__.load({
       const threshold = Math.max(1, liveThreshold());
       if (approved >= threshold) return { state: 'ready', tool: tool, need: 0 };
       return { state: 'dim', tool: tool, need: Math.max(1, threshold - approved) };
+    }
+
+    /**
+     * The picker as a node. Factored out of the row so the settings preview can show all three
+     * states side by side — the row only ever has one of them, and a state nobody can see is a
+     * state nobody has checked. `onPick` lets the preview stay inert.
+     */
+    function aiPickerNode(t, picker, onPick) {
+      if (picker === null) return null;
+      const base = picker.state === 'on'
+        ? t('row.aiOn')
+        : (picker.state === 'ready' ? t('row.aiAdd') : t('row.aiNeed', { n: picker.need }));
+      // Two lines: what the state is, then where else this can be changed.
+      const label = base + '\n' + t('row.aiHint');
+      const cls = 'ah-ai-pick ah-ai-' + picker.state;
+      if (picker.state === 'dim') {
+        return h('button', {
+          type: 'button',
+          className: 'ah-icon-btn ' + cls,
+          title: label,
+          'aria-label': base,
+          disabled: true,
+        }, icon('ai'));
+      }
+      const fire = typeof onPick === 'function'
+        ? onPick
+        : function () { void toggleAiTool(picker.tool, picker.state === 'on'); };
+      return iconButton('ai', label, fire, cls);
     }
 
     /** Add or remove one tool from the global AI list; the server clamps and echoes it back. */
@@ -2628,6 +2666,9 @@ window.__ModuleLoader__.load({
       '.ah-fake-btn-deny{color:var(--dsw-alias-state-error-primary,#d93a3a);border-color:currentColor}',
       '.ah-fake-hint{margin-top:2px}',
       '.ah-fake-input{margin-top:4px;padding:6px 8px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:16px}',
+      '.ah-preview-ai{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.22))}',
+      '.ah-preview-ai-item{display:inline-flex;align-items:center;gap:6px}',
+      '.ah-preview-ai-note{margin-left:auto}',
       // The "send this tool to the reviewer" control: one glyph, three states.
       '.ah-ai-pick{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-ai-pick.ah-ai-ready,.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
@@ -3679,26 +3720,7 @@ window.__ModuleLoader__.load({
                   ? iconButton('pencil', opts.t('diff.change'), function () { void opts.openDiff(entry.callId); })
                   : null,
                 // Unknown tool: one click puts it on the reviewer's list, permanently.
-                (function () {
-                  const picker = aiPickerOf(entry);
-                  if (picker === null) return null;
-                  const base = picker.state === 'on'
-                    ? opts.t('row.aiOn')
-                    : (picker.state === 'ready' ? opts.t('row.aiAdd') : opts.t('row.aiNeed', { n: picker.need }));
-                  // Two lines: what the state is, then where else this can be changed.
-                  const label = base + '\n' + opts.t('row.aiHint');
-                  const cls = 'ah-ai-pick ah-ai-' + picker.state;
-                  if (picker.state === 'dim') {
-                    return h('button', {
-                      type: 'button',
-                      className: 'ah-icon-btn ' + cls,
-                      title: label,
-                      'aria-label': base,
-                      disabled: true,
-                    }, icon('ai'));
-                  }
-                  return iconButton('ai', label, function () { void toggleAiTool(picker.tool, picker.state === 'on'); }, cls);
-                })(),
+                aiPickerNode(opts.t, aiPickerOf(entry)),
                 reason.own === '' && reason.ai === ''
                   ? null
                   : iconButton(
@@ -4087,6 +4109,17 @@ window.__ModuleLoader__.load({
     });
 
 
+    /**
+     * The three picker states, side by side. They cannot be produced by a live call on this
+     * install — no unjudged tool ever asks for approval — so the preview is where they get
+     * looked at. Labels are captions; `need` is fixed so the dim state says something concrete.
+     */
+    const PREVIEW_AI_STATES = [
+      { id: 'dim', label: 'preview.aiDim', picker: { state: 'dim', tool: 'browser_navigate', need: 2 } },
+      { id: 'ready', label: 'preview.aiReady', picker: { state: 'ready', tool: 'browser_navigate', need: 0 } },
+      { id: 'on', label: 'preview.aiOn', picker: { state: 'on', tool: 'browser_navigate', need: 0 } },
+    ];
+
     const PREVIEW_WIDTHS = [
       { id: 'narrow', label: 'preview.widthNarrow' },
       { id: 'mid', label: 'preview.widthMid' },
@@ -4244,6 +4277,18 @@ window.__ModuleLoader__.load({
             ])
             : null,
           h('div', { className: 'ah-fake-input', key: 'input' }, t('preview.fakeInput')),
+        ]),
+        // The unknown-tool picker, all three states at once: a live approval cannot show them
+        // here, so this strip is the only place the control is inspectable.
+        h('div', { className: 'ah-preview-ai', key: 'ai-picker' }, [
+          h('span', { className: 'ah-hint', key: 'label' }, t('preview.aiLabel')),
+          ...PREVIEW_AI_STATES.map(function (item) {
+            return h('span', { className: 'ah-preview-ai-item', key: item.id }, [
+              aiPickerNode(t, item.picker, function () {}),
+              h('span', { className: 'ah-hint', key: 'text' }, t(item.label)),
+            ]);
+          }),
+          h('span', { className: 'ah-hint ah-preview-ai-note', key: 'note' }, t('preview.aiNote')),
         ]),
       ]);
     }
