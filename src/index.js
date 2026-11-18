@@ -23,6 +23,7 @@ import { diffStatsFor } from './routes.js';
 import { classify, DEFAULT_TOOLS_POLICY, isUnjudgedTool, toolsPolicyOf } from './policy.js';
 import { classifyAgent, clampByAgent } from './agentPolicy.js';
 import { argumentKeysOf, evidenceFor, eventsOf, parseEscalation, toolBriefOf } from './evidence.js';
+import { contextFor } from './context.js';
 import { createReviewer } from './review.js';
 import { createSnapshot } from './snapshot.js';
 import { createCatalog } from './catalog.js';
@@ -291,6 +292,8 @@ async function maybeReview(input) {
 		reqMode: input.reqMode,
 		toolBrief: input.brief?.description,
 		argKeys: input.brief?.keys,
+		context: input.ctx?.text,
+		ctxRedactions: input.ctx?.redactions,
 		priorApprovals: prior,
 		// The verdict cache is shared across sessions on purpose (the same operation
 		// in a new session is still the same operation); memory counts stay
@@ -323,10 +326,13 @@ async function answerer(request, next) {
 	const settings = syncSettings();
 	const store = activeStore;
 
-	const evidence = evidenceFor(request, eventsOf(request));
+	const events = eventsOf(request);
+	const evidence = evidenceFor(request, events);
 	// The host states an escalation as one sentence with the arguments glued in; split it so
 	// the row shows the operation and the mode gets a field of its own.
 	const escalation = parseEscalation(request?.reason);
+	/** Filled only on the AI path; the ledger records what was actually sent. */
+	let ctxGiven = { text: '', redactions: 0 };
 	const argsText = typeof evidence.argsText === 'string' ? evidence.argsText : '';
 	const fpInfo = argsText === '' || toolName === ''
 		? undefined
@@ -412,7 +418,10 @@ async function answerer(request, next) {
 			// handover timer fires and the human answers first while the reviewer keeps running
 			// — in that case its late answer is recorded as evidence and changes nothing.
 			const reviewControl = new AbortController();
-			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settings?.aiToolBrief === true ? toolBriefFor(toolName) : undefined, signal: reviewControl.signal });
+			// The last few turns, redacted on the way out: a bare command rarely carries its own
+			// intent, and the events are already in hand from the evidence step.
+			ctxGiven = contextFor(events, { turns: settings?.aiContextTurns, tokens: settings?.aiContextTokens });
+			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settings?.aiToolBrief === true ? toolBriefFor(toolName) : undefined, ctx: ctxGiven, signal: reviewControl.signal });
 			let verdict;
 			let humanOutcome;
 			let handedOver = false;
@@ -596,6 +605,12 @@ async function answerer(request, next) {
 	if (escalation.operation !== '') finished.reason = escalation.operation.slice(0, 240);
 	else if (typeof request?.reason === 'string') finished.reason = request.reason.slice(0, 240);
 	if (escalation.mode !== '') finished.reqMode = escalation.mode;
+	// What the reviewer was told, and how much of it had to be masked first. A row with a large
+	// redaction count is a row where the session's own text was the reason it could not be judged.
+	if (ctxGiven.text !== '') {
+		finished.ctxChars = ctxGiven.text.length;
+		if (ctxGiven.redactions > 0) finished.ctxRedactions = ctxGiven.redactions;
+	}
 	if (memoryCount !== undefined) finished.memoryCount = memoryCount;
 	// Visible merge evidence: the panel says "同类合并" only when a knob was cut.
 	if (fpInfo !== undefined && fpInfo.mode === 'normalized') {

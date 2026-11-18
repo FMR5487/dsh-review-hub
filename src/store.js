@@ -84,6 +84,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	 * is all it had before this existed.
 	 */
 	aiToolBrief: true,
+	/**
+	 * Conversation context for the reviewer: how many turns, and how many tokens of them.
+	 * `aiContextTurns: 0` is the off switch — no second boolean to keep in sync. The token
+	 * figure is a budget, not a promise: the oldest turn is dropped until it fits.
+	 */
+	aiContextTurns: 3,
+	aiContextTokens: 1500,
 	// Two card switches, default on: users who find the floating card noisy can silence
 	// one without silencing the plain waiting hint.
 	aiAdviceCard: true,
@@ -132,6 +139,8 @@ const BOUNDS = {
 	aiBreakerFails: [1, 20],
 	aiCacheTtlMs: [0, 86400000],
 	aiReasonChars: [40, 400],
+	aiContextTurns: [0, 10],
+	aiContextTokens: [200, 8000],
 	toastQuietMs: [0, 600000],
 	maxEntriesPerSession: [20, 2000],
 	pollMs: [250, 30000],

@@ -2,11 +2,61 @@ import { assertEqual, assertTrue, freshRoot } from './helpers.mjs';
 import { createStore, clampAiTools, clampSettings, DEFAULT_SETTINGS, filePathOf, fingerprint } from '../src/store.js';
 import { argumentKeysOf, parseEscalation, toolBriefOf } from '../src/evidence.js';
 import { buildMessages } from '../src/review.js';
+import { contextFor, redactContext } from '../src/context.js';
 import { actionOf, callTierOf, classify, coarseKeyOf, hardRisk, isUnjudgedTool, keysOf, tierOf, toolsPolicyOf, verbClassOf } from '../src/policy.js';
 
 const row = (over) => Object.assign({ id: 'r', ts: 1, sessionId: 's1', toolName: 'ops_bash', outcome: 'allowed-once', decidedBy: 'human', decisionMs: 10 }, over);
 
 export const cases = [
+	{
+		name: '上下文：只送消息正文、三层脱敏、按轮数与预算裁剪',
+		async fn() {
+			const msg = (role, text, kind) => (role === 'user'
+				? { type: 'user/message', data: { source: { kind: kind || 'user' }, content: [{ type: 'text', text: text }] } }
+				: { type: 'assistant/message', data: { message: { content: [{ type: 'reasoning', text: 'THINKING' }, { type: 'text', text: text }] } } });
+			const events = [
+				msg('user', '第一轮'), msg('assistant', '回复一'),
+				msg('user', '第二轮'), msg('assistant', '回复二'),
+				msg('user', '第三轮'), msg('assistant', '回复三'),
+				msg('user', '第四轮'), msg('assistant', '回复四'),
+			];
+			const three = contextFor(events, { turns: 3 });
+			assertEqual(three.turns, 3, '正好三轮');
+			assertEqual(three.text.split('\n')[0], 'user: 第二轮', '窗口从用户消息开始');
+			assertTrue(three.text.indexOf('THINKING') < 0, '思考块绝不外送');
+			assertTrue(three.text.indexOf('回复一') < 0, '窗口外的回复不进来');
+			assertEqual(contextFor(events, { turns: 0 }).text, '', '0 轮就是不送');
+			// 别人的消息（spliced / relayed）不算人类的话
+			const relayed = [msg('user', '拼接进来的', 'relay'), msg('user', '我自己打的')];
+			assertEqual(contextFor(relayed, { turns: 3 }).text, 'user: 我自己打的', '非 user 来源跳过');
+			// 预算：从最早的一轮开始丢，且不留孤零零的助手行
+			const tight = contextFor(events, { turns: 4, tokens: 200 });
+			const lines = tight.text.split('\n');
+			assertEqual(lines[0].indexOf('user: '), 0, '裁剪后仍以用户消息开头');
+			assertTrue(lines.length >= 2, '至少留一轮');
+			// 三层脱敏
+			assertEqual(redactContext('key sk-abcdefgh12345678 在这里').text.indexOf('sk-'), -1, '整条遮蔽：正文不留片段');
+			assertTrue(redactContext('key sk-abcdefgh12345678 在这里').text.indexOf('[redacted:credential') === 0, '整条替换成占位');
+			assertEqual(redactContext('去 https://x/cb#access_token=abc&b=1').text.indexOf('abc'), -1, 'URL 里的 token 被遮');
+			assertEqual(redactContext('C:\\Users\\FMR\\proj\\a.ts').text, '~\\proj\\a.ts', '家目录归一，路径形状保留');
+			assertEqual(redactContext('/home/fmr/x.ts').text, '~/x.ts', 'POSIX 家目录同理');
+			assertEqual(redactContext('password: hunter2 完事').text.indexOf('hunter2'), -1, 'key=value 形式的口令');
+			assertEqual(redactContext('把 token 上限调成 1500').text, '把 token 上限调成 1500', '普通词不误伤');
+			// 进了提示词之后：单独一段，且标明只是背景
+			const withCtx = buildMessages({ toolName: 'pwsh', reason: 'r', summary: '{}', context: 'user: 改一下 README', ctxRedactions: 2 });
+			const text = withCtx.messages[0].content[0].text;
+			assertTrue(text.indexOf('conversation context — background only') >= 0, '上下文要有小标题');
+			assertTrue(text.indexOf('user: 改一下 README') >= 0, '上下文正文进去了');
+			assertTrue(withCtx.system.indexOf('Conversation context:') >= 0, '系统提示要声明它只是背景');
+			assertTrue(buildMessages({ toolName: 'pwsh', reason: 'r', summary: '{}' }).messages[0].content[0].text.indexOf('conversation context') < 0, '没有上下文就不写这一段');
+			// 设置：默认值与边界
+			assertEqual(clampSettings({}).aiContextTurns, 3, '默认 3 轮');
+			assertEqual(clampSettings({}).aiContextTokens, 1500, '默认 1500 token');
+			assertEqual(clampSettings({ aiContextTurns: 0 }).aiContextTurns, 0, '0 是关掉');
+			assertEqual(clampSettings({ aiContextTurns: 99 }).aiContextTurns, 10, '轮数封顶 10');
+			assertEqual(clampSettings({ aiContextTokens: 1 }).aiContextTokens, 200, 'token 下限 200');
+		},
+	},
 	{
 		name: '提权语义：mode 单列，样板尾句丢弃，说明只取首句',
 		async fn() {

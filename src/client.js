@@ -344,6 +344,10 @@ window.__ModuleLoader__.load({
       'row.aiTimeout': 'AI 超时',
       'row.aiError': 'AI 错误',
       'config.toolBrief': '把工具说明送给 AI',
+      'config.contextTurns': '带几轮对话进评审',
+      'config.contextTurnsNote': '最近 N 轮用户消息 + 每轮一条助手回复，仅作背景。0 = 不送上下文。默认 3，范围 0–10',
+      'config.contextTokens': '上下文 token 上限',
+      'config.contextTokensNote': '超了从最早的一轮开始丢。默认 1500，范围 200–8000',
       'config.toolBriefNote': '附上该工具描述的第一句和参数名，陌生工具不必靠猜。默认开',
       'config.promptAppend': '追加提示词（可为空）',
       'config.promptAppendNote': '接在固定提示词后面，只能加偏好、改不掉红线（冲突部分程序会忽略）。默认空',
@@ -690,6 +694,10 @@ window.__ModuleLoader__.load({
       'row.aiTimeout': 'AI timed out',
       'row.aiError': 'AI error',
       'config.toolBrief': 'Send the tool description to the reviewer',
+      'config.contextTurns': 'Conversation turns for the reviewer',
+      'config.contextTurnsNote': 'The last N user messages plus one reply each, as background only. 0 disables it. Default 3, range 0-10',
+      'config.contextTokens': 'Context token budget',
+      'config.contextTokensNote': 'Past it, the oldest turn is dropped first. Default 1500, range 200-8000',
       'config.toolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess. On by default',
       'config.promptAppend': 'Extra prompt (optional)',
       'config.promptAppendNote': 'Appended after the fixed prompt. The fixed rules are enforced by code; anything here that conflicts is ignored — this adds preference, never removes a red line',
@@ -4125,6 +4133,8 @@ window.__ModuleLoader__.load({
       clearEnabled: false,
       promptAppend: '',
       aiToolBrief: true,
+      aiContextTurns: 3,
+      aiContextTokens: 1500,
       reviewerLocale: '',
       aiBudgetPerTurn: 20,
       aiBreakerFails: 3,
@@ -4137,7 +4147,7 @@ window.__ModuleLoader__.load({
     });
     const ADVANCED_GROUP_FIELDS = Object.freeze({
       rhythm: ['maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled'],
-      prompt: ['promptAppend', 'aiToolBrief', 'reviewerLocale'],
+      prompt: ['promptAppend', 'aiToolBrief', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale'],
       scope: ['aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny'],
       preview: [],
       debug: ['pollMs', 'snapshotRetentionDays', 'strictVerdict', 'debugHeaders', 'debugReview'],
@@ -4612,6 +4622,8 @@ window.__ModuleLoader__.load({
 
         ...section('prompt', t('config.secPrompt'), [
           blockField('promptAppend', t('config.promptAppend'), t('config.promptAppendNote')),
+        numberField('aiContextTurns', t('config.contextTurns'), t('config.contextTurnsNote')),
+        numberField('aiContextTokens', t('config.contextTokens'), t('config.contextTokensNote')),
         h('div', { className: 'ah-settings-row', key: 'tool-brief' },
           h('span', { className: 'ah-settings-label' }, t('config.toolBrief'), h('span', { className: 'ah-settings-note' }, t('config.toolBriefNote'))),
           h('button', {

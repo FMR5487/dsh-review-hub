@@ -538,6 +538,8 @@ export const cases = [
 			assertTrue(src.includes('.ah-mode{') === false, '胶囊样式应已删除');
 			// 说明开关落在「提示词」组里，与其它提示词旋钮同排
 			assertTrue(src.includes("'config.toolBrief'"), '设置里要有「把工具说明送给 AI」开关');
+			assertTrue(src.includes("numberField('aiContextTurns'"), '设置里要有「带几轮对话」');
+			assertTrue(src.includes("numberField('aiContextTokens'"), '设置里要有「上下文 token 上限」');
 			assertTrue(src.includes("change('aiToolBrief'"), '开关要能写进设置');
 			assertTrue(src.includes('aiToolBrief: true'), '客户端默认值必须与服务端一致（默认开）');
 			// 陌生工具图标：本机做不出真实行，只能在预览里把三态摆出来看
@@ -556,7 +558,7 @@ export const cases = [
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));
-			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'aiToolBrief', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
+			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'aiToolBrief', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
 				assertTrue(defaultsBlock.includes(field + ':'), 'ADVANCED_DEFAULTS 缺 ' + field);
 			}
 		},
