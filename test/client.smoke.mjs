@@ -546,6 +546,8 @@ export const cases = [
 			assertTrue(src.includes("'setting.ai': '启用AI审批'"), '总开关叫「启用AI审批」');
 			assertTrue(src.includes('...(aiLocalOn === true ? ['), '总开关关掉时，下方全部不出现');
 			assertTrue(src.includes('带几轮。0 = 不带上下文'), '「带几轮」的描述要直说 0 的含义');
+			assertTrue(src.includes('Number(config.aiContextTurns) > 0'), '0 轮时不该再显示 token 上限');
+			assertTrue(src.includes('关掉时模型只看得到命令与参数'), '上下文开关的说明不能说「旧版」');
 			assertTrue(src.includes("t('setting.tokens'"), '分类里要有「一条审批约需 N~M Token」');
 			assertTrue(src.includes("'config.ignored'"), '认不出的设置键要能被显示出来');
 			assertTrue(src.includes('function reviewTokensOf(config)'), '要有一个可算的 token 估算');

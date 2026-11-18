@@ -286,7 +286,7 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI 审批',
       'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
       'setting.aiContext': '上下文增强审批',
-      'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。关掉时与旧版送的内容逐字一致（每条审批 +0~1,500 Token）',
+      'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。关掉时模型只看得到命令与参数（每条审批 +0~1,500 Token）',
       'setting.contextTurnsNote': '带几轮。0 = 不带上下文。默认 2，范围 0–10',
       'setting.contextTokensNote': '最多多少 token，超出先丢最早一轮。默认 1500',
       'setting.aiToolBrief': '把工具说明送给 AI',
@@ -647,7 +647,7 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI review',
       'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
       'setting.aiContext': 'Context-enhanced review',
-      'setting.aiContextNote': 'Sends the last few turns as background. While off, the prompt is byte-for-byte what 1.2.x sent (+0~1,500 tokens per review)',
+      'setting.aiContextNote': 'Sends the last few turns as background. While off, the model sees only the command and its arguments (+0~1,500 tokens per review)',
       'setting.contextTurnsNote': 'Turns to include. 0 = no context. Default 2, range 0-10',
       'setting.contextTokensNote': 'Cap in tokens; past it the oldest turn goes first. Default 1500',
       'setting.aiToolBrief': 'Send the tool description to the reviewer',
@@ -3709,7 +3709,11 @@ window.__ModuleLoader__.load({
         config.aiContextEnabled === true
           ? h('div', { className: 'ah-sub', key: 'ai-context-sub' }, [
             numRow('aiContextTurns', t('config.contextTurns'), t('setting.contextTurnsNote'), config.aiContextTurns, function (value) { void savePatch({ aiContextTurns: value }); }, 0, 10),
-            numRow('aiContextTokens', t('config.contextTokens'), t('setting.contextTokensNote'), config.aiContextTokens, function (value) { void savePatch({ aiContextTokens: value }); }, 200, 8000),
+            // Zero turns means no context at all, so the token budget under it would have
+            // nothing to budget. Read the saved value, not the draft being typed.
+            Number(config.aiContextTurns) > 0
+              ? numRow('aiContextTokens', t('config.contextTokens'), t('setting.contextTokensNote'), config.aiContextTokens, function (value) { void savePatch({ aiContextTokens: value }); }, 200, 8000)
+              : null,
           ])
           : null,
         row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), sessionBool('aiToolBrief', 'aiToolBriefLocal'), flipSession('aiToolBrief', 'aiToolBriefLocal')),
