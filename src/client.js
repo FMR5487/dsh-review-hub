@@ -2679,15 +2679,15 @@ window.__ModuleLoader__.load({
       '.ah-preview-ai-item{display:inline-flex;align-items:center;gap:6px}',
       '.ah-preview-ai-note{margin-left:auto}',
       // The "send this tool to the reviewer" control: one glyph, three states.
-      // The "AI" control: two letters, three states. Size and padding are fixed so the row's
-      // icon strip does not shift when the state changes.
-      '.ah-ai-pick{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:18px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-tertiary,#9aa0a6);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:10px;font-weight:700;line-height:1;letter-spacing:.3px;cursor:pointer}',
-      '.ah-ai-pick:hover{background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.12))}',
-      '.ah-ai-pick.ah-ai-ready,.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
-      // Listed vs ready looked identical, and the two actions are opposites: one adds the tool,
-      // the other removes it. The listed state now sits on a lit chip.
-      '.ah-ai-pick.ah-ai-on{background:color-mix(in srgb, var(--ah-ai-fg,#2fa84f) 20%, transparent)}',
-      '.ah-ai-pick.ah-ai-dim{opacity:.4;cursor:not-allowed}',
+      // The "AI" control: two letters, three states, no fill. Fixed box so the row's icon strip
+      // does not shift when the state changes.
+      //   dim   - grey, not clickable (below the threshold)
+      //   ready - normal text colour; green on hover ("click me")
+      //   on    - green, permanently ("already listed")
+      '.ah-ai-pick{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:18px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-primary,#fff);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:10px;font-weight:700;line-height:1;letter-spacing:.3px;cursor:pointer}',
+      '.ah-ai-pick.ah-ai-ready:hover{color:var(--ah-ai-fg,#2fa84f)}',
+      '.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
+      '.ah-ai-pick.ah-ai-dim{opacity:.4;color:var(--dsw-alias-label-tertiary,#9aa0a6);cursor:not-allowed}',
       '.ah-row-reason-ai-solo{margin-top:0;padding-top:0;border-top:0}',
       '.ah-row-reason-label{color:var(--dsw-alias-label-primary,#fff)}',
       '.ah-row-model{flex:0 1 auto;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
