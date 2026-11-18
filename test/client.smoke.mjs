@@ -354,6 +354,11 @@ export const cases = [
 			assertEqual(bag.formatMs(65200), '65s');
 			assertEqual(bag.formatMs(undefined), '—');
 			assertEqual(bag.formatMs(-1), '—');
+			assertEqual(bag.formatMs(-1), '—');
+			// 提示卡顺序：旧的在上、新的在下（按 ts，不按种类）
+			assertEqual(bag.dockOrder([{ ts: 30, id: 'new' }, { ts: 10, id: 'old' }]).map((x) => x.id).join(','), 'old,new', '刚到的卡要排在旧卡下面');
+			assertEqual(bag.dockOrder([{ ts: 10, id: 'a' }, { ts: 10, id: 'b' }]).map((x) => x.id).join(','), 'a,b', '同一时刻保持原序');
+			assertEqual(bag.dockOrder([{ id: 'x' }, { ts: -5, id: 'y' }]).map((x) => x.id).join(','), 'y,x', '缺 ts 当 0');
 			// 行渲染：未知工具那一行必须真的挂出图标按钮（灰色 = disabled）
 			const pickerOpts = { t: (k) => k, view: { diff: null }, copiedId: '', isReasonOpen: function () { return false; }, openDiff: function () {}, copyRow: function () {}, toggleReason: function () {} };
 			const collectClass = function (node, out) {
@@ -543,6 +548,11 @@ export const cases = [
 				assertTrue(src.includes("state: '" + state + "'"), '预览缺状态 ' + state);
 			}
 			assertTrue(src.includes('ah-preview-ai-item'), '三态要并排可读');
+			// 提示卡顺序：按时间排，不按种类排（否则刚进的「审批中」会跑到旧卡上面）
+			assertTrue(src.includes('for (const item of dockOrder(timed))'), '提示卡要按时间正序排');
+			assertTrue(src.includes("timed.push({ ts: Number(row.startedAt)"), '审批中卡片也要进同一条时间线');
+			assertTrue(src.includes("timed.push({ ts: Number(hint.ts)"), '已决提示卡进同一条时间线');
+			assertTrue(src.includes("=== ownSid) continue;"), '其它会话卡不许覆盖当前会话');
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));

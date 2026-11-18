@@ -2152,6 +2152,8 @@ window.__ModuleLoader__.load({
     /** Another session is waiting on you: toast once per new arrival, never per poll. */
     function noticeOtherPending(list, t) {
       for (const entry of Array.isArray(list) ? list : []) {
+        // Never announce the session the panel is already showing.
+        if (String(entry.sessionId) === String(store.sessionId || '')) continue;
         const key = String(entry.sessionId) + '|' + String(entry.oldest) + '|' + String(entry.count);
         if (seenPending.has(key)) continue;
         seenPending.add(key);
@@ -2841,6 +2843,15 @@ window.__ModuleLoader__.load({
       }));
     }
     // ─── 05 · 组件 · HintBar：输入框上方提示卡 + 实时中枢 ─────────
+    /**
+     * Oldest first: the dock is a stack, not a priority list. Pure so a test can pin the order
+     * instead of it only being checkable by eye — the bug was a card that had just arrived
+     * sitting above cards older than itself, because pending cards were pushed as a kind.
+     */
+    function dockOrder(items) {
+      return items.slice().sort(function (a, b) { return (Number(a.ts) || 0) - (Number(b.ts) || 0); });
+    }
+
     function HintBar(props) {
       const t = translator(props);
       const view = useStore();
@@ -3125,6 +3136,8 @@ window.__ModuleLoader__.load({
       syncAdviceOverlay(t, describeDockAnchor(dockRef.current));
       if (view.config !== null && view.config.composerHint === false) return null;
       const cards = [];
+      /** Cards on one timeline; sorted by when the row happened, not by which kind it is. */
+      const timed = [];
       // A card belongs to the session that produced it. Only the aggregate "another
       // session" card may speak for someone else; everything else disappears when you
       // switch away and comes back when you switch back.
@@ -3177,7 +3190,7 @@ window.__ModuleLoader__.load({
           if (adviceOverlay.dismissed.has(String(row.id))) continue;
           const waited = Math.max(0, Math.round((Date.now() - (Number(row.startedAt) || Date.now())) / 1000));
           const stillReviewing = row.aiReviewed !== true;
-          cards.push(cardNode({
+          timed.push({ ts: Number(row.startedAt) || Date.now(), node: cardNode({
             key: 'w-' + row.id,
             kind: 'pending',
             // A real spinner, not a cycling glyph: this card can sit here for the whole
@@ -3193,7 +3206,7 @@ window.__ModuleLoader__.load({
               store.pending = store.pending.filter(function (item) { return item.id !== row.id; });
               notify();
             })],
-          }));
+          }) });
         }
       }
       for (const hint of view.hints) {
@@ -3203,7 +3216,7 @@ window.__ModuleLoader__.load({
         // The countdown sits right next to the close button: it is the same promise,
         // "this card goes away on its own", drawn instead of written.
         const ttl = hintMsOf(hint.kind);
-        cards.push(cardNode({
+        timed.push({ ts: Number(hint.ts) || Number(entry.ts) || 0, node: cardNode({
           key: hint.id,
           kind: hint.kind,
           chip: chip.text,
@@ -3217,8 +3230,9 @@ window.__ModuleLoader__.load({
               notify();
             }),
           ],
-        }));
+        }) });
       }
+      for (const item of dockOrder(timed)) cards.push(item.node);
 
       // Another session can be *waiting* without anything decided yet. The toast comes
       // from otherPending while the card used to come only from decided rows, so a
@@ -3236,6 +3250,10 @@ window.__ModuleLoader__.load({
         othersView.set(waiting.sessionId, cur);
       }
       for (const other of othersView.values()) {
+        // The session you are looking at is not "another session", whatever the aggregate
+        // still remembers about it: switching in used to leave its card sitting above the
+        // composer, announcing the page you were already on.
+        if (String(other.sessionId) !== '' && String(other.sessionId) === ownSid) continue;
         if (Number(other.lastTs) <= view.othersDismissedAt) continue;
         const name = other.title !== '' ? other.title : '会话 …' + String(other.sessionId).slice(-6);
         const counts = [
@@ -5461,6 +5479,7 @@ window.__ModuleLoader__.load({
         valueOf: valueOf,
         copyTextOf: copyTextOf,
         aiPickerOf: aiPickerOf,
+        dockOrder: dockOrder,
         floatCandidateOf: floatCandidateOf,
         formatMs: formatMs,
         store: store,
