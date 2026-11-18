@@ -543,6 +543,9 @@ export const cases = [
 			assertTrue(src.includes("numRow('aiContextTokens'"), '「上下文 token 上限」要跟着总闸出现');
 			assertTrue(src.includes("className: 'ah-sub'"), '总闸带来的选项要缩进在一根竖线里');
 			assertTrue(src.includes("'setting.secAi'"), 'AI 审批要有和下方一样的标题');
+			assertTrue(src.includes("'setting.ai': '启用AI审批'"), '总开关叫「启用AI审批」');
+			assertTrue(src.includes('...(aiLocalOn === true ? ['), '总开关关掉时，下方全部不出现');
+			assertTrue(src.includes('带几轮。0 = 不带上下文'), '「带几轮」的描述要直说 0 的含义');
 			assertTrue(src.includes("t('setting.tokens'"), '分类里要有「一条审批约需 N~M Token」');
 			assertTrue(src.includes("'config.ignored'"), '认不出的设置键要能被显示出来');
 			assertTrue(src.includes('function reviewTokensOf(config)'), '要有一个可算的 token 估算');

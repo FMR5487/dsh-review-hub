@@ -116,7 +116,7 @@ window.__ModuleLoader__.load({
       'diff.close': '收起',
       'setting.title': '设置',
       'setting.close': '收起',
-      'setting.ai': 'AI 审查',
+      'setting.ai': '启用AI审批',
       'setting.memory': '记忆自动通过',
       'setting.hint': '输入框上方提示',
       'setting.toast': '等待审批时弹通知',
@@ -287,8 +287,8 @@ window.__ModuleLoader__.load({
       'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
       'setting.aiContext': '上下文增强审批',
       'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。关掉时与旧版送的内容逐字一致（每条审批 +0~1,500 Token）',
-      'setting.contextTurnsNote': '带几轮。0 = 开着但不带。默认 2，范围 0–10',
-      'setting.contextTokensNote': '超了从最早的一轮开始丢。默认 1500，范围 200–8000',
+      'setting.contextTurnsNote': '带几轮。0 = 不带上下文。默认 2，范围 0–10',
+      'setting.contextTokensNote': '最多多少 token，超出先丢最早一轮。默认 1500',
       'setting.aiToolBrief': '把工具说明送给 AI',
       'setting.aiToolBriefNote': '附上工具描述第一句与参数名，陌生工具不必靠猜（每条审批 +0~140 Token）',
       'model.none': '—',
@@ -477,7 +477,7 @@ window.__ModuleLoader__.load({
       'diff.close': 'Hide',
       'setting.title': 'Settings',
       'setting.close': 'Hide',
-      'setting.ai': 'AI review',
+      'setting.ai': 'Enable AI review',
       'setting.memory': 'Memory auto-pass',
       'setting.hint': 'Hint above the composer',
       'setting.toast': 'Notify when a human is needed',
@@ -648,8 +648,8 @@ window.__ModuleLoader__.load({
       'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
       'setting.aiContext': 'Context-enhanced review',
       'setting.aiContextNote': 'Sends the last few turns as background. While off, the prompt is byte-for-byte what 1.2.x sent (+0~1,500 tokens per review)',
-      'setting.contextTurnsNote': 'How many turns. 0 = on but empty. Default 2, range 0-10',
-      'setting.contextTokensNote': 'Past it, the oldest turn is dropped first. Default 1500, range 200-8000',
+      'setting.contextTurnsNote': 'Turns to include. 0 = no context. Default 2, range 0-10',
+      'setting.contextTokensNote': 'Cap in tokens; past it the oldest turn goes first. Default 1500',
       'setting.aiToolBrief': 'Send the tool description to the reviewer',
       'setting.aiToolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess (+0~140 tokens per review)',
       'model.none': '—',
@@ -3673,6 +3673,7 @@ window.__ModuleLoader__.load({
 
       const tokens = reviewTokensOf(config);
       return h('div', { className: 'ah-settings' }, [
+        h('div', { className: 'ah-section', key: 'sec-ai' }, t('setting.secAi')),
         h('div', { className: 'ah-settings-row ah-settings-toggle', key: 'ai' },
           h('span', { className: 'ah-settings-label' },
             t('setting.ai'),
@@ -3681,9 +3682,9 @@ window.__ModuleLoader__.load({
           ),
           h('button', {
             type: 'button',
-            className: 'ah-switch' + (config.aiEnabled === true ? ' ah-switch-on' : ''),
+            className: 'ah-switch' + (aiLocalOn === true ? ' ah-switch-on' : ''),
             role: 'switch',
-            'aria-checked': config.aiEnabled === true ? 'true' : 'false',
+            'aria-checked': aiLocalOn === true ? 'true' : 'false',
             title: t('setting.ai'),
             onClick: async function () {
             if (localPinned === true && sid !== '') {
@@ -3694,7 +3695,8 @@ window.__ModuleLoader__.load({
           },
           }, h('span', { className: 'ah-switch-knob' }))
         ),
-        h('div', { className: 'ah-section', key: 'sec-ai' }, t('setting.secAi')),
+        // Everything below the master switch is meaningless while it is off, so it is not drawn.
+        ...(aiLocalOn === true ? [
         h('div', { className: 'ah-hint', key: 'ai-tokens' }, t('setting.tokens', { min: tokens.min, max: tokens.max })),
         h('div', { className: 'ah-settings-row', key: 'model' },
           h('span', { className: 'ah-settings-label' }, t('setting.model'), h('span', { className: 'ah-settings-note' }, t('setting.modelNote'))),
@@ -3711,6 +3713,7 @@ window.__ModuleLoader__.load({
           ])
           : null,
         row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), sessionBool('aiToolBrief', 'aiToolBriefLocal'), flipSession('aiToolBrief', 'aiToolBriefLocal')),
+        ] : []),
 
         h('div', { className: 'ah-section', key: 'sec-memory' }, t('setting.secMemory')),
         row('memory', t('setting.memory'), t('setting.memoryNote'), config.memoryEnabled === true, flip('memoryEnabled')),
