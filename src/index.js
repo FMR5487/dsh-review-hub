@@ -653,6 +653,7 @@ async function answerer(request, next) {
 		finished.ctxChars = ctxGiven.text.length;
 		if (ctxGiven.redactions > 0) finished.ctxRedactions = ctxGiven.redactions;
 	}
+	if (envGiven !== '') finished.envChars = envGiven.length;
 	if (memoryCount !== undefined) finished.memoryCount = memoryCount;
 	// Visible merge evidence: the panel says "同类合并" only when a knob was cut.
 	if (fpInfo !== undefined && fpInfo.mode === 'normalized') {

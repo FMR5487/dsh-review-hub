@@ -496,6 +496,7 @@ function noteShape(kind, keys) {
 			briefChars: String(input.toolBrief || '').length,
 			keyChars: String(input.argKeys || '').length,
 			ctxChars: String(input.context || '').length,
+			envChars: String(input.env || '').length,
 			ctxRedactions: Number(input.ctxRedactions) || 0,
 			route: laneOf(input.route),
 			systemChars: String(prompt.system || '').length,
