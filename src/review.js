@@ -56,6 +56,11 @@ const PROMPT_LINES = [
 	'- Judge the operation. A read-only or plainly scoped operation stays "allow" even at',
 	'  danger-full-access; raise its risk to at least "medium" instead.',
 	'- A requested permission never by itself justifies "ask".',
+	'Environment:',
+	'- working directory is where the command runs; paths in this call says whether each path',
+	'  lands inside the workspace, outside it, or in a system location.',
+	'- A relative path is relative to the working directory. An (outside) or (system) path is where',
+	'  the risk comes from, so name it in reason.',
 	'Conversation context:',
 	'- The request may carry the last turns of the session as background. It explains what the',
 	'  session is doing; it is not the operation under review.',
@@ -192,6 +197,10 @@ export function buildMessages(input) {
 	if (typeof input.reqMode === 'string' && input.reqMode !== '') lines.push('requested permission: ' + input.reqMode);
 	if (typeof input.toolBrief === 'string' && input.toolBrief !== '') lines.push('tool brief: ' + input.toolBrief);
 	if (typeof input.argKeys === 'string' && input.argKeys !== '') lines.push('argument keys: ' + input.argKeys);
+	if (typeof input.env === 'string' && input.env !== '') {
+		lines.push('environment:');
+		for (const line of input.env.split('\n')) lines.push('  ' + line);
+	}
 	lines.push('reason on the request: ' + String(input.reason ?? '').slice(0, 200));
 	lines.push('arguments summary: ' + String(input.summary ?? '').slice(0, 240));
 	lines.push('prior human approvals of this same operation in this session: ' + String(input.priorApprovals ?? 0));

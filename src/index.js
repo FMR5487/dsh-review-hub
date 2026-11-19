@@ -15,7 +15,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { appendFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { createStore, fileFingerprintOf, filePathOf, fingerprintOf, splitRoute } from './store.js';
@@ -24,6 +24,7 @@ import { classify, DEFAULT_TOOLS_POLICY, isUnjudgedTool, toolsPolicyOf } from '.
 import { classifyAgent, clampByAgent } from './agentPolicy.js';
 import { argumentKeysOf, evidenceFor, eventsOf, parseEscalation, toolBriefOf } from './evidence.js';
 import { contextFor } from './context.js';
+import { environmentOf, workingDirectoryOf } from './env.js';
 import { createReviewer } from './review.js';
 import { createSnapshot } from './snapshot.js';
 import { createCatalog } from './catalog.js';
@@ -121,6 +122,19 @@ function syncSettings() {
  * One boolean setting as this session sees it. A session key in the `...Local` map wins —
  * the presence of the key is the decision, so `false` must not fall through to the global.
  */
+/**
+ * Does this directory look like a git working tree? One `existsSync`, no process spawn — and
+ * the answer changes how a `git reset` should read.
+ */
+export function isGitDir(dir) {
+	if (typeof dir !== 'string' || dir === '') return undefined;
+	try {
+		return existsSync(join(dir, '.git'));
+	} catch {
+		return undefined;
+	}
+}
+
 export function settingForSession(settings, sessionId, field, localField) {
 	// The map name is not always "<field>Local" (aiContextEnabled lives in aiContextLocal), so
 	// the caller names it; the suffix is only the default.
@@ -310,6 +324,7 @@ async function maybeReview(input) {
 		argKeys: input.brief?.keys,
 		context: input.ctx?.text,
 		ctxRedactions: input.ctx?.redactions,
+		env: input.env,
 		priorApprovals: prior,
 		// The verdict cache is shared across sessions on purpose (the same operation
 		// in a new session is still the same operation); memory counts stay
@@ -349,6 +364,7 @@ async function answerer(request, next) {
 	const escalation = parseEscalation(request?.reason);
 	/** Filled only on the AI path; the ledger records what was actually sent. */
 	let ctxGiven = { text: '', redactions: 0 };
+	let envGiven = '';
 	const argsText = typeof evidence.argsText === 'string' ? evidence.argsText : '';
 	const fpInfo = argsText === '' || toolName === ''
 		? undefined
@@ -440,7 +456,14 @@ async function answerer(request, next) {
 			ctxGiven = settingForSession(settings, sessionId, 'aiContextEnabled', 'aiContextLocal') === true
 				? contextFor(events, { turns: settings?.aiContextTurns, tokens: settings?.aiContextTokens })
 				: { text: '', redactions: 0, turns: 0 };
-			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settingForSession(settings, sessionId, 'aiToolBrief', 'aiToolBriefLocal') === true ? toolBriefFor(toolName) : undefined, ctx: ctxGiven, signal: reviewControl.signal });
+			// Where the session stands is already in the log (the host writes a runtime-context
+			// snapshot each turn), so this costs nothing but a read.
+			if (settingForSession(settings, sessionId, 'aiContextEnabled', 'aiContextLocal') === true
+				&& settingForSession(settings, sessionId, 'aiEnvEnabled', 'aiEnvLocal') === true) {
+				const cwd = workingDirectoryOf(events);
+				envGiven = cwd === '' ? '' : environmentOf(events, { root: cwd, isGit: isGitDir(cwd), argsText });
+			}
+			const review = maybeReview({ store, sessionId, toolName, agentKind, tier, tierName: tier, settings, request, evidence, fp, reason: escalation.operation, reqMode: escalation.mode, brief: settingForSession(settings, sessionId, 'aiToolBrief', 'aiToolBriefLocal') === true ? toolBriefFor(toolName) : undefined, env: envGiven, ctx: ctxGiven, signal: reviewControl.signal });
 			let verdict;
 			let humanOutcome;
 			let handedOver = false;

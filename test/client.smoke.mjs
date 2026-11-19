@@ -539,6 +539,8 @@ export const cases = [
 			// 说明开关落在「提示词」组里，与其它提示词旋钮同排
 			assertTrue(src.includes("row('ai-tool-brief'"), '「把工具说明送给 AI」要在设置面板里');
 			assertTrue(src.includes("row('ai-context'"), '「上下文增强审批」要在设置面板里');
+			assertTrue(src.includes("row('ai-env'"), '「带上环境信息」要跟着总闸出现');
+			assertTrue(src.includes("'setting.aiEnv'"), '环境开关要有自己的文案');
 			assertTrue(src.includes("numRow('aiContextTurns'"), '「带几轮对话」要跟着总闸出现');
 			assertTrue(src.includes("numRow('aiContextTokens'"), '「上下文 token 上限」要跟着总闸出现');
 			assertTrue(src.includes("className: 'ah-sub'"), '总闸带来的选项要缩进在一根竖线里');
@@ -571,7 +573,7 @@ export const cases = [
 			const defaultsAt = src.indexOf('const ADVANCED_DEFAULTS');
 			assertTrue(defaultsAt > 0, '找不到 ADVANCED_DEFAULTS');
 			const defaultsBlock = src.slice(defaultsAt, src.indexOf('const ADVANCED_GROUP_FIELDS'));
-			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
+			for (const field of ['pollMs', 'maxEntriesPerSession', 'humanFirstMs', 'reviewTimeoutMs', 'aiCacheTtlMs', 'aiReasonChars', 'clearEnabled', 'promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled', 'aiContextTurns', 'aiContextTokens', 'reviewerLocale', 'aiBudgetPerTurn', 'aiBreakerFails', 'aiTools', 'aiToolsDeny', 'snapshotRetentionDays', 'debugHeaders', 'debugReview', 'strictVerdict']) {
 				assertTrue(defaultsBlock.includes(field + ':'), 'ADVANCED_DEFAULTS 缺 ' + field);
 			}
 		},

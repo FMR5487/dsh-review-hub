@@ -3,6 +3,7 @@ import { clampAiTools, clampBoolMap, clampSettings, createStore, DEFAULT_SETTING
 import { argumentKeysOf, parseEscalation, toolBriefOf } from '../src/evidence.js';
 import { buildMessages } from '../src/review.js';
 import { compactMessage, contextFor, redactContext } from '../src/context.js';
+import { environmentOf, pathScopeOf, pathsIn, workingDirectoryOf } from '../src/env.js';
 import { ignoredFields } from '../src/routes.js';
 import { settingForSession } from '../src/index.js';
 import { actionOf, callTierOf, classify, coarseKeyOf, hardRisk, isUnjudgedTool, keysOf, tierOf, toolsPolicyOf, verbClassOf } from '../src/policy.js';
@@ -10,6 +11,39 @@ import { actionOf, callTierOf, classify, coarseKeyOf, hardRisk, isUnjudgedTool, 
 const row = (over) => Object.assign({ id: 'r', ts: 1, sessionId: 's1', toolName: 'ops_bash', outcome: 'allowed-once', decidedBy: 'human', decisionMs: 10 }, over);
 
 export const cases = [
+	{
+		name: '环境：工作目录来自运行时快照，路径按工作区判内外',
+		async fn() {
+			const sys = (text) => ({ type: 'system/message', data: { content: [{ type: 'text', text: text }] } });
+			const events = [
+				sys('Current working directory: "C:\\old".'),
+				sys('runtime context. Current working directory: "D:\\repo".\nCurrent DSH file policy: workspace-write.'),
+			];
+			assertEqual(workingDirectoryOf(events), 'D:\\repo', '取最新一条快照');
+			assertEqual(workingDirectoryOf([]), '', '没有快照就是空');
+			assertEqual(pathScopeOf('D:\\repo\\src\\a.ts', 'D:\\repo'), 'inside', '工作区内');
+			assertEqual(pathScopeOf('D:\\other\\x', 'D:\\repo'), 'outside', '工作区外');
+			assertEqual(pathScopeOf('C:\\Windows\\System32\\x.dll', 'D:\\repo'), 'system', '系统目录');
+			assertEqual(pathScopeOf('d:/repo/a.ts', 'D:\\REPO\\'), 'inside', '大小写与斜杠不敏感');
+			assertEqual(pathScopeOf('', 'D:\\repo'), '', '空路径不判');
+			assertEqual(pathScopeOf('D:\\repo\\a', 'D:\\repo2'), 'outside', '前缀相同但不是同一棵树');
+			assertEqual(pathsIn('{"command":"rm -rf D:\\\\repo\\\\build"}').length >= 1, true, '从参数里抽得到路径');
+			const block = environmentOf(events, { root: 'D:\\repo', isGit: true, argsText: 'see C:\\Windows\\x' });
+			assertTrue(block.indexOf('working directory: D:\\repo') >= 0, '带工作目录');
+			assertTrue(block.indexOf('inside a git repository: yes') >= 0, '带 git 判断');
+			assertTrue(block.indexOf('(system)') >= 0, '路径要标内外');
+			assertEqual(environmentOf([], { root: 'D:\\repo' }), '', '没有快照就没有这一段');
+			const built = buildMessages({ toolName: 'ops_bash', reason: 'r', summary: '{}', env: 'working directory: D:\\repo\ninside a git repository: yes' });
+			const text = built.messages[0].content[0].text;
+			assertTrue(text.indexOf('environment:') >= 0, '提示里要有环境段');
+			assertTrue(text.indexOf('  inside a git repository: yes') >= 0, '缩进两格，属于 environment');
+			assertTrue(built.system.indexOf('Environment:') >= 0, '系统提示要解释这几行');
+			assertTrue(buildMessages({ toolName: 'ops_shell', reason: 'r', summary: '{}' }).messages[0].content[0].text.indexOf('environment:') < 0, '没有环境就不写这一段');
+			assertEqual(clampSettings({}).aiEnvEnabled, true, '环境开关默认开');
+			assertEqual(clampSettings({ aiEnvEnabled: false }).aiEnvEnabled, false, '能关掉');
+			assertEqual(settingForSession({ aiEnvEnabled: true, aiEnvLocal: { s1: false } }, 's1', 'aiEnvEnabled', 'aiEnvLocal'), false, '环境也按会话独立');
+		},
+	},
 	{
 		name: '上下文：只送消息正文、三层脱敏、按轮数与预算裁剪',
 		async fn() {

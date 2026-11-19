@@ -97,8 +97,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	 * per-session pin covers. **Presence is the decision** — `false` is a real choice, not an
 	 * absent one, so these must never be normalised away.
 	 */
+	/** Working directory / git / path scope. Cheap and deterministic, so it defaults on. */
+	aiEnvEnabled: true,
 	aiContextLocal: Object.freeze({}),
 	aiToolBriefLocal: Object.freeze({}),
+	aiEnvLocal: Object.freeze({}),
 	aiContextTokens: 1500,
 	// Two card switches, default on: users who find the floating card noisy can silence
 	// one without silencing the plain waiting hint.
@@ -285,7 +288,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	const langOk = (value) => value === '' || (typeof value === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value));
 	if (langOk(patch.reviewerLocale)) next.reviewerLocale = patch.reviewerLocale;
 	if (langOk(patch.panelLocale)) next.panelLocale = patch.panelLocale;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'aiToolBrief', 'aiContextEnabled']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {
@@ -308,7 +311,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		next.aiTools = clampAiTools(patch.aiTools).filter((name) => DEFAULT_AI_TOOLS.includes(name) === false);
 	}
 	if (patch.aiToolsDeny !== undefined && patch.aiToolsDeny !== null) next.aiToolsDeny = clampAiTools(patch.aiToolsDeny);
-	for (const field of ['aiContextLocal', 'aiToolBriefLocal']) {
+	for (const field of ['aiContextLocal', 'aiToolBriefLocal', 'aiEnvLocal']) {
 		if (patch[field] === undefined || patch[field] === null) continue;
 		next[field] = clampBoolMap(patch[field]);
 	}

@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 1.3.1 — 评审知道自己站在哪
+
+### 环境：三行事实，零额外请求
+
+- 每次评审多一段：
+  ```
+  environment:
+    working directory: D:\Work\Agent\plugin\dsh-review-hub
+    inside a git repository: yes
+    paths in this call: D:\…\build (inside), C:\Windows\x (system)
+  ```
+- 数据全部来自已有东西：工作目录取自宿主每轮写进会话的运行时快照（`system/message`；一份会话里出现过 236 次），
+  git 判断是一次 `existsSync(join(cwd, '.git'))`，路径内外是归一化后的字符串比较（大小写与斜杠不敏感）。
+  **不调用模型、不读文件内容。**
+- 系统提示加两条：相对路径以工作目录为基准；标着 `outside` / `system` 的路径就是风险来源，要写进 reason。
+- 为什么值得：「`rm -rf build`」在仓库根和在 `C:\` 是两件事，而在此之前模型两件都只能猜。
+
+### 开关
+
+- `aiEnvEnabled`（默认开），挂在「上下文增强审批」下面；总闸关掉时整块不出现。
+- 与其它两项一样**按会话独立**（`aiEnvLocal`）。
+- 每条审批约 +20~40 token——它比上下文便宜一个数量级，所以默认开。
+
 ## 1.3.0 — 评审第一次知道会话在做什么
 
 ### 上下文只送消息正文

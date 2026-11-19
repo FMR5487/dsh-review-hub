@@ -286,6 +286,8 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI 审批',
       'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
       'setting.aiContext': '上下文增强审批',
+      'setting.aiEnv': '带上环境信息',
+      'setting.aiEnvNote': '工作目录、是否 git 仓库、参数里每个路径在工作区内还是外（不额外调用模型，也不读文件）',
       'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。\n关掉时模型只看得到命令与参数；增加的 token 上限由设置决定',
       'setting.contextTurnsNote': '带几轮。0 = 不带上下文。默认 2，范围 0–10',
       'setting.contextTokensNote': '最多多少 token，超出先丢最早一轮。默认 1500',
@@ -647,6 +649,8 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI review',
       'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
       'setting.aiContext': 'Context-enhanced review',
+      'setting.aiEnv': 'Send the environment',
+      'setting.aiEnvNote': 'Working directory, whether it is a git repository, and where each path lands (inside or outside the workspace). No extra call, no file reads',
       'setting.aiContextNote': 'Sends the last few turns as background.\nWhile off, the model sees only the command and its arguments; the ceiling is set below',
       'setting.contextTurnsNote': 'Turns to include. 0 = no context. Default 2, range 0-10',
       'setting.contextTokensNote': 'Cap in tokens; past it the oldest turn goes first. Default 1500',
@@ -3715,6 +3719,8 @@ window.__ModuleLoader__.load({
             Number(config.aiContextTurns) > 0
               ? numRow('aiContextTokens', t('config.contextTokens'), t('setting.contextTokensNote'), config.aiContextTokens, function (value) { void savePatch({ aiContextTokens: value }); }, 200, 8000)
               : null,
+            // Deterministic and free: read from the snapshot the host already writes.
+            row('ai-env', t('setting.aiEnv'), t('setting.aiEnvNote'), sessionBool('aiEnvEnabled', 'aiEnvLocal'), flipSession('aiEnvEnabled', 'aiEnvLocal')),
           ])
           : null,
         row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), sessionBool('aiToolBrief', 'aiToolBriefLocal'), flipSession('aiToolBrief', 'aiToolBriefLocal')),
@@ -4225,6 +4231,7 @@ window.__ModuleLoader__.load({
       promptAppend: '',
       aiToolBrief: true,
       aiContextEnabled: false,
+      aiEnvEnabled: true,
       aiContextTurns: 2,
       aiContextTokens: 1500,
       reviewerLocale: '',
