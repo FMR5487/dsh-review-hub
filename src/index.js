@@ -503,7 +503,9 @@ async function answerer(request, next) {
 				// A failure carries the message that explains it (timeout / error / unparsed / …).
 				// It goes in its own field: `aiReason` means "the reviewer's advice", and every card
 				// and filter keys off that meaning.
-				if (verdict.source !== 'ai' && verdict.source !== 'cache' && typeof verdict.reason === 'string' && verdict.reason !== '') row.aiError = verdict.reason.slice(0, 200);
+				// A failure with no message must still say *which* failure: an empty `aiError` is why the
+				// 10 erroring rows in one session could not be explained from the ledger.
+				if (verdict.source !== 'ai' && verdict.source !== 'cache') row.aiError = String(verdict.reason || verdict.source || 'error').slice(0, 200);
 							aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 						}
 						activeStore?.announce?.({ kind: 'pending' });
@@ -538,7 +540,7 @@ async function answerer(request, next) {
 				// verdict" and friends are diagnostics (aiSource says which), not something
 				// a human should read as the AI's opinion.
 				if ((aiNote.source === 'ai' || aiNote.source === 'cache') && typeof aiNote.reason === 'string' && aiNote.reason !== '') row.aiReason = aiNote.reason.slice(0, 160);
-			if (aiNote.source !== 'ai' && aiNote.source !== 'cache' && typeof aiNote.reason === 'string' && aiNote.reason !== '') row.aiError = aiNote.reason.slice(0, 200);
+			if (aiNote.source !== 'ai' && aiNote.source !== 'cache') row.aiError = String(aiNote.reason || aiNote.source || 'error').slice(0, 200);
 			}
 			// The card is already on screen: push the advice into it the moment it exists.
 			activeStore?.announce?.({ kind: 'pending' });
