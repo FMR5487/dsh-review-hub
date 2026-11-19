@@ -147,13 +147,35 @@ export function commandText(toolName, argsText) {
 	return argsText;
 }
 
+/** One normal form for comparing paths: forward slashes, lower case, no trailing slash. */
+function normalPath(value) {
+	const text = typeof value === 'string' ? value.trim().replace(/\\+/g, '/').replace(/\/{2,}/g, '/') : '';
+	if (text === '') return '';
+	const trimmed = text.length > 1 && text.endsWith('/') ? text.slice(0, -1) : text;
+	return trimmed.toLowerCase();
+}
+
+/** The exempt list as clean prefixes; anything unreadable is dropped rather than trusted. */
+function exemptPathsOf(list) {
+	if (Array.isArray(list) === false) return [];
+	return list.map((item) => normalPath(item)).filter((item) => item !== '');
+}
+
+/** Does the argument text mention a path under one of the exempt prefixes? */
+function matchesExempt(text, exempt) {
+	if (exempt.length === 0) return false;
+	const haystack = normalPath(text);
+	return exempt.some((prefix) => haystack.includes(prefix));
+}
+
 /**
  * Match one approval against the hard-risk classes.
  * @returns {{rule:string,label:string}|undefined}
  */
-export function hardRisk(toolName, argsText) {
+export function hardRisk(toolName, argsText, options = {}) {
 	const text = typeof argsText === 'string' ? argsText : '';
 	if (text === '') return undefined;
+	const exempt = exemptPathsOf(options.credentialExempt);
 	// Path-shaped rules look at the whole argument text; command-shaped rules look
 	// at the command line so a JSON key named "delete" cannot trip them.
 	const command = commandText(toolName, text);
@@ -162,7 +184,10 @@ export function hardRisk(toolName, argsText) {
 		if (entry.shape === 'command' && runsCommands === false) continue;
 		for (const pattern of entry.patterns) {
 			if (pattern.test(text) || (command !== text && pattern.test(command))) {
-				return { rule: entry.rule, label: entry.label };
+				// A path the human put on the exempt list is still *reported* as a credential hit —
+				// it just stops deciding alone. The caller sends it to the reviewer with risk = high.
+				const lifted = entry.rule === 'credentials' && matchesExempt(text, exempt);
+				return { rule: entry.rule, label: entry.label, ...(lifted ? { exempt: true } : {}) };
 			}
 		}
 	}
@@ -458,8 +483,13 @@ export function stricterTier(left, right) {
  * @returns {{tier:'ai'|'memory'|'human', hardRisk?:{rule:string,label:string}, riskLevel:string}}
  */
 export function classify(toolName, argsText, options = {}) {
-	const hit = hardRisk(toolName, argsText);
+	const hit = hardRisk(toolName, argsText, options);
 	if (hit !== undefined) {
+		// An exempt credential path stops deciding alone: it goes to the reviewer like any other
+		// call, but the risk floor stays high so the row still reads as "credentials".
+		if (hit.exempt === true) {
+			return { tier: callTierOf(toolName, argsText, options.toolsPolicy), hardRiskExempt: hit, riskLevel: 'high' };
+		}
 		// Hard risk wins outright: no AI, no memory, no counting.
 		return { tier: 'human', hardRisk: hit, riskLevel: 'high' };
 	}

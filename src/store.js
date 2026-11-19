@@ -97,6 +97,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	 * absent one, so these must never be normalised away.
 	 */
 	/** Working directory / git / path scope. Cheap and deterministic, so it defaults on. */
+	/**
+	 * Paths whose credential match should not decide alone: the row still goes to the reviewer,
+	 * with risk pinned at high. Empty by default — naming a directory here is the human saying
+	 * "the commands against this one may be judged by the model".
+	 */
+	credentialExemptPaths: Object.freeze([]),
+
 	/** Toast the moment an approval is handed to a human, before the reviewer answers. */
 	aiNotifyHandover: false,
 	aiEnvEnabled: true,
@@ -311,6 +318,16 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 		next.aiTools = clampAiTools(patch.aiTools).filter((name) => DEFAULT_AI_TOOLS.includes(name) === false);
 	}
 	if (patch.aiToolsDeny !== undefined && patch.aiToolsDeny !== null) next.aiToolsDeny = clampAiTools(patch.aiToolsDeny);
+	if (patch.credentialExemptPaths !== undefined && patch.credentialExemptPaths !== null) {
+		// The settings textarea writes one path per line; the API may also take an array.
+		const incoming = typeof patch.credentialExemptPaths === 'string'
+			? patch.credentialExemptPaths.split(/\r?\n|,/)
+			: (Array.isArray(patch.credentialExemptPaths) ? patch.credentialExemptPaths : []);
+		next.credentialExemptPaths = Object.freeze(incoming
+			.filter((item) => typeof item === 'string' && item.trim() !== '')
+			.map((item) => item.trim().slice(0, 240))
+			.slice(0, 32));
+	}
 	for (const field of ['aiContextLocal', 'aiToolBriefLocal', 'aiEnvLocal']) {
 		if (patch[field] === undefined || patch[field] === null) continue;
 		next[field] = clampBoolMap(patch[field]);

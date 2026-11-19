@@ -377,7 +377,7 @@ async function answerer(request, next) {
 	const fileMode = settings?.fileFingerprint === true && filePath !== '';
 	const fp = fpInfo === undefined ? undefined : (fileMode === true ? fileFingerprintOf(toolName, filePath) : fpInfo.fp);
 	const agentKind = classifyAgent(request?.agent);
-	const { tier: baseTier, hardRisk, coarse } = classify(toolName, argsText, { toolsPolicy: toolsPolicyOf(settings) });
+	const { tier: baseTier, hardRisk, coarse, hardRiskExempt } = classify(toolName, argsText, { toolsPolicy: toolsPolicyOf(settings), credentialExempt: settings?.credentialExemptPaths });
 	// Two deterministic blockers, two names: L0 hard risk and L1 coarse keys.
 	// Either one means "no AI, no memory, no file switch — a human decides".
 	// `coarse` (the D layer) only blocks the reviewer: it is a shape we cannot judge, not a
@@ -506,7 +506,7 @@ async function answerer(request, next) {
 				// A failure with no message must still say *which* failure: an empty `aiError` is why the
 				// 10 erroring rows in one session could not be explained from the ledger.
 				if (verdict.source !== 'ai' && verdict.source !== 'cache') row.aiError = String(verdict.reason || verdict.source || 'error').slice(0, 200);
-							aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
+							aiNote = { risk: hardRiskExempt === undefined ? verdict.risk : 'high', reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 						}
 						activeStore?.announce?.({ kind: 'pending' });
 						if (!(verdict !== undefined && verdict.decision === 'allow')) {
@@ -528,7 +528,7 @@ async function answerer(request, next) {
 				verdict = await review;
 			}
 			if (verdict !== undefined) {
-				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
+				aiNote = { risk: hardRiskExempt === undefined ? verdict.risk : 'high', reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 			}
 			row.aiReviewed = true;
 			// AI-eligible but the reviewer returned nothing (disabled, no llm, no verdict):
@@ -649,6 +649,8 @@ async function answerer(request, next) {
 	if (escalation.operation !== '') finished.reason = escalation.operation.slice(0, 240);
 	else if (typeof request?.reason === 'string') finished.reason = request.reason.slice(0, 240);
 	if (escalation.mode !== '') finished.reqMode = escalation.mode;
+	// Kept in the ledger: "this row reached the AI only because the path was exempt".
+	if (hardRiskExempt !== undefined) finished.hardRiskExempt = hardRiskExempt.rule;
 	// What the reviewer was told, and how much of it had to be masked first. A row with a large
 	// redaction count is a row where the session's own text was the reason it could not be judged.
 	if (ctxGiven.text !== '') {

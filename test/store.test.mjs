@@ -49,6 +49,19 @@ export const cases = [
 			assertEqual(clampSettings({}).aiEnvEnabled, true, '环境开关默认开');
 			assertEqual(clampSettings({}).aiNotifyHandover, false, '交权通知默认关');
 			assertEqual(clampSettings({}).toastQuietMs, undefined, 'toastQuietMs 死字段已删');
+			// 凭据豁免：命中即送 AI，但风险钉 high；空表等于没放宽
+			const cmd = JSON.stringify({ command: 'node -e "require(\'C:/Users/FMR/.dsh/channel-pack/token-ledger.json\')"' });
+			assertEqual((hardRisk('ops_bash', cmd) || {}).rule, 'credentials', '默认仍按凭据硬风险');
+			const exemptHit = hardRisk('ops_bash', cmd, { credentialExempt: ['C:\\Users\\FMR\\.dsh\\channel-pack'] });
+			assertEqual((exemptHit || {}).exempt, true, '豁免表命中要标记 exempt');
+			assertEqual(hardRisk('ops_bash', cmd, { credentialExempt: ['D:\\other'] }).exempt, undefined, '别的路径不豁免');
+			const lifted = classify('ops_bash', cmd, { credentialExempt: ['C:/Users/FMR/.dsh/channel-pack'] });
+			assertEqual(lifted.tier, 'ai', '豁免后进 AI 档');
+			assertEqual(lifted.riskLevel, 'high', '风险仍是 high');
+			assertEqual((lifted.hardRiskExempt || {}).rule, 'credentials', '台账要记下豁免来源');
+			assertEqual(classify('ops_bash', cmd, {}).tier, 'human', '不豁免时仍是人工');
+			assertEqual(clampSettings({ credentialExemptPaths: 'a\nb,' }).credentialExemptPaths.join('|'), 'a|b', '文本按行/逗号拆');
+			assertEqual(clampSettings({ credentialExemptPaths: [' x ', ''] }).credentialExemptPaths.join('|'), 'x', '去空与空格');
 			assertTrue(buildMessages({ toolName: 'x', reason: 'r', summary: '{}', note: '别写这一行' }).messages[0].content[0].text.indexOf('note:') < 0, 'note 死字段已删');
 			assertEqual(clampSettings({ aiNotifyHandover: true }).aiNotifyHandover, true, '能打开');
 			assertEqual(clampSettings({ aiEnvEnabled: false }).aiEnvEnabled, false, '能关掉');

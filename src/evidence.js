@@ -14,6 +14,9 @@ const INLINE_SECRETS = [/sk-[A-Za-z0-9]{8,}/g, /Bearer\s+\S+/gi];
 const REDACTED = '[redacted]';
 const MAX_DEPTH = 4;
 export const SUMMARY_MAX_CHARS = 240;
+/** A command keeps its head and its tail: the tail is where redirections and targets live. */
+export const COMMAND_HEAD_CHARS = 200;
+export const COMMAND_TAIL_CHARS = 100;
 const SHELL_TOOLS = new Set(['bash', 'win_bash', 'ops_bash', 'pwsh', 'powershell']);
 const PATH_TOOLS = new Set(['edit', 'write', 'str_replace_editor', 'read']);
 
@@ -116,9 +119,20 @@ function firstJsonObject(text) {
 	return undefined;
 }
 
+/**
+ * A long command is cut head-and-tail, and says how much it cut. Truncating from the front
+ * only made the reviewer answer "command truncated, cannot confirm" — it could not see the
+ * redirection target at the end, which is exactly where the risk lives.
+ */
+function trimCommand(text) {
+	if (text.length <= COMMAND_HEAD_CHARS + COMMAND_TAIL_CHARS) return text;
+	const omitted = text.length - COMMAND_HEAD_CHARS - COMMAND_TAIL_CHARS;
+	return text.slice(0, COMMAND_HEAD_CHARS) + '\n…（中间省略 ' + omitted + ' 字符）…\n' + text.slice(-COMMAND_TAIL_CHARS);
+}
+
 function summaryOf(name, args) {
 	let text;
-	if (SHELL_TOOLS.has(name) && hasValue(args?.command)) text = redactString(String(args.command));
+	if (SHELL_TOOLS.has(name) && hasValue(args?.command)) text = trimCommand(redactString(String(args.command)));
 	else if (PATH_TOOLS.has(name) && hasValue(args?.file_path)) text = redactString(String(args.file_path));
 	else {
 		try {
