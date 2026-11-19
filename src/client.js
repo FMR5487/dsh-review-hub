@@ -283,7 +283,7 @@ window.__ModuleLoader__.load({
       'config.budget': '每轮审查上限',
       'config.breaker': '连续失败熔断阈值',
       'config.exempt': '凭据路径豁免（一行一条）',
-      'config.exemptNote': '命中这些路径的凭据类硬风险不再直接转人工，改为送 AI 判，风险固定记 high。留空＝不豁免任何路径',
+      'config.exemptNote': '命中这些路径的凭据类硬风险不再直接转人工，改为送 AI 判；风险等级按 AI 的判断记，行上标「命中豁免」。留空＝不豁免任何路径',
       'config.model': '审查模型（留空=会话默认）',
       'config.modelAuto': '跟随会话（默认）',
       'config.modelEmpty': '还没观察到可用车道，先手填 provider/model',
@@ -297,14 +297,12 @@ window.__ModuleLoader__.load({
       'setting.notifyHandoverNote': '审批交给你的那一刻就弹通知，不等 AI 出结论。默认关：AI 有结果（建议人工 / 超时 / 错误）时本来就会弹',
       'setting.aiEnv': '带上环境信息',
       'setting.aiEnvNote': '工作目录、是否 git 仓库、参数里每个路径在工作区内还是外（不额外调用模型，也不读文件）',
-      'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。\n关掉时模型只看得到命令与参数；增加的 token 上限由设置决定',
+      'setting.aiContextNote': '把环境和最近几轮对话带进评审中，仅作背景。\n关掉时模型只看得到命令与参数；增加的 token 上限由设置决定',
       'setting.contextTurnsNote': '带几轮。0 = 不带上下文。默认 2，范围 0–10',
       'setting.contextTokensNote': '最多多少 token，超出先丢最早一轮。默认 1500',
       'setting.aiToolBrief': '把工具说明送给 AI',
       'setting.aiToolBriefNote': '附上工具描述第一句与参数名，陌生工具不必靠猜（每条审批最多 +140 Token）',
       'model.none': '—',
-      'model.next': '下次审批：{lane}',
-      'model.nextNone': '下次审批：跟随会话（本会话还没记录到车道）',
       'model.last': '上次审批：{lane}',
       'model.refresh': '刷新模型目录',
       'model.skipped': '{n} 个 provider 没返回目录（缺凭据或超时），已跳过',
@@ -655,7 +653,7 @@ window.__ModuleLoader__.load({
       'config.budget': 'Reviews per turn',
       'config.breaker': 'Breaker threshold',
       'config.exempt': 'Credential paths the reviewer may judge (one per line)',
-      'config.exemptNote': 'A credential hit on these paths is no longer sent straight to a human: it goes to the reviewer, and the risk is pinned at high. Empty = nothing is exempt',
+      'config.exemptNote': 'A credential hit on these paths is no longer sent straight to a human: it goes to the reviewer, and the risk level is the reviewer own. The row is labelled 命中豁免. Empty = nothing is exempt',
       'config.model': 'Reviewer model (blank = session default)',
       'config.modelAuto': 'Follow the session (default)',
       'config.modelEmpty': 'No lane seen yet — type provider/model',
@@ -669,14 +667,12 @@ window.__ModuleLoader__.load({
       'setting.notifyHandoverNote': 'Toast the moment an approval reaches you, without waiting for the reviewer. Off by default: a toast already fires when the reviewer finishes (suggests a human / timed out / failed)',
       'setting.aiEnv': 'Send the environment',
       'setting.aiEnvNote': 'Working directory, whether it is a git repository, and where each path lands (inside or outside the workspace). No extra call, no file reads',
-      'setting.aiContextNote': 'Sends the last few turns as background.\nWhile off, the model sees only the command and its arguments; the ceiling is set below',
+      'setting.aiContextNote': 'Sends the environment and the last few turns to the reviewer, as background only.\nWhile off, the model sees only the command and its arguments; the ceiling is set below',
       'setting.contextTurnsNote': 'Turns to include. 0 = no context. Default 2, range 0-10',
       'setting.contextTokensNote': 'Cap in tokens; past it the oldest turn goes first. Default 1500',
       'setting.aiToolBrief': 'Send the tool description to the reviewer',
       'setting.aiToolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess (at most +140 tokens per review)',
       'model.none': '—',
-      'model.next': 'Next review: {lane}',
-      'model.nextNone': 'Next review: follows the session (no lane recorded yet)',
       'model.last': 'Last review: {lane}',
       'model.refresh': 'Refresh the provider list',
       'model.skipped': '{n} providers returned no list (missing credentials or a timeout), skipped',
@@ -2724,7 +2720,7 @@ window.__ModuleLoader__.load({
       '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
       '.ah-risk-unknown{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-risk-ms{color:var(--dsw-alias-label-tertiary,#9aa0a6);white-space:nowrap}',
-      '.ah-risk-exempt{color:var(--dsw-alias-label-tertiary,#9aa0a6);border:1px dashed color-mix(in srgb, var(--dsw-alias-label-tertiary,#9aa0a6) 55%, transparent);border-radius:6px;padding:0 5px}',
+      '.ah-risk-exempt{color:var(--dsw-alias-label-tertiary,#9aa0a6);font-weight:700}',
       // Fake conversation page: the card is previewed where it will actually live.
       '.ah-preview-widths{display:flex;align-items:center;gap:6px;flex-wrap:wrap}',
       '.ah-fake-chat{position:relative;box-sizing:border-box;margin:8px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);display:flex;flex-direction:column;gap:6px;overflow:hidden;min-height:210px}',
@@ -3385,7 +3381,6 @@ window.__ModuleLoader__.load({
       // "上次审批" is the newest ledger row that recorded a lane — never the chat lane,
       // which would name a model this session never actually reviewed anything with.
       const lastApproval = typeof catalog.lastApproval === 'string' ? catalog.lastApproval : '';
-      const nextText = resolvedNext === '' ? t('model.nextNone') : t('model.next', { lane: laneLabel(resolvedNext) });
       const lastText = lastApproval === '' ? '' : t('model.last', { lane: laneLabel(lastApproval) });
       if (providers.length === 0 && live === null) {
         return h('div', { className: 'ah-model', style: box }, [
@@ -3397,7 +3392,6 @@ window.__ModuleLoader__.load({
             value: stored,
             onChange: function (event) { change('reviewerModel', event.target.value); },
           }),
-          h('div', { className: 'ah-hint', key: 'next' }, nextText),
           lastText === '' ? null : h('div', { className: 'ah-hint', key: 'last' }, lastText),
         ]);
       }
@@ -3475,7 +3469,6 @@ window.__ModuleLoader__.load({
           iconButton('refresh', t('model.refresh'), function () { void loadModels(true, { refresh: true }); }),
           fetchedAt === '' ? null : h('span', { className: 'ah-hint', key: 'fetched' }, fetchedAt),
         ]),
-        h('div', { className: 'ah-hint', key: 'next' }, nextText),
         lastText === '' ? null : h('div', { className: 'ah-hint', key: 'last' }, lastText),
         errors.length === 0 ? null : h('div', { className: 'ah-hint ah-tone-warn', key: 'errors' }, t('model.skipped', { n: errors.length })),
       ]);
@@ -4070,10 +4063,6 @@ window.__ModuleLoader__.load({
 
       const stats = isPlainObject(view.stats) ? view.stats : {};
       const catalog = isPlainObject(view.models) ? view.models : {};
-      const nextLane = isPlainObject(catalog.next) && typeof catalog.next.provider === 'string' && catalog.next.provider !== ''
-        && typeof catalog.next.model === 'string' && catalog.next.model !== ''
-        ? catalog.next.provider + '/' + catalog.next.model
-        : '';
       // One chunk per number: the bar drops whole groups as it narrows, never half of one.
       const barChunks = [
         t('bar.total', { n: Number(stats.total) || 0 }),
@@ -4081,7 +4070,6 @@ window.__ModuleLoader__.load({
         t('bar.deny', { n: Number(stats.deny) || 0 }),
         t('bar.cancelled', { n: Number(stats.cancelled) || 0 }),
         t('bar.unavailable', { n: Number(stats.unavailable) || 0 }),
-        nextLane === '' ? '' : t('model.next', { lane: laneLabel(nextLane) }),
       ];
       const strip = t('bar.strip', {
         total: Number(stats.total) || 0,
