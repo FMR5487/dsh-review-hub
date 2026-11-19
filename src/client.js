@@ -175,9 +175,10 @@ window.__ModuleLoader__.load({
       'stats.lanes': 'AI 调用情况',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / 中断 {aborted} / 错误 {fallback}',
       'stats.cacheLine': '审批缓存 {total} 条 · 命中 {hits} 次',
-      'stats.tokensLine': 'Token 总用量 {sum} · 输入 {input} · 输出 {output} · 缓存读取 {cached}',
+      'stats.tokensLine': 'Token 总用量 {sum} · 输入 {input} · 输出 {output} · 缓存读取 {cached}（命中率 {rate}%）',
       'stats.tokens': 'Token',
       'stats.tokensIn': '输入',
+      'stats.cacheRate': '缓存命中',
       'stats.tokensOut': '输出',
       'stats.tokensSum': '合计',
       'stats.cacheRead': '缓存读取',
@@ -542,9 +543,10 @@ window.__ModuleLoader__.load({
       'stats.lanes': 'AI calls',
       'stats.reviewerInline': 'allow {allow} / ask {ask} / aborted {aborted} / errors {fallback}',
       'stats.cacheLine': 'approval cache {total} entries · {hits} hits',
-      'stats.tokensLine': 'tokens: total {sum} · input {input} · output {output} · cache read {cached}',
+      'stats.tokensLine': 'tokens: total {sum} · input {input} · output {output} · cache read {cached} ({rate}% of input)',
       'stats.tokens': 'tokens',
       'stats.tokensIn': 'in',
+      'stats.cacheRate': 'cache hit',
       'stats.tokensOut': 'out',
       'stats.tokensSum': 'total',
       'stats.cacheRead': 'cache read',
@@ -5278,6 +5280,7 @@ window.__ModuleLoader__.load({
             output: num(reviewer.completionTokens),
             sum: num(reviewer.promptTokens) + num(reviewer.completionTokens),
             cached: num(reviewer.cacheReadTokens),
+            rate: String(Number(reviewer.cacheRate) || 0),
           }),
         ];
 
@@ -5306,7 +5309,7 @@ window.__ModuleLoader__.load({
               t('stats.avgMs') + ' ' + (num(bucket.msCount) === 0 ? '—' : formatMs(bucket.avgMs)),
             ].join(' · ')),
             h('span', { key: 'tokens' }, [
-              t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
+              t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.cacheRate') + ' ' + String(Number(bucket.cacheRate) || 0) + '%' + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
             ].join(' · ')),
           ]);
         }),

@@ -705,8 +705,12 @@ export function createStore(options = {}) {
 		}
 		out.avgDecisionMs = counted === 0 ? 0 : Math.round(sum / counted);
 		reviewer.avgMs = reviewer.msCount === 0 ? 0 : Math.round(reviewer.msSum / reviewer.msCount);
+		// Share of the input the provider served from its own prefix cache. Without this number
+		// "should we stabilise the prefix" is an opinion; with it, it is a measurement.
+		reviewer.cacheRate = reviewer.promptTokens === 0 ? 0 : Math.round((reviewer.cacheReadTokens / reviewer.promptTokens) * 1000) / 10;
 		for (const [lane, bucket] of Object.entries(reviewer.byModel)) {
 			bucket.avgMs = bucket.msCount === 0 ? 0 : Math.round(bucket.msSum / bucket.msCount);
+			bucket.cacheRate = bucket.promptTokens === 0 ? 0 : Math.round((bucket.cacheReadTokens / bucket.promptTokens) * 1000) / 10;
 			reviewer.byModel[lane] = bucket;
 		}
 		out.reviewer = reviewer;

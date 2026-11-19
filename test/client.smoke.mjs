@@ -559,6 +559,7 @@ export const cases = [
 			assertTrue(src.includes("t('setting.tokens'"), '分类里要有「一条审批约需 N~M Token」');
 			assertTrue(src.includes("'config.ignored'"), '认不出的设置键要能被显示出来');
 			assertTrue(src.includes('function reviewTokensOf(config)'), '要有一个可算的 token 估算');
+			assertTrue(src.includes('命中率 {rate}%'), '统计里要显示缓存命中率——没有这个数，前缀稳定化只能靠猜');
 			assertTrue(src.includes('store.configIgnored = Array.isArray(body.ignored)'), '保存回执里的 ignored 要接住');
 			assertTrue(src.includes("flipSession('aiToolBrief'"), '开关要能写进设置（按会话时可以只写本会话）');
 			assertTrue(src.includes('aiToolBrief: true'), '客户端默认值必须与服务端一致（默认开）');
