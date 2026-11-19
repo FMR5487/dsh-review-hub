@@ -98,6 +98,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	 * absent one, so these must never be normalised away.
 	 */
 	/** Working directory / git / path scope. Cheap and deterministic, so it defaults on. */
+	/** Toast the moment an approval is handed to a human, before the reviewer answers. */
+	aiNotifyHandover: false,
 	aiEnvEnabled: true,
 	aiContextLocal: Object.freeze({}),
 	aiToolBriefLocal: Object.freeze({}),
@@ -288,7 +290,7 @@ export function clampSettings(patch, base = DEFAULT_SETTINGS) {
 	const langOk = (value) => value === '' || (typeof value === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value));
 	if (langOk(patch.reviewerLocale)) next.reviewerLocale = patch.reviewerLocale;
 	if (langOk(patch.panelLocale)) next.panelLocale = patch.panelLocale;
-	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled']) {
+	for (const key of ['aiEnabled', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'clearEnabled', 'hideKnobs', 'translateActions', 'fpIgnoreJustification', 'autoExpandDescription', 'fileFingerprint', 'debugHeaders', 'strictVerdict', 'debugReview', 'aiAdviceCard', 'dangerCard', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled', 'aiNotifyHandover']) {
 		if (typeof patch[key] === 'boolean') next[key] = patch[key];
 	}
 	for (const [key, bounds] of Object.entries(BOUNDS)) {

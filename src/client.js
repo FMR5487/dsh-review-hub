@@ -29,6 +29,7 @@ window.__ModuleLoader__.load({
       'dock.memory': '记忆通过',
       'dock.ask': 'AI 拿不准，已转人工',
       'dock.external': '由外部插件裁决',
+      'dock.handedOver': '审批交给你了',
       'dock.pending': '等待人工审批',
       'dock.pendingAi': 'AI 建议人工 · {risk} · {reason}',
       'dock.pendingLine': '等待审批中 {time}',
@@ -286,6 +287,8 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI 审批',
       'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
       'setting.aiContext': '上下文增强审批',
+      'setting.notifyHandover': '交权后立即通知',
+      'setting.notifyHandoverNote': '审批交给你的那一刻就弹通知，不等 AI 出结论。默认关：AI 有结果（建议人工 / 超时 / 错误）时本来就会弹',
       'setting.aiEnv': '带上环境信息',
       'setting.aiEnvNote': '工作目录、是否 git 仓库、参数里每个路径在工作区内还是外（不额外调用模型，也不读文件）',
       'setting.aiContextNote': '把最近几轮对话带进评审，仅作背景。\n关掉时模型只看得到命令与参数；增加的 token 上限由设置决定',
@@ -392,6 +395,7 @@ window.__ModuleLoader__.load({
       'dock.memory': 'Memory passed',
       'dock.ask': 'AI was unsure, asked the human',
       'dock.external': 'Decided by another plugin',
+      'dock.handedOver': 'Approval is yours',
       'dock.pending': 'Waiting for a human',
       'dock.pendingAi': 'AI suggests a human · {risk} · {reason}',
       'dock.pendingLine': 'Awaiting approval since {time}',
@@ -649,6 +653,8 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI review',
       'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
       'setting.aiContext': 'Context-enhanced review',
+      'setting.notifyHandover': 'Notify me at handover',
+      'setting.notifyHandoverNote': 'Toast the moment an approval reaches you, without waiting for the reviewer. Off by default: a toast already fires when the reviewer finishes (suggests a human / timed out / failed)',
       'setting.aiEnv': 'Send the environment',
       'setting.aiEnvNote': 'Working directory, whether it is a git repository, and where each path lands (inside or outside the workspace). No extra call, no file reads',
       'setting.aiContextNote': 'Sends the last few turns as background.\nWhile off, the model sees only the command and its arguments; the ceiling is set below',
@@ -2227,10 +2233,20 @@ window.__ModuleLoader__.load({
       if (store.pageVisible === true) return;
       for (const row of rows) {
         const key = String(row.id);
+        const what = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 120);
+        // Handover is its own moment: the human options are on screen while the reviewer keeps
+        // working. Off by default — the card has already moved to the floating seat, and a
+        // second signal is only wanted by people who keep the window in the background.
+        if (settings().aiNotifyHandover === true && row.humanAsked === true && row.aiReviewed !== true) {
+          const handKey = 'h:' + key;
+          if (seenPending.has(handKey) === false) {
+            seenPending.add(handKey);
+            toast(t('dock.handedOver'), what);
+          }
+        }
         if (seenPending.has(key)) continue;
         if (row.aiReviewed === false) continue;
         seenPending.add(key);
-        const what = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 120);
         const reason = typeof row.aiReason === 'string' ? row.aiReason.slice(0, 120) : '';
         const risk = String(row.aiRisk || 'unknown');
         const body = reason === ''
@@ -3724,6 +3740,9 @@ window.__ModuleLoader__.load({
           ])
           : null,
         row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), sessionBool('aiToolBrief', 'aiToolBriefLocal'), flipSession('aiToolBrief', 'aiToolBriefLocal')),
+        // Off by default: the card already moved to the floating seat, and a second signal for
+        // "someone is waiting" is only wanted by people who keep the window in the background.
+        row('ai-notify-handover', t('setting.notifyHandover'), t('setting.notifyHandoverNote'), config.aiNotifyHandover === true, flip('aiNotifyHandover')),
         ] : []),
 
         h('div', { className: 'ah-section', key: 'sec-memory' }, t('setting.secMemory')),
@@ -4232,6 +4251,7 @@ window.__ModuleLoader__.load({
       aiToolBrief: true,
       aiContextEnabled: false,
       aiEnvEnabled: true,
+      aiNotifyHandover: false,
       aiContextTurns: 2,
       aiContextTokens: 1500,
       reviewerLocale: '',

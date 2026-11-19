@@ -541,6 +541,9 @@ export const cases = [
 			assertTrue(src.includes("row('ai-context'"), '「上下文增强审批」要在设置面板里');
 			assertTrue(src.includes("row('ai-env'"), '「带上环境信息」要跟着总闸出现');
 			assertTrue(src.includes("'setting.aiEnv'"), '环境开关要有自己的文案');
+			assertTrue(src.includes("row('ai-notify-handover'"), '「交权后立即通知」要在设置里');
+			assertTrue(src.includes("settings().aiNotifyHandover === true && row.humanAsked === true"), '交权通知只在开关打开且确实交权时弹');
+			assertTrue(src.includes("'dock.handedOver'"), '交权通知要有自己的标题');
 			assertTrue(src.includes("numRow('aiContextTurns'"), '「带几轮对话」要跟着总闸出现');
 			assertTrue(src.includes("numRow('aiContextTokens'"), '「上下文 token 上限」要跟着总闸出现');
 			assertTrue(src.includes("className: 'ah-sub'"), '总闸带来的选项要缩进在一根竖线里');

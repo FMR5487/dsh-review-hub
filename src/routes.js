@@ -28,7 +28,7 @@ export const ROUTES = Object.freeze({
 const CONFIG_FIELDS = [
 	'aiEnabled', 'aiEnabledLocal', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled', 'toastQuietMs',
 	'threshold', 'aiFailurePolicy', 'humanFirstMs', 'reviewTimeoutMs', 'aiBudgetPerTurn', 'aiBreakerFails',
-	'aiCacheTtlMs', 'aiReasonChars', 'reviewerLocale', 'panelLocale', 'promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled', 'aiContextTurns', 'aiContextTokens', 'aiContextLocal', 'aiToolBriefLocal', 'aiEnvLocal', 'strictVerdict', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
+	'aiCacheTtlMs', 'aiReasonChars', 'reviewerLocale', 'panelLocale', 'promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled', 'aiNotifyHandover', 'aiContextTurns', 'aiContextTokens', 'aiContextLocal', 'aiToolBriefLocal', 'aiEnvLocal', 'strictVerdict', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
 	'exportScope', 'agentPolicy', 'hintMs', 'fpIgnoreJustification', 'autoExpandDescription', 'hideKnobs', 'translateActions', 'snapshotRetentionDays', 'fileAutoPass', 'fileFingerprint', 'aiTools', 'aiToolsDeny', 'aiAdviceCard', 'dangerCard', 'debugHeaders', 'debugReview',
 ];
 
