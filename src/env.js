@@ -25,8 +25,10 @@ const SYSTEM_PATHS = [
 
 /** One form for comparison: forward slashes, no trailing slash, lower case. */
 function normalise(value) {
-	const text = typeof value === 'string' ? value.trim().replace(/\\/g, '/') : '';
-	if (text === '') return '';
+	const raw = typeof value === 'string' ? value.trim() : '';
+	if (raw === '') return '';
+	// The host writes paths with doubled separators in some snapshots, so runs collapse.
+	const text = raw.replace(/\\+/g, '/').replace(/\/{2,}/g, '/');
 	const trimmed = text.length > 1 && text.endsWith('/') ? text.slice(0, -1) : text;
 	return trimmed.toLowerCase();
 }
@@ -39,13 +41,21 @@ export function workingDirectoryOf(events) {
 	const list = Array.isArray(events) ? events : [];
 	for (let index = list.length - 1; index >= 0; index -= 1) {
 		const event = list[index];
-		if (event === null || typeof event !== 'object' || event.type !== 'system/message') continue;
-		const blocks = Array.isArray(event.data?.content) ? event.data.content : [];
+		if (event === null || typeof event !== 'object') continue;
+		// Two shapes seen in the wild: a system message (preset-driven), and the harness's own
+		// per-turn prefix, which arrives as a user message. Both carry the same line.
+		if (event.type !== 'system/message' && event.type !== 'user/message') continue;
+		// `system/message` carries its blocks under data.message.content; older shapes use
+		// data.content. Reading one of them is how this returned '' while the line was right there.
+		const blocks = Array.isArray(event.data?.message?.content)
+			? event.data.message.content
+			: (Array.isArray(event.data?.content) ? event.data.content : []);
 		for (const block of blocks) {
 			if (block === null || typeof block !== 'object' || typeof block.text !== 'string') continue;
 			const hit = CWD_LINE.exec(block.text);
 			if (hit === null) continue;
-			const value = hit[1].trim();
+			// Same doubled separators: report a clean path to the reviewer.
+			const value = hit[1].trim().replace(/\\{2,}/g, '\\');
 			if (value !== '') return value;
 		}
 	}

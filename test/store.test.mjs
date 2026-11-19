@@ -21,6 +21,13 @@ export const cases = [
 			];
 			assertEqual(workingDirectoryOf(events), 'D:\\repo', '取最新一条快照');
 			assertEqual(workingDirectoryOf([]), '', '没有快照就是空');
+			// 宿主真正的形状：system/message 的内容在 data.message.content 里
+			const nested = [{ type: 'system/message', data: { message: { role: 'system', content: [{ type: 'text', text: 'Current working directory: "D:\\nested".' }] } } }];
+			assertEqual(workingDirectoryOf(nested), 'D:\\nested', 'data.message.content 也要读');
+			// 本机真实形状：宿主把 cwd 放进 user/message 的前缀，且分隔符是双写的
+			const prefixed = [{ type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'The following information describes your current session:\n\nCurrent working directory: \"D:\\\\repo\".' }] } }];
+			assertEqual(workingDirectoryOf(prefixed), 'D:\\repo', 'user/message 前缀也要读，双写分隔符要归一');
+			assertEqual(pathScopeOf('D:/repo/build', 'D:\\\\repo'), 'inside', 'root 用双写分隔符也能判内外');
 			assertEqual(pathScopeOf('D:\\repo\\src\\a.ts', 'D:\\repo'), 'inside', '工作区内');
 			assertEqual(pathScopeOf('D:\\other\\x', 'D:\\repo'), 'outside', '工作区外');
 			assertEqual(pathScopeOf('C:\\Windows\\System32\\x.dll', 'D:\\repo'), 'system', '系统目录');

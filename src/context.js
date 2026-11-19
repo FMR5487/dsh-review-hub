@@ -52,6 +52,16 @@ const HOME_PATTERNS = [
 export const REDACTED = '[redacted]';
 
 /**
+ * The harness prefixes every turn with a runtime-context block (working directory, file policy,
+ * and a copy of the session's own framing). It arrives as a user message, but it is not the
+ * human talking — sending it to the reviewer would bury the actual instruction.
+ */
+const HARNESS_PREFIX = [
+	/^The following information describes your current session/i,
+	/^This information replaces earlier versions/i,
+];
+
+/**
  * A paste is the expensive kind of message and the least informative one: a log or a diff says
  * nothing a first line does not. Multi-line blocks keep their opening line and a line count.
  */
@@ -137,6 +147,7 @@ export function contextFor(events, options = {}) {
 			if (typeof kind === 'string' && kind !== 'user') continue;
 			const text = textOf(event.data);
 			if (text === '') continue;
+			if (HARNESS_PREFIX.some((pattern) => pattern.test(text) === true)) continue;
 			if (seen >= turns) break;
 			seen += 1;
 			answered = false;
