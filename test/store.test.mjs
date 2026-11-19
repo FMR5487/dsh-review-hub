@@ -57,7 +57,7 @@ export const cases = [
 			assertEqual(hardRisk('ops_bash', cmd, { credentialExempt: ['D:\\other'] }).exempt, undefined, '别的路径不豁免');
 			const lifted = classify('ops_bash', cmd, { credentialExempt: ['C:/Users/FMR/.dsh/channel-pack'] });
 			assertEqual(lifted.tier, 'ai', '豁免后进 AI 档');
-			assertEqual(lifted.riskLevel, 'high', '风险仍是 high');
+			assertEqual(lifted.riskLevel, 'unknown', '豁免不预判风险等级——那是模型的判断');
 			assertEqual((lifted.hardRiskExempt || {}).rule, 'credentials', '台账要记下豁免来源');
 			assertEqual(classify('ops_bash', cmd, {}).tier, 'human', '不豁免时仍是人工');
 			assertEqual(clampSettings({ credentialExemptPaths: 'a\nb,' }).credentialExemptPaths.join('|'), 'a|b', '文本按行/逗号拆');

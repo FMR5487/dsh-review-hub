@@ -488,7 +488,9 @@ export function classify(toolName, argsText, options = {}) {
 		// An exempt credential path stops deciding alone: it goes to the reviewer like any other
 		// call, but the risk floor stays high so the row still reads as "credentials".
 		if (hit.exempt === true) {
-			return { tier: callTierOf(toolName, argsText, options.toolsPolicy), hardRiskExempt: hit, riskLevel: 'high' };
+			// The exempt hit only changes *who decides*; the risk level is the reviewer's call,
+			// and the row carries a `命中豁免` label so nobody has to guess why it got there.
+			return { tier: callTierOf(toolName, argsText, options.toolsPolicy), hardRiskExempt: hit, riskLevel: 'unknown' };
 		}
 		// Hard risk wins outright: no AI, no memory, no counting.
 		return { tier: 'human', hardRisk: hit, riskLevel: 'high' };

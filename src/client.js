@@ -204,6 +204,8 @@ window.__ModuleLoader__.load({
       'row.aiReject': 'AI 打回理由',
       'row.aiAllow': 'AI 通过理由',
       'row.risk': '风险',
+      'row.exempt': '命中豁免',
+      'row.exemptNote': '这条调用命中了凭据类硬风险，但路径在你的豁免表里，所以交给 AI 判；风险等级按 AI 的判断记',
       'risk.high': '高',
       'risk.medium': '中',
       'risk.low': '低',
@@ -574,6 +576,8 @@ window.__ModuleLoader__.load({
       'row.aiReject': 'Reviewer reason',
       'row.aiAllow': 'Reviewer passed it',
       'row.risk': 'risk',
+      'row.exempt': 'exempt',
+      'row.exemptNote': 'This call hit a credential hard-risk rule, but the path is on your exempt list, so the reviewer judged it; the risk level is the reviewer\'s own',
       'risk.high': 'high',
       'risk.medium': 'medium',
       'risk.low': 'low',
@@ -2720,6 +2724,7 @@ window.__ModuleLoader__.load({
       '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
       '.ah-risk-unknown{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-risk-ms{color:var(--dsw-alias-label-tertiary,#9aa0a6);white-space:nowrap}',
+      '.ah-risk-exempt{color:var(--dsw-alias-label-tertiary,#9aa0a6);border:1px dashed color-mix(in srgb, var(--dsw-alias-label-tertiary,#9aa0a6) 55%, transparent);border-radius:6px;padding:0 5px}',
       // Fake conversation page: the card is previewed where it will actually live.
       '.ah-preview-widths{display:flex;align-items:center;gap:6px;flex-wrap:wrap}',
       '.ah-fake-chat{position:relative;box-sizing:border-box;margin:8px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-2);display:flex;flex-direction:column;gap:6px;overflow:hidden;min-height:210px}',
@@ -3918,6 +3923,10 @@ window.__ModuleLoader__.load({
                       reason.risk === ''
                         ? null
                         : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, opts.t('row.risk') + ' · ' + riskLabel(reason.risk, opts.t)),
+                      // Says why a credential-looking call reached the reviewer at all.
+                      entry.hardRiskExempt === undefined
+                        ? null
+                        : h('span', { className: 'ah-risk ah-risk-exempt', key: 'exempt', title: opts.t('row.exemptNote') }, opts.t('row.exempt')),
                       // Next to the risk level, not on a line of its own: both answer "how much
                       // did this verdict cost", and the label is shortened to one word.
                       Number.isFinite(Number(entry.aiMs))

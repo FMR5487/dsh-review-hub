@@ -506,7 +506,7 @@ async function answerer(request, next) {
 				// A failure with no message must still say *which* failure: an empty `aiError` is why the
 				// 10 erroring rows in one session could not be explained from the ledger.
 				if (verdict.source !== 'ai' && verdict.source !== 'cache') row.aiError = String(verdict.reason || verdict.source || 'error').slice(0, 200);
-							aiNote = { risk: hardRiskExempt === undefined ? verdict.risk : 'high', reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
+							aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 						}
 						activeStore?.announce?.({ kind: 'pending' });
 						if (!(verdict !== undefined && verdict.decision === 'allow')) {
@@ -528,7 +528,7 @@ async function answerer(request, next) {
 				verdict = await review;
 			}
 			if (verdict !== undefined) {
-				aiNote = { risk: hardRiskExempt === undefined ? verdict.risk : 'high', reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
+				aiNote = { risk: verdict.risk, reason: verdict.reason, source: verdict.source, asked: verdict.decision !== 'allow', model: verdict.lane, usage: verdict.usage, ms: verdict.latencyMs };
 			}
 			row.aiReviewed = true;
 			// AI-eligible but the reviewer returned nothing (disabled, no llm, no verdict):
