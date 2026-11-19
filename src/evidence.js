@@ -132,7 +132,8 @@ function trimCommand(text) {
 
 function summaryOf(name, args) {
 	let text;
-	if (SHELL_TOOLS.has(name) && hasValue(args?.command)) text = trimCommand(redactString(String(args.command)));
+	const isCommand = SHELL_TOOLS.has(name) && hasValue(args?.command);
+	if (isCommand) text = trimCommand(redactString(String(args.command)));
 	else if (PATH_TOOLS.has(name) && hasValue(args?.file_path)) text = redactString(String(args.file_path));
 	else {
 		try {
@@ -142,6 +143,13 @@ function summaryOf(name, args) {
 		}
 	}
 	if (typeof text !== 'string' || text === '') return {};
+	// A shaped command already states what was cut; slicing it again here cut the *tail* —
+	// which is the part the shaping was for. Found in the ledger, not in a test.
+	if (isCommand) {
+		return text.length > COMMAND_HEAD_CHARS + COMMAND_TAIL_CHARS
+			? { argsSummary: text, argsTruncated: true }
+			: { argsSummary: text };
+	}
 	if (text.length <= SUMMARY_MAX_CHARS) return { argsSummary: text };
 	return { argsSummary: text.slice(0, SUMMARY_MAX_CHARS), argsTruncated: true };
 }
