@@ -25,7 +25,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	// *while* the decision is being made, which is the whole point of the AI layer.
 	pendingCard: true,
 	toastEnabled: true,
-	toastQuietMs: 10000,
 	/** Shows the card preview in the settings card; a debugging aid. */
 	/** Keep the escalation reason out of the fingerprint, so counts can pile up. */
 	fpIgnoreJustification: false,
@@ -155,7 +154,6 @@ const BOUNDS = {
 	aiReasonChars: [40, 400],
 	aiContextTurns: [0, 10],
 	aiContextTokens: [200, 8000],
-	toastQuietMs: [0, 600000],
 	maxEntriesPerSession: [20, 2000],
 	pollMs: [250, 30000],
 	snapshotRetentionDays: [0, 365],

@@ -544,6 +544,8 @@ export const cases = [
 			assertTrue(src.includes("row('ai-notify-handover'"), '「交权后立即通知」要在设置里');
 			assertTrue(src.includes("settings().aiNotifyHandover === true && row.humanAsked === true"), '交权通知只在开关打开且确实交权时弹');
 			assertTrue(src.includes("'dock.handedOver'"), '交权通知要有自己的标题');
+			assertTrue(src.includes('The dock already draws a card for another session'), '窗口聚焦时，别的会话通知靠卡片就够');
+			assertTrue(src.includes('if (store.pageVisible === true) return;') === false, '聚焦已足够，不该再用「是否在看审批列表」二次拦');
 			assertTrue(src.includes("numRow('aiContextTurns'"), '「带几轮对话」要跟着总闸出现');
 			assertTrue(src.includes("numRow('aiContextTokens'"), '「上下文 token 上限」要跟着总闸出现');
 			assertTrue(src.includes("className: 'ah-sub'"), '总闸带来的选项要缩进在一根竖线里');

@@ -204,7 +204,6 @@ export function buildMessages(input) {
 	lines.push('reason on the request: ' + String(input.reason ?? '').slice(0, 200));
 	lines.push('arguments summary: ' + String(input.summary ?? '').slice(0, 240));
 	lines.push('prior human approvals of this same operation in this session: ' + String(input.priorApprovals ?? 0));
-	if (input.note !== undefined) lines.push('note: ' + String(input.note).slice(0, 200));
 	// Last, and labelled as background: the operation must stay the first thing read.
 	if (typeof input.context === 'string' && input.context !== '') {
 		lines.push('');

@@ -2195,6 +2195,9 @@ window.__ModuleLoader__.load({
 
     /** Another session is waiting on you: toast once per new arrival, never per poll. */
     function noticeOtherPending(list, t) {
+      // The dock already draws a card for another session, and a focused window means that
+      // card is in front of the human. A toast on top of it would be the same news twice.
+      if (windowIsFocused() === true) return;
       for (const entry of Array.isArray(list) ? list : []) {
         // Never announce the session the panel is already showing.
         if (String(entry.sessionId) === String(store.sessionId || '')) continue;
@@ -2230,9 +2233,10 @@ window.__ModuleLoader__.load({
     }
 
     function noticePending(rows, t) {
+      // Focus is the only gate: unfocused means the human is elsewhere, whatever page the
+      // panel happens to be left on. Checking `pageVisible` here silenced exactly the case the
+      // toast exists for — window in the background, list still open behind it.
       if (windowIsFocused() === true) return;
-      // The list itself is on screen: the request is already in front of you.
-      if (store.pageVisible === true) return;
       for (const row of rows) {
         const key = String(row.id);
         const what = String(row.toolName || '') + ' · ' + String(row.argsSummary || row.reason || '').slice(0, 120);

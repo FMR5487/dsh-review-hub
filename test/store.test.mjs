@@ -48,6 +48,8 @@ export const cases = [
 			assertTrue(buildMessages({ toolName: 'ops_shell', reason: 'r', summary: '{}' }).messages[0].content[0].text.indexOf('environment:') < 0, '没有环境就不写这一段');
 			assertEqual(clampSettings({}).aiEnvEnabled, true, '环境开关默认开');
 			assertEqual(clampSettings({}).aiNotifyHandover, false, '交权通知默认关');
+			assertEqual(clampSettings({}).toastQuietMs, undefined, 'toastQuietMs 死字段已删');
+			assertTrue(buildMessages({ toolName: 'x', reason: 'r', summary: '{}', note: '别写这一行' }).messages[0].content[0].text.indexOf('note:') < 0, 'note 死字段已删');
 			assertEqual(clampSettings({ aiNotifyHandover: true }).aiNotifyHandover, true, '能打开');
 			assertEqual(clampSettings({ aiEnvEnabled: false }).aiEnvEnabled, false, '能关掉');
 			assertEqual(settingForSession({ aiEnvEnabled: true, aiEnvLocal: { s1: false } }, 's1', 'aiEnvEnabled', 'aiEnvLocal'), false, '环境也按会话独立');
