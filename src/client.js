@@ -287,6 +287,7 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI 审批',
       'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
       'setting.aiContext': '上下文增强审批',
+      'setting.secNotify': '系统通知',
       'setting.notifyHandover': '交权后立即通知',
       'setting.notifyHandoverNote': '审批交给你的那一刻就弹通知，不等 AI 出结论。默认关：AI 有结果（建议人工 / 超时 / 错误）时本来就会弹',
       'setting.aiEnv': '带上环境信息',
@@ -653,6 +654,7 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI review',
       'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
       'setting.aiContext': 'Context-enhanced review',
+      'setting.secNotify': 'System notifications',
       'setting.notifyHandover': 'Notify me at handover',
       'setting.notifyHandoverNote': 'Toast the moment an approval reaches you, without waiting for the reviewer. Off by default: a toast already fires when the reviewer finishes (suggests a human / timed out / failed)',
       'setting.aiEnv': 'Send the environment',
@@ -3740,9 +3742,6 @@ window.__ModuleLoader__.load({
           ])
           : null,
         row('ai-tool-brief', t('setting.aiToolBrief'), t('setting.aiToolBriefNote'), sessionBool('aiToolBrief', 'aiToolBriefLocal'), flipSession('aiToolBrief', 'aiToolBriefLocal')),
-        // Off by default: the card already moved to the floating seat, and a second signal for
-        // "someone is waiting" is only wanted by people who keep the window in the background.
-        row('ai-notify-handover', t('setting.notifyHandover'), t('setting.notifyHandoverNote'), config.aiNotifyHandover === true, flip('aiNotifyHandover')),
         ] : []),
 
         h('div', { className: 'ah-section', key: 'sec-memory' }, t('setting.secMemory')),
@@ -3764,13 +3763,18 @@ window.__ModuleLoader__.load({
         numRow('hintAi', t('setting.hintAi'), t('setting.hintAiNote'), hintMsValue('ai', 30000), function (value) { void patchHintMs('ai', value); }, 2000, 600000),
         numRow('hintMemory', t('setting.hintMemory'), t('setting.hintMemoryNote'), hintMsValue('memory', 8000), function (value) { void patchHintMs('memory', value); }, 2000, 600000),
         numRow('hintPending', t('setting.hintPending'), t('setting.hintPendingNote'), hintMsValue('pending', 0), function (value) { void patchHintMs('pending', value); }, 0, 600000),
-        row('toast', t('setting.toast'), t('setting.toastNote'), config.toastEnabled === true, flip('toastEnabled')),
-        h('div', { className: 'ah-section', key: 'sec-data' }, t('setting.secData')),
-
+        h('div', { className: 'ah-section', key: 'sec-notify' }, t('setting.secNotify')),
+        // Permission first: without it both switches below do nothing, and saying so here is
+        // cheaper than letting someone wonder why the toasts never arrive.
         h('div', { className: 'ah-settings-row', key: 'grant' },
           h('span', { className: 'ah-settings-label' }, granted ? t('setting.granted') : t('setting.grant')),
           granted ? null : h('button', { type: 'button', className: 'ah-btn', onClick: grant }, t('setting.grant'))
         ),
+        row('toast', t('setting.toast'), t('setting.toastNote'), config.toastEnabled === true, flip('toastEnabled')),
+        // Off by default: the card already moved to the floating seat, and a second signal for
+        // "someone is waiting" is only wanted by people who keep the window in the background.
+        row('ai-notify-handover', t('setting.notifyHandover'), t('setting.notifyHandoverNote'), config.aiNotifyHandover === true, flip('aiNotifyHandover')),
+        h('div', { className: 'ah-section', key: 'sec-data' }, t('setting.secData')),
         h('div', { className: 'ah-settings-row', key: 'export' },
           h('span', { className: 'ah-settings-label' }, t('setting.export')),
           h('label', { className: 'ah-hint' },
