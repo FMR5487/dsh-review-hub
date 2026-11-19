@@ -54,10 +54,15 @@ const SYSTEM_LEVEL = [
 
 /** Deletion, in every dialect this host can see. */
 const DELETE = [
+	// Bare forms too: `rm file.txt` is the most common deletion there is, and requiring
+	// a flag meant it was not a hard risk at all (found by audit, verified by running it).
 	/\brm\s+(-[a-z-]*\s+)*-[a-z-]*[rf]/i,
+	/\brm\s+(?![^\n]*\s-)[^\n]+/i,
 	/\brmdir\b/i,
 	/\bdel\s+\/[sq]/i,
+	/\bdel\s+[^\n\/]/i,
 	/\bRemove-Item\b[^\n]*-Recurse/i,
+	/\bRemove-Item\s+(?![^\n]*-)[^\n]+/i,
 	/\bgit\s+clean\b[^\n]*\s-[a-z]*[xdf]/i,
 	/\bunlink\b/i,
 	/\bshred\b/i,
@@ -161,11 +166,22 @@ function exemptPathsOf(list) {
 	return list.map((item) => normalPath(item)).filter((item) => item !== '');
 }
 
-/** Does the argument text mention a path under one of the exempt prefixes? */
+/**
+ * Does the argument text mention a path under one of the exempt prefixes?
+ *
+ * Substring over the whole blob was exploitable: the audited model controls the arguments, so
+ * `cat ~/.ssh/id_rsa; echo d:/work/proj` used to lift the credential rule by naming the exempt
+ * directory anywhere. A path only counts when it *starts* like a path in the text.
+ */
 function matchesExempt(text, exempt) {
 	if (exempt.length === 0) return false;
-	const haystack = normalPath(text);
-	return exempt.some((prefix) => haystack.includes(prefix));
+	for (const prefix of exempt) {
+		const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		// The prefix must be followed by a separator or a boundary — not by more word characters,
+		// which is what made `d:/work/proj-notes` a different directory.
+		if (new RegExp('(^|[\\s"\'=:(])' + escaped + '(?=[\\s"\'/\\\\]|$)', 'i').test(normalPath(text))) return true;
+	}
+	return false;
 }
 
 /**
