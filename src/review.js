@@ -15,8 +15,13 @@ export const DEFAULT_BUDGET_WINDOW_MS = 60000;
 /** Verdicts this many bytes are written to disk at most every 5s; the map is the truth. */
 export const CACHE_FLUSH_MS = 5000;
 export const CACHE_MAX_ENTRIES = 200;
-/** A verdict is ~30 tokens; capping keeps a chatty model from eating the budget. */
-export const MAX_TOKENS = 64;
+/**
+ * Output cap. A verdict is a small JSON, but `reason` may be 80 **Chinese** characters —
+ * which is 80-120 tokens on its own, before the JSON scaffolding. At 64 the reviewer hit
+ * `max-tokens`, the call came back as an error, and the row went to a human for that reason
+ * alone (found in the ledger: `reviewer ended with max-tokens`).
+ */
+export const MAX_TOKENS = 256;
 export const BREAKER_OPEN_MS = 300000;
 const MAX_REASON = 160;
 
