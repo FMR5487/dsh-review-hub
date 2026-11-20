@@ -229,7 +229,7 @@ export function buildMessages(input) {
  * Chunks are block events; the terminal one is `{ type:'finish', reason:{ kind } }`.
  * @returns {Promise<{text?:string, reason?:string}>}
  */
-async function collect(llm, prompt, timeoutMs, route, extra, onChunk, outer) {
+async function collect(llm, prompt, timeoutMs, route, extra, onChunk, outer, note) {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	// The caller may cancel too (the human took the decision, so the answer is moot).
@@ -256,11 +256,16 @@ async function collect(llm, prompt, timeoutMs, route, extra, onChunk, outer) {
 					if (typeof onChunk === 'function' && chunk !== null && typeof chunk === 'object') onChunk(String(chunk.type ?? '?'), Object.keys(chunk).sort());
 					if (chunk?.type === 'finish') {
 			// The finish reason is the only thing that explains "reviewer ended with error":
-			// record its body, not just the fact that it arrived.
-			try {
-				noteAnswer({ finish: JSON.stringify(chunk.reason === undefined ? null : chunk.reason).slice(0, 240) });
-			} catch (error) {
-				// never let forensics break a review
+			// record its body, not just the fact that it arrived. It has to go through the
+			// sink this call was handed: `noteAnswer` is declared inside createReviewer, so
+			// the module-level reference that used to sit here threw a ReferenceError into
+			// the catch below and every finish reason went unlogged (audit 2026-11-18).
+			if (typeof note === 'function') {
+				try {
+					note({ finish: JSON.stringify(chunk.reason === undefined ? null : chunk.reason).slice(0, 240) });
+				} catch (error) {
+					// never let forensics break a review
+				}
 			}
 						const kind = chunk.reason?.kind;
 						if (kind !== undefined && kind !== 'stop') return { reason: 'reviewer ended with ' + String(kind) };
@@ -514,11 +519,11 @@ function noteShape(kind, keys) {
 		});
 		let answer;
 		try {
-			answer = await collect(llm, prompt, timeoutMs, input.route, maxTokensSupported ? { maxTokens: MAX_TOKENS } : undefined, noteShape, input.signal);
+			answer = await collect(llm, prompt, timeoutMs, input.route, maxTokensSupported ? { maxTokens: MAX_TOKENS } : undefined, noteShape, input.signal, noteAnswer);
 			if (answer.reason !== undefined && maxTokensSupported === true) {
 				// The seam may not know this option. Ask once more without it and stop
 				// asking, rather than letting the cap disable the reviewer for good.
-				const retry = await collect(llm, prompt, timeoutMs, input.route, undefined, undefined, input.signal);
+				const retry = await collect(llm, prompt, timeoutMs, input.route, undefined, undefined, input.signal, noteAnswer);
 				if (retry.reason === undefined) {
 					maxTokensSupported = false;
 					answer = retry;

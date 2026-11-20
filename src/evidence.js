@@ -20,11 +20,13 @@ export const COMMAND_TAIL_CHARS = 100;
 const SHELL_TOOLS = new Set(['bash', 'win_bash', 'ops_bash', 'pwsh', 'powershell']);
 const PATH_TOOLS = new Set(['edit', 'write', 'str_replace_editor', 'read']);
 
-function redactString(value) {
-	let out = value;
+export function redactText(value) {
+	let out = String(value ?? '');
 	for (const pattern of INLINE_SECRETS) out = out.replace(pattern, REDACTED);
 	return out;
 }
+
+const redactString = redactText;
 
 function redactValue(value, depth) {
 	if (typeof value === 'string') return redactString(value);
@@ -62,10 +64,40 @@ export function eventsOf(request) {
 	}
 }
 
-function findCall(events, callId, toolName) {
+/**
+ * Call ids this process has already handed to a decision.
+ *
+ * A request that carries no call id used to fall back to "the newest call of that tool
+ * name", which can be a *different* invocation: the panel then showed one command and
+ * the reviewer judged another (audit 2026-11-18). Without an id the newest unconsumed
+ * same-name call is the best available guess; a consumed one never is.
+ */
+const consumed = new Set();
+const CONSUMED_MAX = 200;
+
+function consumeCall(key) {
+	if (key === '') return;
+	consumed.add(key);
+	if (consumed.size <= CONSUMED_MAX) return;
+	const first = consumed.values().next();
+	if (first.done !== true) consumed.delete(first.value);
+}
+
+function scopeOf(request) {
+	try {
+		const session = request?.agent?.session;
+		const id = session !== null && typeof session === 'object' ? session.id : undefined;
+		return typeof id === 'string' ? id : '';
+	} catch {
+		return '';
+	}
+}
+
+function findCall(events, callId, toolName, scope) {
 	const log = Array.isArray(events) ? events : [];
 	const hasCallId = hasValue(callId);
 	const named = typeof toolName === 'string' && toolName !== '';
+	const keyOf = (value) => String(scope ?? '') + '\u0000' + String(value);
 	for (let index = log.length - 1; index >= 0; index -= 1) {
 		const event = log[index];
 		if (event === null || typeof event !== 'object') continue;
@@ -76,7 +108,9 @@ function findCall(events, callId, toolName) {
 			if (hasCallId && callIdMatches(data.subCallId, callId) === false) continue;
 			if (data.arguments === null || typeof data.arguments !== 'object') continue;
 			try {
-				return { name: data.name, arguments: JSON.stringify(data.arguments) };
+				const text = JSON.stringify(data.arguments);
+				if (hasValue(data.subCallId)) consumeCall(keyOf(data.subCallId));
+				return { name: data.name, arguments: text };
 			} catch {
 				continue;
 			}
@@ -85,9 +119,14 @@ function findCall(events, callId, toolName) {
 		if (hasCallId) {
 			if (callIdMatches(data.callId, callId) === false) continue;
 			if (named && data.name !== toolName) continue;
+			if (hasValue(data.callId)) consumeCall(keyOf(data.callId));
 			return data;
 		}
-		if (named && data.name === toolName) return data;
+		if (named && data.name === toolName) {
+			if (hasValue(data.callId) && consumed.has(keyOf(data.callId))) continue;
+			if (hasValue(data.callId)) consumeCall(keyOf(data.callId));
+			return data;
+		}
 	}
 	return undefined;
 }
@@ -162,7 +201,7 @@ export function evidenceFor(request, events) {
 	try {
 		const toolName = typeof request?.toolName === 'string' ? request.toolName : '';
 		const callId = request?.callId;
-		const call = findCall(events, callId, toolName);
+		const call = findCall(events, callId, toolName, scopeOf(request));
 		if (call !== undefined && typeof call.arguments === 'string') {
 			let parsed;
 			try {

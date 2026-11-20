@@ -617,6 +617,10 @@ export function createStore(options = {}) {
 		if (index >= 0) list[index] = { ...list[index], ...row };
 		else list.push({ ...row });
 		if (list.length > settings.maxEntriesPerSession) list.splice(0, list.length - settings.maxEntriesPerSession);
+		// Touch the session we just wrote: the eviction loop below walks Map insertion
+		// order, so a live session that happened to be inserted first was dropped — the row
+		// just recorded included — the moment one more session appeared (audit 2026-11-18).
+		sessions.delete(sessionId);
 		sessions.set(sessionId, list);
 		while (sessions.size > SESSION_CAP) {
 			const oldest = sessions.keys().next();

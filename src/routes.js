@@ -71,6 +71,13 @@ export function carriesProof(req, proof) {
 export function isTrusted(req, options = {}) {
 	const host = req?.headers?.host;
 	if (isLoopback(host) === false) return false;
+	// The proof is checked *before* Origin, not after. Origin is a header any local client
+	// can type, and the deployed build answered 200 to
+	// `curl -H 'Origin: http://127.0.0.1:<port>' -d '{}' /config` while the same call
+	// without it got 403 — so the proof the fence was built around could be skipped with
+	// one flag (measured 2026-11-18). The panel carries the cookie on every request; that
+	// measurement is what the proof was chosen from in the first place.
+	if (options.mode === 'write' && carriesProof(req, options.proof) === false) return false;
 	const origin = req?.headers?.origin ?? req?.headers?.referer;
 	if (origin !== undefined) {
 		try {
@@ -91,10 +98,9 @@ export function isTrusted(req, options = {}) {
 		const site = req?.headers?.['sec-fetch-site'];
 		return site === 'same-origin' || site === 'same-site' || site === 'none';
 	}
-	// Write methods must carry the proof, once one has been chosen from the probe log.
 	// Reads stay open on purpose: EventSource sends neither Origin nor the proof, and a
-	// GET from this surface only ever returns JSON the browser will not execute.
-	if (options.mode === 'write') return carriesProof(req, options.proof);
+	// GET from this surface only ever returns JSON the browser will not execute. Writes
+	// were already settled above.
 	return true;
 }
 
@@ -158,9 +164,22 @@ export function createProbe(file) {
 	return { note, file };
 }
 
+/** No settings payload is anywhere near this: the cap exists so a POST cannot buffer the
+ * host's memory. Answer 413 instead of throwing a 500 nobody can act on. */
+const BODY_MAX_BYTES = 64 * 1024;
+
 async function readBody(req) {
 	const chunks = [];
-	for await (const chunk of req) chunks.push(Buffer.from(chunk));
+	let size = 0;
+	for await (const chunk of req) {
+		size += chunk.length;
+		if (size > BODY_MAX_BYTES) {
+			const error = new Error('request body too large');
+			error.code = 'too-large';
+			throw error;
+		}
+		chunks.push(Buffer.from(chunk));
+	}
 	const text = Buffer.concat(chunks).toString('utf8');
 	if (text.trim() === '') return {};
 	return JSON.parse(text);
@@ -382,8 +401,11 @@ export function createRoutes(deps) {
 				return;
 			}
 			await handler(req, res);
-		} catch {
-			if (res.writableEnded !== true) sendJson(res, 500, { error: 'internal' });
+		} catch (error) {
+			if (res.writableEnded !== true) {
+				const tooLarge = error !== null && typeof error === 'object' && error.code === 'too-large';
+				sendJson(res, tooLarge === true ? 413 : 500, { error: tooLarge === true ? 'too-large' : 'internal' });
+			}
 		}
 	};
 

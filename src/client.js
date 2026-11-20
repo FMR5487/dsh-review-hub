@@ -767,6 +767,39 @@ window.__ModuleLoader__.load({
       return value !== null && typeof value === 'object' && Array.isArray(value) === false;
     }
 
+    /**
+     * Tab titles are drawn by the host, not by a seat: they receive no `props.locale` binding,
+     * so they read the zh dictionary directly and stayed Chinese in an English UI (audit
+     * 2026-11-18). The document language is the only signal available this early.
+     */
+    function hostTitle(key) {
+      try {
+        const lang = String((typeof document !== 'undefined' && document.documentElement && document.documentElement.lang) || '').toLowerCase();
+        if (lang.slice(0, 2) === 'en' && en[key] !== undefined) return en[key];
+      } catch (error) {
+        /* fall through to zh */
+      }
+      return zh[key] !== undefined ? zh[key] : key;
+    }
+
+    /**
+     * The panel's own language tag, or '' when the signal does not look like one.
+     * `props.locale` on these seats is the i18n *binding*, not a tag: writing it back stored
+     * `dsh-review-hub` as the panel locale on every auto-save, the server clamped it away, and
+     * the language setting silently reverted (audit 2026-11-18).
+     */
+    function uiLocaleOf(props) {
+      let raw = '';
+      try {
+        raw = String((typeof document !== 'undefined' && document.documentElement && document.documentElement.lang) || '');
+      } catch (error) {
+        raw = '';
+      }
+      if (raw === '' && typeof props?.locale === 'string') raw = props.locale;
+      const tag = raw.toLowerCase();
+      return /^[a-z]{2,3}(-[a-z0-9]{2,4})?$/.test(tag) === true ? tag : '';
+    }
+
     function translator(props) {
       const locale = props && props.locale;
       return function t(key, params) {
@@ -820,6 +853,9 @@ window.__ModuleLoader__.load({
       diff: null,
       /** True while the approval list is actually visible (see IntersectionObserver). */
       pageVisible: false,
+      /** Which session that visible list belongs to: "a list is open" is not "your list is open". */
+      pageSid: '',
+      pageSeenAt: 0,
       /** Rows newer than seenAt from AI/memory/external: the tab badge reads this. */
       unread: 0,
       /** Per-tool counts across every session ({tool:{total,approved,rejected}}). */
@@ -1922,6 +1958,7 @@ window.__ModuleLoader__.load({
         adviceOverlay.node.parentNode.removeChild(adviceOverlay.node);
       }
       adviceOverlay.node = null;
+      adviceOverlay.currentId = '';
       adviceOverlay.signature = '';
     }
 
@@ -2151,6 +2188,9 @@ window.__ModuleLoader__.load({
       const node = buildFloatCard(t, row);
       document.body.appendChild(node);
       adviceOverlay.node = node;
+      // The click-to-retire listener below retires `currentId`; without this assignment it
+      // read '' forever and every click inside the card did nothing (audit 2026-11-18).
+      adviceOverlay.currentId = String(row.id);
       adviceOverlay.signature = signature;
       placeAdviceOverlay(placed);
     }
@@ -3031,8 +3071,9 @@ window.__ModuleLoader__.load({
             const body = await api('/entries?session=' + encodeURIComponent(sid) + '&limit=200');
             if (alive !== true) return;
             const rows = Array.isArray(body && body.entries) ? body.entries : [];
+            const firstLook = store.hintSeeded !== sid;
             applyRows(rows);
-            if (store.hintSeeded !== sid) {
+            if (firstLook === true) {
               // First look at this session: everything here is history. Seed the
               // baseline and the seen-ids set so a later push cannot replay it.
               for (const row of rows) hinted.add(String(row.id));
@@ -3044,6 +3085,17 @@ window.__ModuleLoader__.load({
               if (store.seenAt === 0) {
                 store.seenAt = max;
                 storageSet('review-hub:seen:' + sid, max);
+              }
+            } else {
+              // Same rules as the stream, one row at a time. This is the polling fallback and
+              // the visibility catch-up, and it used to call applyRows() and stop — so a panel
+              // that fell back to polling produced no card at all (audit 2026-11-18).
+              for (const row of rows) {
+                if (shouldHint(row, store.hintFloor, hinted) === true) {
+                  hinted.add(String(row.id));
+                  pushHint(row.decidedBy, row);
+                }
+                raiseFloor(row.ts);
               }
             }
             const pendingBody = await api('/pending?session=' + encodeURIComponent(sid));
@@ -3252,7 +3304,9 @@ window.__ModuleLoader__.load({
       // (`humanAsked`) the very same row moves to the floating card — one rule, one seat at a
       // time. That migration is the whole reason the floating card exists; without it the two
       // card kinds drift into showing the same row in two places.
-      if (view.config !== null && view.config.pendingCard === true) {
+      // While this session's approval list is on screen the rows are already there: a dock
+      // card repeating them is noise. Same rule the floating card follows (pageVisible).
+      if (listIsOpen === false && view.config !== null && view.config.pendingCard === true) {
         for (const row of view.pending) {
           if (belongsHere(row) === false) continue;
           if (row.humanAsked === true) continue;
@@ -4509,12 +4563,19 @@ window.__ModuleLoader__.load({
       // Every control in this card persists itself: a debounce coalesces typing into one
       // write, and nothing here waits for a Save button any more.
       const autoTimer = React.useRef(null);
+      // Every settings write records which language the panel is showing, so "follow the UI"
+      // resolves to something real. It has to be the tag, and only when there is one —
+      // see uiLocaleOf().
+      const withPanelLocale = function (next) {
+        const tag = uiLocaleOf(props);
+        return tag === '' ? next : Object.assign({}, next, { panelLocale: tag });
+      };
       const autoSave = function (next) {
         if (autoTimer.current !== null) clearTimeout(autoTimer.current);
         autoTimer.current = setTimeout(function () {
           autoTimer.current = null;
           setStatus('saving');
-          saveConfig(Object.assign({}, next, { panelLocale: String(props?.locale ?? '') }))
+          saveConfig(withPanelLocale(next))
             .then(function (body) { setDraft(body); setStatus('saved'); })
             .catch(function () { setStatus('failed'); });
         }, 600);
@@ -4539,7 +4600,7 @@ window.__ModuleLoader__.load({
         try {
           // Saving also records which language the panel is showing, so "follow the UI"
         // resolves to something real instead of guessing from the request text.
-        const body = await saveConfig(Object.assign({}, draft || {}, { panelLocale: String(props?.locale ?? '') }));
+        const body = await saveConfig(withPanelLocale(draft || {}));
           setDraft(body);
           setStatus('saved');
         } catch (error) {
@@ -4551,10 +4612,7 @@ window.__ModuleLoader__.load({
       // on mount instead of waiting for the first manual edit: until then the reviewer falls
       // back to "whatever language the request used", which is why reasons came back in English.
       React.useEffect(function () {
-        // props.locale on this seat is the i18n namespace, not the UI language; prefer the
-        // document language and only trust a value that looks like a locale tag.
-        const raw = String((typeof document !== 'undefined' && document.documentElement && document.documentElement.lang) || (props?.locale === undefined ? '' : props.locale)).toLowerCase();
-        const want = /^[a-z]{2,3}(-[a-z0-9]{2,4})?$/.test(raw) === true ? raw : '';
+        const want = uiLocaleOf(props);
         if (want === '' || draft === null) return;
         if (String(draft.panelLocale === undefined ? '' : draft.panelLocale) === want) return;
         void saveConfig(Object.assign({}, draft, { panelLocale: want }))
@@ -5052,7 +5110,12 @@ window.__ModuleLoader__.load({
         }
         patch({ armedFp: '' });
         for (const row of bucket.rows) {
-          void memoryManage({ op: 'remove', session: view.sessionId, fingerprint: rowFingerprintOf(row) });
+          // An empty fingerprint is not one: the server accepts the op and removes nothing,
+          // so the row came back and the click looked ignored (audit 2026-11-18). Rows that
+          // carry neither `fingerprint` nor the key suffix are skipped rather than faked.
+          const fingerprint = rowFingerprintOf(row);
+          if (fingerprint === '') continue;
+          void memoryManage({ op: 'remove', session: view.sessionId, fingerprint: fingerprint });
         }
       };
       const clearAll = function () {
@@ -5193,7 +5256,7 @@ window.__ModuleLoader__.load({
             return h('div', { className: 'ah-mem-row', key: bucket.id },
               h('div', { className: 'ah-mem-row-head', key: 'head' },
                 h('span', { className: 'ah-tool' }, bucket.tool),
-                bucket.count > threshold
+                bucket.count >= threshold
                   ? h('span', { className: 'ah-mem-progress', key: 'full' }, t('memory.full'))
                   : h('span', { className: 'ah-mem-progress', key: 'progress' }, t('memory.progress', { count: bucket.count, threshold: threshold })),
                 bucket.rows.length > 1
@@ -5510,7 +5573,7 @@ window.__ModuleLoader__.load({
                 kind: TAB_KIND,
                 keepMounted: true,
                 priority: 'extension',
-                title: function () { return zh['diff.title']; },
+                title: function () { return hostTitle('diff.title'); },
               });
             };
             if (typeof ctx.effect === 'function') ctx.effect(define, 'review-hub: diff tab type');
@@ -5522,7 +5585,7 @@ window.__ModuleLoader__.load({
                 kind: SETTINGS_KIND,
                 keepMounted: true,
                 priority: 'extension',
-                title: function () { return zh['settings.tabTitle']; },
+                title: function () { return hostTitle('settings.tabTitle'); },
               });
             };
             if (typeof ctx.effect === 'function') ctx.effect(defineSettings, 'review-hub: settings tab type');
@@ -5534,7 +5597,7 @@ window.__ModuleLoader__.load({
                 kind: MEMORY_KIND,
                 keepMounted: true,
                 priority: 'extension',
-                title: function () { return zh['memory.tabTitle']; },
+                title: function () { return hostTitle('memory.tabTitle'); },
               });
             };
             if (typeof ctx.effect === 'function') ctx.effect(defineMemory, 'review-hub: memory tab type');
@@ -5553,7 +5616,7 @@ window.__ModuleLoader__.load({
                 kind: STATS_KIND,
                 keepMounted: true,
                 priority: 'extension',
-                title: function () { return zh['stats.tabTitle']; },
+                title: function () { return hostTitle('stats.tabTitle'); },
               });
             };
             if (typeof ctx.effect === 'function') ctx.effect(defineStats, 'review-hub: stats tab type');

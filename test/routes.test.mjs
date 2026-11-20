@@ -21,6 +21,21 @@ const row = (over) => Object.assign({ id: 'r', ts: Date.now(), sessionId: 's1', 
 
 export const cases = [
 	{
+		name: '写围栏：配了 proof 以后，同源 Origin 也绕不过 cookie',
+		async fn() {
+			const base = { host: '127.0.0.1:12345' };
+			const proof = { cookie: 'dsh-auth' };
+			const bare = { headers: { ...base, origin: 'http://127.0.0.1:12345' } };
+			// 实测教训：部署里配上 writeProofCookie 之后，带 Origin 的 curl 仍然 200——
+			// 因为 Origin 分支在 proof 之前就 return 了。任何本机进程都能加这个头。
+			assertEqual(isTrusted(bare, { mode: 'write', proof }), false, '只有同源 Origin 不足以写');
+			assertEqual(isTrusted({ headers: { ...base, origin: 'http://127.0.0.1:12345', cookie: 'dsh-auth-abc=1' } }, { mode: 'write', proof }), true, '面板带 cookie 才放行');
+			assertEqual(isTrusted({ headers: { ...base, cookie: 'dsh-auth-abc=1' } }, { mode: 'write', proof }), true, '无 Origin 但有 cookie 放行（桌面壳不带 Origin）');
+			assertEqual(isTrusted(bare, { mode: 'read', proof }), true, '读不拦：EventSource 两者都不带');
+			assertEqual(isTrusted(bare, { mode: 'write' }), true, '没配 proof 的部署行为不变');
+		},
+	},
+	{
 		name: '同源围栏：默认放行裸客户端，strictOrigin 才收严',
 		async fn() {
 			const base = { host: '127.0.0.1:12345' };

@@ -3,6 +3,8 @@
  * CSV carries a UTF-8 BOM and CRLF so Excel opens Chinese labels correctly.
  */
 
+import { redactText } from './evidence.js';
+
 export const EXPORT_FIELDS = Object.freeze([
 	'ts',
 	'sessionId',
@@ -38,8 +40,11 @@ function rowOf(row) {
 		riskLevel: row?.riskLevel ?? '',
 		riskRule: row?.riskRule ?? '',
 		decisionMs: row?.decisionMs ?? '',
-		argsSummary: row?.argsSummary ?? '',
-		reason: row?.reason ?? '',
+		// The ledger keeps the original text on purpose (the panel shows the real command,
+		// and revert/diff depend on it), but an export leaves the machine — it is the one
+		// path where a credential in a command must not survive (audit 2026-11-18).
+		argsSummary: redactText(row?.argsSummary ?? ''),
+		reason: redactText(row?.reason ?? ''),
 	};
 }
 

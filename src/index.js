@@ -424,6 +424,18 @@ async function answerer(request, next) {
 	let decidedBy = 'fallback';
 	let memoryCount;
 	let aiNote;
+	// `next()` is the chain's continuation, and it may only be called once per request.
+	// Tracking it is what lets the catch below hand a failed call on instead of answering
+	// "unavailable" — see the rule at the top of this file.
+	let nextCalled = false;
+	let humanPromise;
+	const ask = function () {
+		if (nextCalled !== true) {
+			nextCalled = true;
+			humanPromise = Promise.resolve().then(function () { return next(); });
+		}
+		return humanPromise;
+	};
 	try {
 		// 记忆: a repeatable operation the human already approved N times.
 		const hit = hardRisk === undefined ? await decideMemory(store, sessionId, fp, settings) : undefined;
@@ -482,11 +494,10 @@ async function answerer(request, next) {
 					// when both are ready at the same instant, which this race gives them anyway.
 					row.humanAsked = true;
 					activeStore?.announce?.({ kind: 'pending' });
-					row.humanAsked = true;
-					const humanPromise = next();
+					const humanNow = ask();
 					const second = await Promise.race([
 						review.then(function (value) { return { kind: 'ai', value: value }; }),
-						humanPromise.then(function (value) { return { kind: 'human', value: value }; }),
+						humanNow.then(function (value) { return { kind: 'human', value: value }; }),
 					]);
 					if (second.kind === 'ai') {
 						// The reviewer got there first: its verdict stands, and the panel above is
@@ -511,7 +522,7 @@ async function answerer(request, next) {
 						activeStore?.announce?.({ kind: 'pending' });
 						if (!(verdict !== undefined && verdict.decision === 'allow')) {
 							// It asked for a human after all: that human is already being asked.
-							humanOutcome = await humanPromise;
+							humanOutcome = await humanNow;
 						}
 					} else {
 						// The human answered first: the reviewer's answer can no longer matter.
@@ -553,7 +564,7 @@ async function answerer(request, next) {
 				// The human options are on screen from here on: the panel is opening above the
 				// composer, so the dock's waiting card must hand the row to the floating one.
 				if (humanOutcome === undefined) row.humanAsked = true;
-				const chainOutcome = humanOutcome !== undefined ? humanOutcome : await next();
+				const chainOutcome = humanOutcome !== undefined ? humanOutcome : await ask();
 				const elapsed = Date.now() - started;
 				outcome = typeof chainOutcome === 'string' ? chainOutcome : 'unavailable';
 				if (outcome === 'unavailable' || outcome === 'cancelled') decidedBy = 'fallback';
@@ -591,11 +602,23 @@ async function answerer(request, next) {
 			}
 		}
 	} catch (error) {
-		// A throwing answerer elsewhere must not cost us the row.
-		outcome = 'unavailable';
-		decidedBy = 'fallback';
+		// A throwing layer must not become "no answer". The rule at the top of this file is
+		// that this plugin only decides when it means to — so a failure hands the call on.
+		// Answering 'unavailable' here handed it to nobody at all (audit 2026-11-18), and
+		// `ask()` cannot ask twice: it returns the promise the handover already started.
 		row.note = 'chain-threw: ' + (error instanceof Error ? error.message : String(error)).slice(0, 120);
-		counters.fallback += 1;
+		let rescue;
+		try {
+			rescue = await ask();
+		} catch (nested) {
+			// The chain itself is what threw; there is nothing left to hand on to.
+			rescue = 'unavailable';
+		}
+		const text = typeof rescue === 'string' ? rescue : 'unavailable';
+		outcome = text === '' ? 'unavailable' : text;
+		if (outcome === 'unavailable' || outcome === 'cancelled') decidedBy = 'fallback';
+		else decidedBy = Date.now() - started < HUMAN_MIN_MS ? 'external' : 'human';
+		counters[decidedBy] += 1;
 	} finally {
 		pending.delete(id);
 		activeStore?.announce?.({ kind: 'pending' });
@@ -718,7 +741,9 @@ export function apply(ctx, rawConfig = {}) {
 	const snapshot = createSnapshot({ root });
 	activeStore = store;
 	activeSnapshot = snapshot;
-	store.ensureLoaded().catch(() => undefined);
+	// Kept as a promise: settings load asynchronously, and reading them before this
+	// resolves returns the defaults (see the retention sweep below).
+	const loaded = store.ensureLoaded().catch(() => undefined);
 
 	// The write-ahead snapshot rides the tool waterfall — the only place the
 	// before-content still exists. It observes and never decides: every branch must
@@ -761,8 +786,12 @@ export function apply(ctx, rawConfig = {}) {
 		}
 	};
 	// One sweep per process: snapshots are the one place a plugin keeps file contents,
-	// so they must not accumulate silently.
-	void snapshot.sweepRetention(store.settingsSnapshot().snapshotRetentionDays).catch(() => 0);
+	// so they must not accumulate silently. It waits for `loaded` on purpose — settings
+	// load asynchronously, so reading the retention at mount time always returned the
+	// default and the setting never took effect (audit 2026-11-18).
+	void loaded
+		.then(() => snapshot.sweepRetention(store.settingsSnapshot().snapshotRetentionDays))
+		.catch(() => 0);
 	activeReviewer = createReviewer({
 		getLlm,
 		getSettings: () => store.settingsSnapshot(),
