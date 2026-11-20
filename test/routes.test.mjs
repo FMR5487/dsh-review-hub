@@ -21,6 +21,45 @@ const row = (over) => Object.assign({ id: 'r', ts: Date.now(), sessionId: 's1', 
 
 export const cases = [
 	{
+		name: '判定回放：/prompt 用台账行重算报文，未留存的段落只报字符数',
+		async fn() {
+			const { store, byPath } = await harness('routes-prompt');
+			await store.record({
+				id: 'p1',
+				ts: Date.now(),
+				sessionId: 's1',
+				toolName: 'ops_bash',
+				outcome: 'allowed-once',
+				decidedBy: 'ai',
+				aiSource: 'ai',
+				aiModel: 'raccoon/sn-test',
+				argsSummary: 'pnpm test',
+				argsText: JSON.stringify({ command: 'pnpm test', description: 'run tests' }),
+				reason: 'escalate sandbox to workspace-write: ops_bash run tests',
+				reqMode: 'workspace-write',
+				envChars: 83,
+				ctxChars: 420,
+				ctxRedactions: 2,
+			});
+			const out = await callRoute(byPath.get(ROUTES.prompt), { url: ROUTES.prompt + '?session=s1&id=p1' });
+			assertEqual(out.status, 200);
+			assertEqual(out.json.ok, true, '这一行必须能读出来');
+			assertTrue(out.json.user.indexOf('tool: ops_bash') === 0, '首行永远是工具名');
+			assertTrue(out.json.user.indexOf('requested permission: workspace-write') > 0, '权限单列一行');
+			assertTrue(out.json.user.indexOf('arguments summary: pnpm test') > 0, '参数摘要照台账回填');
+			assertTrue(out.json.user.indexOf('argument keys:') < 0, '工具 schema 没留存，就不该凭空写一行');
+			assertTrue(out.json.system.length > 100, '系统提示要真的渲染出来');
+			const kinds = out.json.missing.map((item) => item.kind).sort().join(',');
+			assertEqual(kinds, 'approvals,brief,context,environment', '环境/上下文/工具说明/既有批准数都没留存');
+			assertTrue(out.json.user.indexOf('prior human approvals') < 0, '没有的数不印成 0');
+			const env = out.json.missing.find((item) => item.kind === 'environment');
+			assertEqual(env.chars, 83, '字符数照台账回填');
+			const bad = await callRoute(byPath.get(ROUTES.prompt), { url: ROUTES.prompt + '?session=s1&id=nope' });
+			assertEqual(bad.json.ok, false, '找不到行时 ok:false，不是 500');
+			assertEqual(bad.json.reason, 'no-row');
+		},
+	},
+	{
 		name: '写围栏：配了 proof 以后，同源 Origin 也绕不过 cookie',
 		async fn() {
 			const base = { host: '127.0.0.1:12345' };

@@ -179,6 +179,19 @@ window.__ModuleLoader__.load({
       'risk.unknown': '未知',
       'row.copy': '复制命令',
       'row.aiMs': '用时{t}',
+      'prompt.open': '查看提示词',
+      'prompt.tabTitle': '明镜 · 提示词',
+      'prompt.system': '系统提示（system）',
+      'prompt.user': '用户消息（user）',
+      'prompt.model': '模型 {model}',
+      'prompt.loading': '读取中…',
+      'prompt.failed': '这条记录读不出提示词',
+      'prompt.none': '点审批行上的图标，查看当时送出的提示词',
+      'prompt.note': '系统提示与设置按当前值重算；台账没留存的段落只报字符数',
+      'prompt.missingEnv': '环境段 {n} 字符，未留存',
+      'prompt.missingCtx': '对话上下文 {n} 字符（脱敏 {r} 处），未留存',
+      'prompt.missingBrief': '工具说明未留存',
+      'prompt.missingApprovals': '同一操作当时的既有批准次数未留存',
       'row.aiSuggest': 'AI 建议人工',
       'row.aiAdd': '将该工具加入 AI 预审',
       'row.aiOn': '已加入 AI 预审，点击移出',
@@ -479,6 +492,19 @@ window.__ModuleLoader__.load({
       'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
       'row.aiMs': '{t}',
+      'prompt.open': 'View the prompt',
+      'prompt.tabTitle': 'MingJing · Prompt',
+      'prompt.system': 'system prompt',
+      'prompt.user': 'user message',
+      'prompt.model': 'model {model}',
+      'prompt.loading': 'Loading…',
+      'prompt.failed': 'No prompt could be rebuilt for this row',
+      'prompt.none': 'Click the icon on a row to see the prompt it was judged with',
+      'prompt.note': 'The system prompt and settings are today’s values; blocks the ledger never kept report their size only',
+      'prompt.missingEnv': 'environment: {n} chars, not kept',
+      'prompt.missingCtx': 'conversation context: {n} chars ({r} redactions), not kept',
+      'prompt.missingBrief': 'tool brief not kept',
+      'prompt.missingApprovals': 'prior approvals of this operation not kept',
       'row.aiSuggest': 'AI suggests a human',
       'row.aiAdd': 'Send this tool to the AI reviewer',
       'row.aiOn': 'Listed for AI review — click to remove',
@@ -711,6 +737,8 @@ window.__ModuleLoader__.load({
       showMemory: false,
       models: null,
       diff: null,
+      /** The prompt behind one row: { id, sessionId, loading, data, error }. */
+      prompt: null,
       /** True while the approval list is actually visible (see IntersectionObserver). */
       pageVisible: false,
       /** Which session that visible list belongs to: "a list is open" is not "your list is open". */
@@ -814,6 +842,9 @@ window.__ModuleLoader__.load({
     let sideAvailable = false;
     let sideOpen = null;
     const TAB_KIND = 'review-hub-diff';
+    const PROMPT_KIND = 'review-hub-prompt';
+    /** Set in apply() once the right sidebar is in reach; the row icon calls it. */
+    let sideOpenPrompt = function () {};
     const SETTINGS_KIND = 'review-hub-settings';
     const STATS_KIND = 'review-hub-stats';
     const MEMORY_KIND = 'review-hub-memory';
@@ -935,6 +966,8 @@ window.__ModuleLoader__.load({
       chevronDown: 'M5.5 8.2l4.5 4.6 4.5-4.6',
       chevronUp: 'M5.5 11.8l4.5-4.6 4.5 4.6',
       diff: 'M4.5 6.5h9M4.5 10h6M4.5 13.5h9',
+      // The message itself: a rounded frame with two uneven lines inside it.
+      prompt: 'M4.8 4h10.4a1.6 1.6 0 0 1 1.6 1.6v8.8a1.6 1.6 0 0 1-1.6 1.6H4.8a1.6 1.6 0 0 1-1.6-1.6V5.6A1.6 1.6 0 0 1 4.8 4zM6.6 8h6.2M6.6 11.2h3.6',
       // A pencil: the nib at the lower left, the body reaching the upper right corner.
       pencil: 'M3.5 16.5l.8-3.4 9.2-9.2a1.7 1.7 0 0 1 2.4 0l.2.2a1.7 1.7 0 0 1 0 2.4l-9.2 9.2-3.4.8zM12.1 5.4l2.5 2.5',
       // A cog a 16px box can still read: eight teeth, one ring, nothing else.
@@ -2185,6 +2218,37 @@ window.__ModuleLoader__.load({
       if (hinted.size > 400) hinted.clear();
     }
 
+    /**
+     * Ask the host to rebuild the prompt behind one row. The server answers from the ledger;
+     * what the ledger never kept comes back as a list of missing blocks instead of being
+     * guessed, so the panel cannot show evidence the model never saw.
+     */
+    function loadPrompt(sessionId, id) {
+      const state = { id: id, sessionId: sessionId, loading: true, data: null, error: '' };
+      store.prompt = state;
+      notify();
+      api('/prompt?session=' + encodeURIComponent(sessionId) + '&id=' + encodeURIComponent(id))
+        .then(function (body) {
+          if (store.prompt !== state) return;
+          const ok = isPlainObject(body) === true && body.ok === true;
+          store.prompt = { id: id, sessionId: sessionId, loading: false, data: ok === true ? body : null, error: ok === true ? '' : String((body && body.reason) || 'no-row') };
+          notify();
+        })
+        .catch(function () {
+          if (store.prompt !== state) return;
+          store.prompt = { id: id, sessionId: sessionId, loading: false, data: null, error: 'request-failed' };
+          notify();
+        });
+    }
+
+    /** The row icon: load the prompt, then put the panel on screen. */
+    function openPrompt(entry) {
+      if (entry === null || entry === undefined) return;
+      const sessionId = typeof entry.sessionId === 'string' && entry.sessionId !== '' ? entry.sessionId : store.sessionId;
+      loadPrompt(sessionId, String(entry.id || ''));
+      sideOpenPrompt();
+    }
+
     async function loadConfig() {
       try {
         const body = await api('/config');
@@ -2620,6 +2684,9 @@ window.__ModuleLoader__.load({
       '.ah-risk-low{color:var(--ah-ai-fg,#2fa84f)}',
       '.ah-risk-unknown{color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       '.ah-risk-ms{color:var(--dsw-alias-label-tertiary,#9aa0a6);white-space:nowrap}',
+  // No palette here on purpose: this block only has to read like a message, not look like a card.
+  '.ah-prompt-body{margin:0 0 12px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto}',
+  '.ah-prompt-missing{margin:0 0 6px}',
       '.ah-risk-exempt{color:var(--dsw-alias-label-tertiary,#9aa0a6);font-weight:700}',
       // Fake conversation page: the card is previewed where it will actually live.
       '.ah-preview-widths{display:flex;align-items:center;gap:6px;flex-wrap:wrap}',
@@ -3838,6 +3905,18 @@ window.__ModuleLoader__.load({
                       // did this verdict cost", and the label is shortened to one word.
                       Number.isFinite(Number(entry.aiMs))
                         ? h('span', { className: 'ah-risk-ms', key: 'ms' }, opts.t('row.aiMs', { t: formatMs(entry.aiMs) }))
+                        : null,
+                      // Only a row the reviewer looked at has a prompt: the icon answers "why did
+                      // it decide that", and a row with no verdict has nothing to replay.
+                      entry.aiSource !== undefined && entry.aiSource !== 'aborted'
+                        ? h('button', {
+                          type: 'button',
+                          className: 'ah-icon-btn',
+                          key: 'prompt',
+                          title: opts.t('prompt.open'),
+                          'aria-label': opts.t('prompt.open'),
+                          onClick: function () { openPrompt(entry); },
+                        }, icon('prompt', 13))
                         : null),
                     h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
               : null,
@@ -5340,6 +5419,36 @@ window.__ModuleLoader__.load({
     }
 
     /** The diff tab's body: the same panel a row used to expand, in the sidebar. */
+    function PromptPanel(props) {
+      const t = translator(props);
+      const view = useStore();
+      const state = view.prompt;
+      if (state === null || state.data === null) {
+        const text = state === null
+          ? t('prompt.none')
+          : (state.loading === true ? t('prompt.loading') : t('prompt.failed'));
+        return h('div', { className: 'ah-panel' }, h('div', { className: 'ah-empty' }, text));
+      }
+      const data = state.data;
+      const missingText = function (item) {
+        if (item.kind === 'environment') return t('prompt.missingEnv', { n: String(item.chars) });
+        if (item.kind === 'context') return t('prompt.missingCtx', { n: String(item.chars), r: String(item.redactions || 0) });
+        if (item.kind === 'approvals') return t('prompt.missingApprovals');
+        return t('prompt.missingBrief');
+      };
+      return h('div', { className: 'ah-panel ah-prompt' }, [
+        h('div', { className: 'ah-section', key: 'head' }, String(data.row && data.row.toolName || '') + ' · ' + t('prompt.model', { model: String(data.row && data.row.aiModel || '—') })),
+        h('div', { className: 'ah-section', key: 'sys' }, t('prompt.system')),
+        h('pre', { className: 'ah-prompt-body', key: 'sysbody' }, String(data.system || '')),
+        h('div', { className: 'ah-section', key: 'usr' }, t('prompt.user')),
+        h('pre', { className: 'ah-prompt-body', key: 'usrbody' }, String(data.user || '')),
+        (Array.isArray(data.missing) ? data.missing : []).map(function (item, index) {
+          return h('div', { className: 'ah-hint ah-prompt-missing', key: 'miss-' + index }, missingText(item));
+        }),
+        h('div', { className: 'ah-hint', key: 'note' }, t('prompt.note')),
+      ]);
+    }
+
     function DiffPanel(props) {
       const t = translator(props);
       const view = useStore();
@@ -5469,6 +5578,25 @@ window.__ModuleLoader__.load({
             if (typeof ctx.effect === 'function') ctx.effect(define, 'review-hub: diff tab type');
             else define();
             mount({ name: 'sidebar.right.pane.tab', key: TAB_KIND, locale: NS, inject: function (sessionId) { return { sessionId: sessionId }; } }, DiffPanel);
+            const definePrompt = function () {
+              return tabs.register({
+                id: PROMPT_KIND,
+                kind: PROMPT_KIND,
+                keepMounted: true,
+                priority: 'extension',
+                title: function () { return hostTitle('prompt.tabTitle'); },
+              });
+            };
+            if (typeof ctx.effect === 'function') ctx.effect(definePrompt, 'review-hub: prompt tab type');
+            else definePrompt();
+            mount({ name: 'sidebar.right.pane.tab', key: PROMPT_KIND, locale: NS, inject: function (sessionId) { return { sessionId: sessionId }; } }, PromptPanel);
+            sideOpenPrompt = function () {
+              try {
+                nav.openTab(PROMPT_KIND, { revealIfOpened: true });
+              } catch (error) {
+                console.error('[review-hub] prompt tab failed', error);
+              }
+            };
             const defineSettings = function () {
               return tabs.register({
                 id: SETTINGS_KIND,

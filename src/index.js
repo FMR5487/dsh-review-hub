@@ -871,6 +871,9 @@ export function apply(ctx, rawConfig = {}) {
 			// Live predicate, not a mount-time flag: the switch lives in the panel, so it has
 			// to take effect without a restart.
 			probeFile: join(store.root, 'http-probe.log'),
+		// The replay panel rebuilds the prompt, and the brief is one of its lines: the registry
+		// is in-memory (fed by the pre-execute hook), so it has to come from here.
+		toolBrief: (name) => toolBriefFor(name),
 			debugHeaders: () => debugHeaders === true || store.settingsSnapshot().debugHeaders === true,
 			// The fence itself is data: name the cookie/header the panel sends and curl does
 			// not. Both empty = off, which is exactly today's behaviour.

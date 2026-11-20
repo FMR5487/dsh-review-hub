@@ -224,6 +224,52 @@ export function buildMessages(input) {
 }
 
 /**
+ * Rebuild the user message a ledger row was judged with.
+ *
+ * What was never stored cannot be replayed: the ledger keeps `envChars` / `ctxChars`, not the
+ * text. Those blocks come back as "missing" instead of being re-derived from today's session —
+ * a replay that quietly showed the *current* turns would answer "why did it decide that" with
+ * evidence the model never saw (2026-11-18).
+ */
+export function replayOf(row, options = {}) {
+	const argsText = typeof row?.argsText === 'string' ? row.argsText : '';
+	const input = {
+		toolName: row?.toolName,
+		agentKind: row?.agentKind,
+		reqMode: row?.reqMode,
+		toolBrief: typeof options.brief === 'string' ? options.brief : '',
+		// `argKeys` is the tool's *schema*, which the ledger never keeps: the arguments summary
+		// below already says what was actually passed, so leaving this out beats inventing it.
+		argKeys: '',
+		env: '',
+		reason: row?.reason,
+		summary: row?.argsSummary,
+		priorApprovals: Number(row?.priorApprovals) || 0,
+		context: '',
+	};
+	const built = buildMessages(input);
+	// The count of prior human approvals is decided per call and never written to the ledger:
+	// printing the default "0" would state a fact we do not have, so the line is dropped here
+	// and reported as missing instead (the panel says so in the same list as env/context).
+	const lines = String(built.messages[0].content[0].text).split('\n');
+	const priorLine = 'prior human approvals';
+	const keptLines = lines.filter((line) => line.startsWith(priorLine) === false);
+	const priorDropped = keptLines.length !== lines.length;
+	const missing = [];
+	if (priorDropped === true) missing.push({ kind: 'approvals', chars: 0 });
+	const envChars = Number(row?.envChars) || 0;
+	if (envChars > 0) missing.push({ kind: 'environment', chars: envChars });
+	const ctxChars = Number(row?.ctxChars) || 0;
+	if (ctxChars > 0) missing.push({ kind: 'context', chars: ctxChars, redactions: Number(row?.ctxRedactions) || 0 });
+	if (input.toolBrief === '') missing.push({ kind: 'brief', chars: 0 });
+	return {
+		system: typeof options.system === 'string' ? options.system : '',
+		user: keptLines.join('\n'),
+		missing,
+	};
+}
+
+/**
  * One streaming reviewer call, in the shape the host llm seam expects:
  * `{ provider, model, system, messages:[{role, content:[{type:'text', text}]}], temperature, signal }`.
  * Chunks are block events; the terminal one is `{ type:'finish', reason:{ kind } }`.

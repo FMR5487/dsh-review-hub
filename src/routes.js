@@ -6,6 +6,7 @@ import { appendFile, readFile } from 'node:fs/promises';
 import { toCsv, toJson, fileName } from './export.js';
 import { computeDiff } from './diff.js';
 import { splitRoute } from './store.js';
+import { replayOf, systemPromptFor } from './review.js';
 
 export const ROUTE_PREFIX = '/api/review-hub';
 export const ROUTES = Object.freeze({
@@ -23,6 +24,7 @@ export const ROUTES = Object.freeze({
 	files: ROUTE_PREFIX + '/files',
 	stream: ROUTE_PREFIX + '/stream',
 	probe: ROUTE_PREFIX + '/probe',
+	prompt: ROUTE_PREFIX + '/prompt',
 });
 
 const CONFIG_FIELDS = [
@@ -687,6 +689,46 @@ export function createRoutes(deps) {
 				const written = await store.writeSettings(body);
 				sendJson(res, 200, ignored.length === 0 ? project(written) : Object.assign(project(written), { ignored }));
 			}, ['GET', 'HEAD', 'POST']),
+		},
+		{
+			// "Why did it decide that?" — the message the reviewer actually received, rebuilt from
+			// the row. Read-only: it never re-runs a review and never touches a session event.
+			kind: 'exact',
+			path: ROUTES.prompt,
+			handler: guard(async (req, res) => {
+				const url = urlOf(req);
+				const session = url.searchParams.get('session') ?? '';
+				const id = url.searchParams.get('id') ?? '';
+				if (session === '' || id === '') {
+					sendJson(res, 200, { ok: false, reason: 'bad-request' });
+					return;
+				}
+				const rows = (await store.query({ session, limit: 5000 })).entries;
+				const row = rows.find((item) => String(item.id) === id);
+				if (row === undefined) {
+					sendJson(res, 200, { ok: false, reason: 'no-row' });
+					return;
+				}
+				const current = settings();
+				const brief = typeof deps.toolBrief === 'function' ? deps.toolBrief(row.toolName) : '';
+				const replay = replayOf(row, {
+					brief,
+					// Stated plainly in the panel: the system block is today's, not the one in force
+					// that day — prompt settings are not recorded per row.
+					system: systemPromptFor({
+						reasonChars: current.aiReasonChars,
+						locale: current.reviewerLocale === '' ? current.panelLocale : current.reviewerLocale,
+						append: current.promptAppend,
+					}),
+				});
+				sendJson(res, 200, {
+					ok: true,
+					row: { id: row.id, ts: row.ts, toolName: row.toolName, aiModel: row.aiModel, decidedBy: row.decidedBy, outcome: row.outcome },
+					system: replay.system,
+					user: replay.user,
+					missing: replay.missing,
+				});
+			}, ['GET', 'HEAD']),
 		},
 		{
 			kind: 'exact',
