@@ -17,6 +17,8 @@ export const SUMMARY_MAX_CHARS = 240;
 /** A command keeps its head and its tail: the tail is where redirections and targets live. */
 export const COMMAND_HEAD_CHARS = 200;
 export const COMMAND_TAIL_CHARS = 100;
+// Lower-case on purpose: the host spells one of these `powerShell`, and a case-sensitive
+// lookup quietly skipped the head+tail shaping for it (audit 2026-11-18).
 const SHELL_TOOLS = new Set(['bash', 'win_bash', 'ops_bash', 'pwsh', 'powershell']);
 const PATH_TOOLS = new Set(['edit', 'write', 'str_replace_editor', 'read']);
 
@@ -171,9 +173,10 @@ function trimCommand(text) {
 
 function summaryOf(name, args) {
 	let text;
-	const isCommand = SHELL_TOOLS.has(name) && hasValue(args?.command);
+	const key = String(name ?? '').toLowerCase();
+	const isCommand = SHELL_TOOLS.has(key) && hasValue(args?.command);
 	if (isCommand) text = trimCommand(redactString(String(args.command)));
-	else if (PATH_TOOLS.has(name) && hasValue(args?.file_path)) text = redactString(String(args.file_path));
+	else if (PATH_TOOLS.has(key) && hasValue(args?.file_path)) text = redactString(String(args.file_path));
 	else {
 		try {
 			text = JSON.stringify(redactValue(args, 0));

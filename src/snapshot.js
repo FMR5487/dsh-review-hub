@@ -27,7 +27,15 @@ const SNAPSHOT_TOOLS = new Set(['write', 'edit', 'str_replace_editor']);
 const INDEX_FILE = 'index.json';
 
 function safeSegment(value) {
-	return String(value).replace(/[^a-zA-Z0-9_.-]+/g, '-').slice(0, 96) || 'unknown';
+	// Dots are legal inside a name but illegal as a whole segment: '..' in here turned into
+	// a real parent-directory hop (audit 2026-11-18). Stripping the leading/trailing runs
+	// also handles Windows, which refuses a trailing dot anyway.
+	const out = String(value)
+		.replace(/[^a-zA-Z0-9_.-]+/g, '-')
+		.replace(/^\.+/, '-')
+		.replace(/\.+$/, '-')
+		.slice(0, 96);
+	return out === '' ? 'unknown' : out;
 }
 
 function nonEmptyString(value) {

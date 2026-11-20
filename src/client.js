@@ -25,10 +25,6 @@ window.__ModuleLoader__.load({
 
     const zh = {
       'tab': '审批',
-      'dock.ai': 'AI 通过',
-      'dock.memory': '记忆通过',
-      'dock.ask': 'AI 拿不准，已转人工',
-      'dock.external': '由外部插件裁决',
       'dock.handedOver': '审批交给你了',
       'dock.pending': '等待人工审批',
       'dock.pendingAi': 'AI 建议人工 · {risk} · {reason}',
@@ -58,8 +54,6 @@ window.__ModuleLoader__.load({
       'empty.memory': '还没有记忆的操作：同一操作人工批准满阈值后会自动放行',
       'chip.aiRejected': 'AI 打回',
       'chip.human': '人工通过',
-      'chip.humanL0': '命中L0 · 人工通过',
-      'chip.humanL0Deny': '命中L0 · 人工拒绝',
       'chip.ai': 'AI 通过',
       'chip.memory': '记忆通过',
       'chip.humanDeny': '人工拒绝',
@@ -73,7 +67,6 @@ window.__ModuleLoader__.load({
       'memory.mergedPrefix': '合并',
       'memory.progressUnit': '次',
       'memory.fullMerged': '合并记忆已满',
-      'memory.count': '记忆 {n} 次',
       'memory.remove': '删除',
       'memory.clear': '清空记忆',
       'memory.tabTitle': '明镜 · 记忆',
@@ -81,23 +74,17 @@ window.__ModuleLoader__.load({
       'memory.search': '搜索记忆',
       'memory.removeConfirm': '确认移除',
       'memory.emptySearch': '没有匹配的记忆',
-      'memory.groupMeta': '{n} 条 · 最后命中 {time}',
-      'memory.hits': '命中 {n} 次 · 最后命中 {time}',
       'memory.groupHits': '{n} 条 · 命中 {hits} 次 · 最后命中 {time}',
       'memory.groupCount': '{n} 条',
       'memory.merged': '合并 {n} 条',
       'setting.fileFingerprint': '允许记忆同文件不同修改（全局）',
       'setting.fileFingerprintNote': '开启：同一文件的任意修改将会合并成一条记忆，学满即自动放行。关闭：用记忆页每行的开关逐文件放行。',
       'memory.allTools': '所有工具',
-      'memory.files': '按文件',
-      'memory.filesNone': '还没有写过文件的审批',
-      'memory.filesStale': '文件统计要重启宿主才会出现（这一版只加了界面）',
-      'memory.fileApproved': '已批准 {n} 次',
-      'memory.fileAuto': '自动放行',
       'memory.fileAutoHint': '开启后，这个文件累计批准满阈值就自动放行。高危操作永远例外。',
       'memory.canArm': '可在「已记忆」中开启自动放行',
       'memory.canArmShort': '可开启自动放行',
       'memory.full': '记忆已满',
+      'setting.clearOn': '启用「清空历史」',
       'memory.confirm': '再点 {n} 次确认',
       'diff.change': '改动',
       'diff.title': '明镜 · 改动',
@@ -115,8 +102,6 @@ window.__ModuleLoader__.load({
       'diff.reverted': '已把撤销指令投递给该会话',
       'diff.noAgent': '该会话当前没有可投递的 agent',
       'diff.close': '收起',
-      'setting.title': '设置',
-      'setting.close': '收起',
       'setting.ai': '启用AI审批',
       'setting.memory': '记忆自动通过',
       'setting.hint': '输入框上方提示',
@@ -127,12 +112,6 @@ window.__ModuleLoader__.load({
       'setting.memoryNote': '同一操作批满阈值次数后自动放行（按会话隔离）',
       'setting.model': '审查模型',
       'setting.modelNote': '留空 = 跟随当前会话的车道；只会列出见过的车道',
-      'setting.timeout': '审查超时（毫秒）',
-      'setting.timeoutNote': '超时按「拿不准」处理，转人工',
-      'setting.budget': '每轮审查上限',
-      'setting.budgetNote': '一个回合最多调用几次模型',
-      'setting.breaker': '熔断次数',
-      'setting.breakerNote': '连续失败几次后暂停 AI 审查 5 分钟',
       'setting.threshold': '放行阈值（次）',
       'setting.thresholdNote': '人工批准这么多次之后自动放行',
       'setting.fpIgnoreJustification': '允许记忆忽略「理由」',
@@ -160,14 +139,8 @@ window.__ModuleLoader__.load({
       'setting.hintMemory': '记忆卡时长（毫秒）',
       'setting.hintMemoryNote': '记忆通过的卡片持续时间；到点自动收起',
       'setting.hintPending': '等待审批卡时长（毫秒）',
-      'setting.hintMsNote': '到点自动收起',
       'setting.hintPendingNote': '0 = 一直留着，直到审批完成',
       'setting.toastNote': '系统通知，需要浏览器授权',
-      'setting.pollMs': '兜底轮询（毫秒）',
-      'setting.pollNote': '只在实时连接断开时用它',
-      'setting.maxEntries': '每会话保留条数',
-      'setting.maxEntriesNote': '超出后丢最旧的',
-      'setting.clearOnNote': '打开后才出现清空按钮',
       'settings.tabTitle': '明镜 · 设置',
       'stats.tabTitle': '明镜 · 统计',
       'bar.stats': '审批统计',
@@ -183,18 +156,12 @@ window.__ModuleLoader__.load({
       'stats.tokensSum': '合计',
       'stats.cacheRead': '缓存读取',
       'stats.avgMs': '平均返回',
-      'stats.hitRate': '缓存命中',
-      'stats.lane': '车道',
       'stats.calls': '调用',
       'stats.allow': 'allow',
       'stats.ask': 'ask',
       'stats.fallback': '错误',
       'stats.aborted': '中断',
       'stats.cache': '审批缓存命中',
-      'setting.secReview': '审查',
-      'setting.secAgent': '按请求方分档',
-      'setting.agent': '谁能用 AI 审查',
-      'setting.agentNote': '子代理/定时/看板默认更严：它们替你做的事更多',
       'setting.secMemory': '自动放行',
       'setting.secCard': 'UI与提示卡',
       'setting.secData': '数据',
@@ -252,18 +219,9 @@ window.__ModuleLoader__.load({
       'dock.otherWaitChip': '等待审批 {n}',
       'config.secAdvanced': '高级设置（不要乱改）',
       'config.advancedWarn': '下面这些会改变失败行为与性能，没有明确理由请不要动',
-      'config.kindDefault': '普通会话',
-      'config.kindSubagent': '子代理',
-      'config.kindScheduled': '定时任务',
-      'config.kindTaskBoard': '任务板',
-      'config.kindUnknown': '来源未知',
-      'config.levelFull': 'AI 预审',
-      'config.levelOff': '全关（连记忆也不放行）',
-      'config.levelStrict': '一律问我',
       'config.agentNote': '按请求方收紧 AI 预审：子代理 / 定时 / 看板默认更严，因为它们替你做的事更多。默认 strict',
       'config.clearOn': '启用「清空历史」',
       'config.clearOnNote': '打开后审批页才出现「清空历史」按钮（仍需连点三次）。默认关',
-      'config.open': '打开审批页',
       'setting.grant': '授权浏览器通知',
       'setting.granted': '通知已授权',
       'setting.export': '导出台账',
@@ -272,7 +230,6 @@ window.__ModuleLoader__.load({
       'setting.json': 'JSON',
       'setting.danger': '危险操作',
       'setting.clear': '清空历史（仅当前会话）',
-      'setting.clearOn': '启用「清空历史」',
       'setting.moreInConfig': '更多设置在插件页的高级设置区',
       'setting.saved': '已保存',
       'setting.failed': '保存失败',
@@ -284,7 +241,6 @@ window.__ModuleLoader__.load({
       'config.breaker': '连续失败熔断阈值',
       'config.exempt': '凭据路径豁免（一行一条）',
       'config.exemptNote': '命中这些路径的凭据类硬风险不再直接转人工，改为送 AI 判；风险等级按 AI 的判断记，行上标「命中豁免」。留空＝不豁免任何路径',
-      'config.model': '审查模型（留空=会话默认）',
       'config.modelAuto': '跟随会话（默认）',
       'config.modelEmpty': '还没观察到可用车道，先手填 provider/model',
       'config.modelLocal': '不与其他会话同步',
@@ -331,43 +287,17 @@ window.__ModuleLoader__.load({
       'preview.aiOn': '已加入（再点移出）',
       'preview.aiNote': '本机没有陌生工具会申请审批，只能在这里看',
       'preview.fakeHintSub': '记忆通过 · 已记忆 19 条',
-      'preview.kindPending': '等待审批',
-      'preview.kindReviewing': 'AI 审阅中',
-      'row.aiNoVerdict': 'AI 未给出结论',
       'row.bodyLine': '{text} · {n} 行',
       'row.aiSkipLabel': '未送 AI：',
-      'row.writeFile': '写文件',
-      'row.editFile': '改文件',
-      'dock.pendingSkipped': '未送 AI 审查（{why}）—— 由你判断',
-      'preview.kindTimeout': 'AI 超时/无结论',
-      'preview.owner': '开关：{name}',
-      'preview.kindDanger': '高危',
-      'preview.sampleHint': '以上是样例；下面是本会话实时',
-      'preview.floatTry': '试一下悬浮卡',
-      'preview.floatTryDanger': '试一下高危悬浮卡',
-      'preview.floatHint': '点上面的按钮，对话区顶部居中会出现 12 秒的示例悬浮卡（真实审批时它就是给你看 AI 建议的那张，宿主审批框盖不住）。',
-      'preview.floatShown': '示例已出现，12 秒后自动消失。',
-      'preview.floatNoAnchor': '示例已出现，但还没量到对话列（先回对话页看一眼再回来点），现在按窗口居中预览，宽度也不对。',
-      'preview.floatBlocked': '先把「输入框上方提示」和「等待审批时显示提示卡」这两个开关打开，浮层才有东西可显示。',
-      'preview.floatHidden': '审批页正开着的时候浮层是隐藏的（列表已经显示了同样的内容），切到别的标签页再试。',
       'preview.floatReason': '预览：一条样例命令的理由',
       'preview.floatAdvice': '预览：命令只读、范围明确，但这条操作还没在记忆里',
-      'preview.recent': '本会话最近 6 条',
-      'preview.pending': '待你审批',
-      'preview.noPending': '当前没有待审',
       'dock.pendingReviewing': 'AI 正在审阅… 已 {sec}s  {spin}',
       'dock.pendingFailed': 'AI 没能给出结论 —— 请你判断',
       'dock.pendingTimeout': 'AI 响应超时，未给出结论 —— 请你判断',
       'row.aiTimeout': 'AI 超时',
       'row.aiError': 'AI 错误',
-      'config.toolBrief': '把工具说明送给 AI',
-      'config.contextOn': '上下文增强审批',
-      'config.contextOnNote': '把最近几轮对话带进评审，仅作背景。默认关；关掉时与旧版送的内容逐字一致',
       'config.contextTurns': '带几轮对话进评审',
-      'config.contextTurnsNote': '最近 N 轮用户消息 + 每轮一条助手回复，仅作背景。0 = 不送上下文。默认 3，范围 0–10',
       'config.contextTokens': '上下文 token 上限',
-      'config.contextTokensNote': '超了从最早的一轮开始丢。默认 1500，范围 200–8000',
-      'config.toolBriefNote': '附上该工具描述的第一句和参数名，陌生工具不必靠猜。默认开',
       'config.promptAppend': '追加提示词（可为空）',
       'config.promptAppendNote': '接在固定提示词后面，只能加偏好、改不掉红线（冲突部分程序会忽略）。默认空',
       'config.reviewerLocale': 'AI 理由语言',
@@ -395,10 +325,6 @@ window.__ModuleLoader__.load({
 
     const en = {
       'tab': 'Approvals',
-      'dock.ai': 'AI passed',
-      'dock.memory': 'Memory passed',
-      'dock.ask': 'AI was unsure, asked the human',
-      'dock.external': 'Decided by another plugin',
       'dock.handedOver': 'Approval is yours',
       'dock.pending': 'Waiting for a human',
       'dock.pendingAi': 'AI suggests a human · {risk} · {reason}',
@@ -428,8 +354,6 @@ window.__ModuleLoader__.load({
       'empty.memory': 'Nothing learned yet: an operation auto-passes after enough human approvals',
       'chip.aiRejected': 'AI escalated',
       'chip.human': 'Human approved',
-      'chip.humanL0': 'L0 hit · human approved',
-      'chip.humanL0Deny': 'L0 hit · human denied',
       'chip.ai': 'AI passed',
       'chip.memory': 'Memory passed',
       'chip.humanDeny': 'Human denied',
@@ -443,7 +367,6 @@ window.__ModuleLoader__.load({
       'memory.mergedPrefix': 'merged ',
       'memory.progressUnit': '',
       'memory.fullMerged': 'merged memory full',
-      'memory.count': 'memory {n}',
       'memory.remove': 'Remove',
       'memory.clear': 'Clear memory',
       'memory.tabTitle': 'MingJing · Memory',
@@ -451,23 +374,17 @@ window.__ModuleLoader__.load({
       'memory.search': 'Search memory',
       'memory.removeConfirm': 'Confirm',
       'memory.emptySearch': 'No memory matches that',
-      'memory.groupMeta': '{n} · last hit {time}',
-      'memory.hits': 'hit {n} times · last {time}',
       'memory.groupHits': '{n} · hit {hits} times · last {time}',
       'memory.groupCount': '{n}',
       'memory.merged': '{n} merged',
       'setting.fileFingerprint': 'Learn across changes to one file (global)',
       'setting.fileFingerprintNote': 'On: any change to one file becomes a single memory entry and auto-passes once learned. Off: use the per-file switches in the memory page.',
       'memory.allTools': 'All tools',
-      'memory.files': 'By file',
-      'memory.filesNone': 'No file-writing approval yet',
-      'memory.filesStale': 'File stats need a host restart (this build only added the UI)',
-      'memory.fileApproved': '{n} approvals',
-      'memory.fileAuto': 'Auto-pass',
       'memory.fileAutoHint': 'Once on, this file auto-passes after the threshold. Hard-risk calls stay manual.',
       'memory.canArm': 'auto-pass can be enabled in MingJing · Memory',
       'memory.canArmShort': 'auto-pass available',
-      'memory.full': 'learned',
+      'memory.full': 'memory full',
+      'setting.clearOn': 'Enable "clear history"',
       'memory.confirm': 'Click {n} more',
       'diff.change': 'Diff',
       'diff.title': 'MingJing · Change',
@@ -485,8 +402,6 @@ window.__ModuleLoader__.load({
       'diff.reverted': 'Undo instruction delivered to the session',
       'diff.noAgent': 'This session has no agent to deliver to',
       'diff.close': 'Hide',
-      'setting.title': 'Settings',
-      'setting.close': 'Hide',
       'setting.ai': 'Enable AI review',
       'setting.memory': 'Memory auto-pass',
       'setting.hint': 'Hint above the composer',
@@ -497,12 +412,6 @@ window.__ModuleLoader__.load({
       'setting.memoryNote': 'Auto-approve after N human approvals of the same operation (per session)',
       'setting.model': 'Reviewer model',
       'setting.modelNote': 'Blank = follow the session lane; only lanes seen are listed',
-      'setting.timeout': 'Review timeout (ms)',
-      'setting.timeoutNote': 'A timeout counts as unsure and falls back to you',
-      'setting.budget': 'Reviews per turn',
-      'setting.budgetNote': 'Hard cap on model calls in one turn',
-      'setting.breaker': 'Breaker threshold',
-      'setting.breakerNote': 'Consecutive failures before the reviewer pauses for 5 minutes',
       'setting.threshold': 'Auto-approve after (times)',
       'setting.thresholdNote': 'Human approvals needed before the operation passes on its own',
       'setting.fpIgnoreJustification': 'Let memory ignore the reason',
@@ -530,14 +439,8 @@ window.__ModuleLoader__.load({
       'setting.hintMemory': 'Memory card lifetime (ms)',
       'setting.hintMemoryNote': 'How long the “memory passed” card stays; it collapses when the time is up',
       'setting.hintPending': 'Waiting card lifetime (ms)',
-      'setting.hintMsNote': 'Collapses by itself when the time is up',
       'setting.hintPendingNote': '0 = stays until the approval is done',
       'setting.toastNote': 'System notification; needs browser permission',
-      'setting.pollMs': 'Fallback poll (ms)',
-      'setting.pollNote': 'Only used while the live stream is down',
-      'setting.maxEntries': 'Rows kept per session',
-      'setting.maxEntriesNote': 'Oldest rows are dropped past this',
-      'setting.clearOnNote': 'The clear button appears only when this is on',
       'settings.tabTitle': 'MingJing · Settings',
       'stats.tabTitle': 'MingJing · Statistics',
       'bar.stats': 'Review statistics',
@@ -553,18 +456,12 @@ window.__ModuleLoader__.load({
       'stats.tokensSum': 'total',
       'stats.cacheRead': 'cache read',
       'stats.avgMs': 'avg',
-      'stats.hitRate': 'cache hit',
-      'stats.lane': 'Lane',
       'stats.calls': 'calls',
       'stats.allow': 'allow',
       'stats.ask': 'ask',
       'stats.fallback': 'errors',
       'stats.aborted': 'aborted',
       'stats.cache': 'approval cache hits',
-      'setting.secReview': 'Review',
-      'setting.secAgent': 'By requester',
-      'setting.agent': 'Who may use the AI review',
-      'setting.agentNote': 'Subagents, schedules and the task board default to stricter',
       'setting.secMemory': 'Auto-approve',
       'setting.secCard': 'UI and hint cards',
       'setting.secData': 'Data',
@@ -622,18 +519,9 @@ window.__ModuleLoader__.load({
       'dock.otherWaitChip': '{n} waiting',
       'config.secAdvanced': 'Advanced (do not fiddle)',
       'config.advancedWarn': 'These change failure behaviour and performance; leave them alone without a reason',
-      'config.kindDefault': 'normal session',
-      'config.kindSubagent': 'subagent',
-      'config.kindScheduled': 'scheduled',
-      'config.kindTaskBoard': 'task board',
-      'config.kindUnknown': 'unknown source',
-      'config.levelFull': 'AI may pre-review',
-      'config.levelOff': 'off (no auto pass at all)',
-      'config.levelStrict': 'always ask me',
       'config.agentNote': 'Tighten AI pre-review per requester: subagents, schedules and the task board default to stricter',
       'config.clearOn': 'Enable "clear history"',
       'config.clearOnNote': 'Shows the clear button in the approval tab (still three clicks)',
-      'config.open': 'Open approval tab',
       'setting.grant': 'Allow browser notifications',
       'setting.granted': 'Notifications allowed',
       'setting.export': 'Export ledger',
@@ -642,7 +530,6 @@ window.__ModuleLoader__.load({
       'setting.json': 'JSON',
       'setting.danger': 'Danger zone',
       'setting.clear': 'Clear history (this session)',
-      'setting.clearOn': 'Enable "clear history"',
       'setting.moreInConfig': 'more settings live in the plugin page’s advanced section',
       'setting.saved': 'Saved',
       'setting.failed': 'Save failed',
@@ -654,7 +541,6 @@ window.__ModuleLoader__.load({
       'config.breaker': 'Breaker threshold',
       'config.exempt': 'Credential paths the reviewer may judge (one per line)',
       'config.exemptNote': 'A credential hit on these paths is no longer sent straight to a human: it goes to the reviewer, and the risk level is the reviewer own. The row is labelled 命中豁免. Empty = nothing is exempt',
-      'config.model': 'Reviewer model (blank = session default)',
       'config.modelAuto': 'Follow the session (default)',
       'config.modelEmpty': 'No lane seen yet — type provider/model',
       'config.modelLocal': 'Do not follow other sessions',
@@ -701,43 +587,17 @@ window.__ModuleLoader__.load({
       'preview.aiOn': 'already listed (click to remove)',
       'preview.aiNote': 'no unknown tool ever asks for approval here, so this is the only place to see it',
       'preview.fakeHintSub': 'memory passed · 19 memorized',
-      'preview.kindPending': 'Awaiting approval',
-      'preview.kindReviewing': 'reviewer thinking',
-      'row.aiNoVerdict': 'no reviewer verdict',
       'row.bodyLine': '{text} · {n} lines',
       'row.aiSkipLabel': 'not reviewed:',
-      'row.writeFile': 'write',
-      'row.editFile': 'edit',
-      'dock.pendingSkipped': 'not sent to the reviewer ({why}) — your call',
-      'preview.kindTimeout': 'reviewer timed out',
-      'preview.owner': 'switch: {name}',
-      'preview.kindDanger': 'High risk',
-      'preview.sampleHint': 'That card is a sample; the rows below are this session live',
-      'preview.floatTry': 'Try the floating card',
-      'preview.floatTryDanger': 'Try the high-risk floating card',
-      'preview.floatHint': 'Click the button: a sample floating card appears at the top of the conversation for 12 seconds. In a real approval it is the surface the host panel cannot cover.',
-      'preview.floatShown': 'Sample shown; it disappears after 12 seconds.',
-      'preview.floatNoAnchor': 'Sample shown, but the conversation column has not been measured yet (open the chat once, then come back) — it is centred in the window right now, and the width is wrong too.',
-      'preview.floatBlocked': 'Turn on both "hint above the input" and "show a hint card while waiting" first — otherwise there is nothing to show.',
-      'preview.floatHidden': 'The floating card is hidden while the approval page is on screen (the list already says the same thing). Switch tabs and try again.',
       'preview.floatReason': 'Preview: the reason typed for a sample command',
       'preview.floatAdvice': 'Preview: read-only command, scoped, but this operation is not in memory yet',
-      'preview.recent': 'Last 6 in this session',
-      'preview.pending': 'Waiting for you',
-      'preview.noPending': 'Nothing waiting right now',
       'dock.pendingReviewing': 'the reviewer is thinking… {sec}s  {spin}',
       'dock.pendingFailed': 'the reviewer gave no verdict — please decide',
       'dock.pendingTimeout': 'the reviewer timed out without a verdict — please decide',
       'row.aiTimeout': 'AI timed out',
       'row.aiError': 'AI error',
-      'config.toolBrief': 'Send the tool description to the reviewer',
-      'config.contextOn': 'Context-enhanced review',
-      'config.contextOnNote': 'Sends the last few turns as background. Off by default; while off, the prompt is byte-for-byte what 1.2.x sent',
       'config.contextTurns': 'Conversation turns for the reviewer',
-      'config.contextTurnsNote': 'The last N user messages plus one reply each, as background only. 0 disables it. Default 3, range 0-10',
       'config.contextTokens': 'Context token budget',
-      'config.contextTokensNote': 'Past it, the oldest turn is dropped first. Default 1500, range 200-8000',
-      'config.toolBriefNote': 'Adds the first sentence of the tool description and its argument names, so an unknown tool is not a guess. On by default',
       'config.promptAppend': 'Extra prompt (optional)',
       'config.promptAppendNote': 'Appended after the fixed prompt. The fixed rules are enforced by code; anything here that conflicts is ignored — this adds preference, never removes a red line',
       'config.reviewerLocale': 'Reviewer reason language',
@@ -4599,8 +4459,8 @@ window.__ModuleLoader__.load({
         setStatus('saving');
         try {
           // Saving also records which language the panel is showing, so "follow the UI"
-        // resolves to something real instead of guessing from the request text.
-        const body = await saveConfig(withPanelLocale(draft || {}));
+          // resolves to something real instead of guessing from the request text.
+          const body = await saveConfig(withPanelLocale(draft || {}));
           setDraft(body);
           setStatus('saved');
         } catch (error) {
@@ -4731,22 +4591,49 @@ window.__ModuleLoader__.load({
         if (unit === 'm' || unit === '分钟') return Math.round(n * 60000);
         return Math.round(n);
       };
-      // Durations accept 10s or 10000ms: reading 600000 in your head is the point.
-      // is exactly the kind of arithmetic a settings page should do for you.
+      // Durations accept 10s or 10000ms: that arithmetic is exactly what a settings page
+      // should do for you, and reading 600000 in your head is not.
+      /**
+       * The input has to keep the text being typed. The old controlled version re-rendered
+       * with the formatted value on every keystroke, so typing 60000 turned into '6ms0'
+       * before the second digit landed — the field could only be filled by pasting or by
+       * typing the unit first (audit 2026-11-18). The draft stays the source of truth: it is
+       * written whenever the text parses, and blur snaps the field back to what was stored.
+       */
+      const DurationInput = function (props) {
+        const textState = React.useState(fmtDuration(props.value));
+        const setText = textState[1];
+        const editing = React.useRef(false);
+        React.useEffect(function () {
+          if (editing.current !== true) setText(fmtDuration(props.value));
+        }, [props.value]);
+        return h('input', {
+          className: 'ah-input',
+          type: 'text',
+          value: textState[0],
+          style: { maxWidth: 120 },
+          onFocus: function () { editing.current = true; },
+          onChange: function (event) {
+            const next = String(event.target.value);
+            setText(next);
+            const parsed = parseDuration(next);
+            if (parsed !== undefined) props.onChange(parsed);
+          },
+          onBlur: function () {
+            editing.current = false;
+            setText(fmtDuration(props.value));
+          },
+        });
+      };
       const durationField = function (field, label, hint) {
         return h('label', { className: 'ah-settings-row', key: field },
           h('span', { className: 'ah-settings-label' }, label, hint === undefined || hint === '' ? null : h('span', { className: 'ah-settings-note' }, hint)),
           h('span', { className: 'ah-field-pair', key: 'pair' },
             resetButton(field),
-            h('input', {
-              className: 'ah-input',
-              type: 'text',
-              value: fmtDuration(draft[field]),
-              style: { maxWidth: 120 },
-              onChange: function (event) {
-                const next = parseDuration(event.target.value);
-                if (next !== undefined) change(field, next);
-              },
+            h(DurationInput, {
+              key: 'dur',
+              value: draft[field],
+              onChange: function (value) { change(field, value); },
             })
           )
         );
@@ -5098,7 +4985,10 @@ window.__ModuleLoader__.load({
       const shown = rows.filter(function (row) {
         if (picked !== '' && String(row.toolName || '—') !== picked) return false;
         if (needle === '') return true;
-        return (String(row.toolName || '') + ' ' + String(row.summary || '')).toLowerCase().indexOf(needle) >= 0;
+        // The path is part of what a file-level memory row *is*: searching for the file you
+        // remember found nothing while looking at the row that names it (audit 2026-11-18).
+        const hay = String(row.toolName || '') + ' ' + String(row.summary || '') + ' ' + String(row.filePath || '');
+        return hay.toLowerCase().indexOf(needle) >= 0;
       });
 
       /** One row can stand for several memory rows (same file), so removal is a loop. */
@@ -5375,7 +5265,7 @@ window.__ModuleLoader__.load({
               t('stats.avgMs') + ' ' + (num(bucket.msCount) === 0 ? '—' : formatMs(bucket.avgMs)),
             ].join(' · ')),
             h('span', { key: 'tokens' }, [
-              t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.cacheRate') + ' ' + String(Number(bucket.cacheRate) || 0) + '%' + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens) + ' · ' + t('stats.hitRate') + ' ' + (num(bucket.promptTokens) === 0 ? '—' : Math.round((num(bucket.cacheReadTokens) / num(bucket.promptTokens)) * 100) + '%'),
+              t('stats.tokens') + ' ' + t('stats.tokensSum') + ' ' + (num(bucket.promptTokens) + num(bucket.completionTokens)) + ' · ' + t('stats.tokensIn') + ' ' + num(bucket.promptTokens) + ' · ' + t('stats.cacheRate') + ' ' + String(Number(bucket.cacheRate) || 0) + '%' + ' · ' + t('stats.tokensOut') + ' ' + num(bucket.completionTokens) + ' · ' + t('stats.cacheRead') + ' ' + num(bucket.cacheReadTokens),
             ].join(' · ')),
           ]);
         }),

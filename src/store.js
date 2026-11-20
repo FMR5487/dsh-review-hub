@@ -10,6 +10,8 @@ import { createHash } from 'node:crypto';
 import { DEFAULT_AI_TOOLS } from './policy.js';
 
 export const DOC_VERSION = 2;
+/** How long rows are coalesced before the ledger document is rewritten. */
+export const PERSIST_DELAY_MS = 150;
 export const ENTRIES_PER_SESSION = 200;
 export const SESSION_CAP = 64;
 /** Per-session reviewer pins: 32 sessions, an 80-char session id, a 120-char lane. */
@@ -255,7 +257,9 @@ function clampFileAutoPass(value) {
 	let kept = 0;
 	for (const [key, flag] of Object.entries(value)) {
 		if (flag !== true) continue;
-		if (typeof key !== 'string' || key === '' || key.length > 340) continue;
+		// Same bound the fingerprint writer uses (400): 340 silently dropped long but legal
+		// keys on the next load, so a learned operation forgot itself across a restart.
+		if (typeof key !== 'string' || key === '' || key.length > 400) continue;
 		out[key] = true;
 		kept += 1;
 		if (kept >= 200) break;
@@ -569,7 +573,7 @@ export function createStore(options = {}) {
 		return loading;
 	}
 
-	const persistEntries = () => serialize(async () => {
+	const writeEntries = () => serialize(async () => {
 		try {
 			await writeAtomic(entriesPath, { version: DOC_VERSION, sessions: Object.fromEntries(sessions), cleared });
 			degraded = false;
@@ -577,6 +581,30 @@ export function createStore(options = {}) {
 			degraded = true;
 		}
 	});
+
+	/** Rows arrive in bursts; the document is the whole ledger (265 KB in the field), so one
+	 * write per burst is enough. The window is short enough that a crash costs at most the
+	 * last few hundred milliseconds of rows, and `flushEntries()` exists for the callers
+	 * that must see the file on disk (a clear has to be durable at once). */
+	let persistTimer = null;
+	let persistRun = null;
+	const persistEntries = () => {
+		if (persistTimer !== null) return persistRun;
+		persistRun = new Promise(function (resolve) {
+			persistTimer = setTimeout(function () {
+				persistTimer = null;
+				void writeEntries().then(resolve, resolve);
+			}, PERSIST_DELAY_MS);
+		});
+		return persistRun;
+	};
+	const flushEntries = async () => {
+		if (persistTimer !== null) {
+			clearTimeout(persistTimer);
+			persistTimer = null;
+		}
+		await writeEntries();
+	};
 
 	const persistMemory = () => serialize(async () => {
 		try {
@@ -748,7 +776,9 @@ export function createStore(options = {}) {
 		sessions.delete(session);
 		const stamp = Date.now();
 		cleared[session] = stamp;
-		await persistEntries();
+		// A clear is a promise to the user ("gone"), not a row: it skips the coalescing
+		// window so the file on disk already agrees when this returns.
+		await flushEntries();
 		return { cleared: removed, clearedAt: stamp };
 	}
 
@@ -930,7 +960,9 @@ export function createStore(options = {}) {
 	 */
 	async function tallyAll() {
 		await ensureLoaded();
-		const out = { total: 0, sessions: 0, human: 0, memory: 0, ai: 0, escalated: 0, denied: 0, cancelled: 0, unavailable: 0, other: 0, byTool: {} };
+		// A null prototype: tool names are attacker-influenced strings, and `byTool['__proto__']`
+		// on a plain object walks into Object.prototype (audit 2026-11-18).
+		const out = { total: 0, sessions: 0, human: 0, memory: 0, ai: 0, escalated: 0, denied: 0, cancelled: 0, unavailable: 0, other: 0, byTool: Object.create(null) };
 		for (const [key, list] of sessions) {
 			out.sessions += 1;
 			const floor = clearedAt(key);
@@ -942,6 +974,7 @@ export function createStore(options = {}) {
 				// reviewer", and a single session only ever sees a fraction of that history.
 				const tool = typeof row.toolName === 'string' && row.toolName !== '' ? row.toolName : '—';
 				const toolBucket = out.byTool[tool] ?? { total: 0, approved: 0, rejected: 0 };
+			// (the bucket map has a null prototype, so this is a plain assignment)
 				toolBucket.total += 1;
 				if (row.decidedBy === 'human' && row.outcome === 'allowed-once') toolBucket.approved += 1;
 				if (row.decidedBy === 'human' && row.outcome === 'rejected') toolBucket.rejected += 1;
