@@ -180,7 +180,6 @@ window.__ModuleLoader__.load({
       'row.copy': '复制命令',
       'row.aiMs': '用时{t}',
       'search.open': '查台账',
-      'search.close': '收起',
       'search.tool': '工具',
       'search.decidedBy': '决定者',
       'search.all': '全部',
@@ -506,7 +505,6 @@ window.__ModuleLoader__.load({
       'row.copy': 'Copy the command',
       'row.aiMs': '{t}',
       'search.open': 'Search the ledger',
-      'search.close': 'Collapse',
       'search.tool': 'tool',
       'search.decidedBy': 'decided by',
       'search.all': 'all',
@@ -2717,6 +2715,11 @@ window.__ModuleLoader__.load({
   '.ah-prompt-missing{margin:0 0 6px}',
   // The search is a list, not a card: one line per row, no boxes, so a long result set stays
   // scannable at the same density as the approval page.
+  // A heading that happens to be clickable: same type as .ah-section, plus one affordance.
+  '.ah-section-head{display:flex;align-items:center;gap:6px;width:100%;margin:0;padding:0;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}',
+  '.ah-section-mark{display:inline-flex;align-items:center;opacity:.5}',
+  '.ah-section-head:hover .ah-section-mark{opacity:1}',
+  '.ah-section-tail{margin-left:auto;font-weight:400;opacity:.75}',
   '.ah-search-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 8px}',
   '.ah-search-field{display:inline-flex;align-items:center;gap:4px}',
   '.ah-search-row{display:flex;align-items:baseline;gap:8px;padding:2px 0;font-size:12px;white-space:nowrap;overflow:hidden}',
@@ -5335,16 +5338,23 @@ window.__ModuleLoader__.load({
           })
           .catch(function () { patch({ loading: false, failed: true }); });
       };
-      if (ui.open !== true) {
-        return h('div', { className: 'ah-search' }, h('button', {
+      // The trigger is the section heading itself, not a button in a section: this page is a
+      // stack of headings, and one bordered button at the top read as a foreign object.
+      const heading = function (open, suffix) {
+        return h('button', {
           type: 'button',
-          className: 'ah-btn',
+          className: 'ah-section ah-section-head',
           onClick: function () {
-            patch({ open: true });
-            if (ui.rows === null && ui.loading !== true) load();
+            patch({ open: open !== true });
+            if (open !== true && ui.rows === null && ui.loading !== true) load();
           },
-        }, t('search.open')));
-      }
+        }, [
+          h('span', { key: 'label' }, t('search.open')),
+          h('span', { className: 'ah-section-mark', key: 'mark' }, icon(open === true ? 'chevronUp' : 'chevronDown', 12)),
+          suffix === undefined || suffix === null ? null : h('span', { className: 'ah-section-tail', key: 'tail' }, suffix),
+        ]);
+      };
+      if (ui.open !== true) return h('div', { className: 'ah-search' }, heading(false));
       const rows = Array.isArray(ui.rows) ? ui.rows : [];
       const needle = ui.query.trim().toLowerCase();
       const tools = [];
@@ -5392,9 +5402,7 @@ window.__ModuleLoader__.load({
         });
       };
       return h('div', { className: 'ah-search' }, [
-        h('div', { className: 'ah-section', key: 'head' },
-          h('button', { type: 'button', className: 'ah-btn', key: 'toggle', onClick: function () { patch({ open: false }); } }, t('search.close')),
-          h('span', { className: 'ah-hint', key: 'count' }, ui.loading === true ? t('search.loading') : (ui.failed === true ? t('search.failed') : t('search.result', { n: String(hit.length) })))),
+        heading(true, h('span', { className: 'ah-hint' }, ui.loading === true ? t('search.loading') : (ui.failed === true ? t('search.failed') : t('search.result', { n: String(hit.length) })))),
         h('div', { className: 'ah-search-bar', key: 'bar' }, [
           h('input', {
             className: 'ah-input',
