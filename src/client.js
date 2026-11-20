@@ -5322,8 +5322,10 @@ window.__ModuleLoader__.load({
      * the toolbar, which is where a number nobody can act on goes to die.
      */
     // ─── 05 · 组件 · StatsPanel：统计页 ───────────────────────────
-    /** How many hits the search list draws before it only reports the count. */
+    /** How many hits the list draws before it only reports the count. */
     const SEARCH_MAX_ROWS = 200;
+    /** Cross-session is read, not scanned: 50 is a page, not a haystack. */
+    const ALL_SEARCH_ROWS = 50;
 
     /**
      * Ledger search for this session: the panel above answers 「how many」, this answers
@@ -5394,7 +5396,10 @@ window.__ModuleLoader__.load({
           .toLowerCase();
         return hay.indexOf(needle) >= 0;
       });
-      const shown = hit.slice(0, SEARCH_MAX_ROWS);
+      // A *drawing* cap, not a search cap: every fetched row is filtered, only the head is drawn.
+      // That is why the cross-session list can show 50 while still searching the whole set.
+      const cap = allSessions === true ? ALL_SEARCH_ROWS : SEARCH_MAX_ROWS;
+      const shown = hit.slice(0, cap);
       const picker = function (field, label, values) {
         return h('label', { className: 'ah-search-field', key: field },
           h('span', { className: 'ah-hint' }, label),
@@ -5442,7 +5447,7 @@ window.__ModuleLoader__.load({
             h('span', { className: 'ah-search-who', key: 'who' }, String(row.decidedBy || '—') + (row.riskLevel === undefined ? '' : ' · ' + String(row.riskLevel))),
             h('span', { className: 'ah-search-text', key: 'text' }, String(row.argsSummary || row.reason || row.aiReason || '').slice(0, 90)));
         }),
-        hit.length > shown.length ? h('div', { className: 'ah-hint', key: 'more' }, t('search.more', { n: String(SEARCH_MAX_ROWS) })) : null,
+        hit.length > shown.length ? h('div', { className: 'ah-hint', key: 'more' }, t('search.more', { n: String(cap) })) : null,
       ]);
     }
 
