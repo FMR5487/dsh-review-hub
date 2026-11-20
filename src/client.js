@@ -2687,6 +2687,11 @@ window.__ModuleLoader__.load({
   // No palette here on purpose: this block only has to read like a message, not look like a card.
   '.ah-prompt-body{margin:0 0 12px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto}',
   '.ah-prompt-missing{margin:0 0 6px}',
+  // The shared .ah-icon-btn is a 24x24 square and the reason row aligns on the baseline, so a
+  // square sat visibly below the words it belongs to. A small rectangle centred on the line
+  // reads as part of the sentence instead (2026-11-18).
+  '.ah-prompt-btn{width:auto;height:18px;padding:0 5px;border-radius:5px;border:1px solid currentColor;opacity:.55;align-self:center;line-height:0;transition:opacity .12s ease}',
+  '.ah-prompt-btn:hover{opacity:1}',
       '.ah-risk-exempt{color:var(--dsw-alias-label-tertiary,#9aa0a6);font-weight:700}',
       // Fake conversation page: the card is previewed where it will actually live.
       '.ah-preview-widths{display:flex;align-items:center;gap:6px;flex-wrap:wrap}',
@@ -3911,7 +3916,7 @@ window.__ModuleLoader__.load({
                       entry.aiSource !== undefined && entry.aiSource !== 'aborted'
                         ? h('button', {
                           type: 'button',
-                          className: 'ah-icon-btn',
+                          className: 'ah-icon-btn ah-prompt-btn',
                           key: 'prompt',
                           title: opts.t('prompt.open'),
                           'aria-label': opts.t('prompt.open'),

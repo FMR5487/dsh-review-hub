@@ -168,7 +168,9 @@ function firstJsonObject(text) {
 function trimCommand(text) {
 	if (text.length <= COMMAND_HEAD_CHARS + COMMAND_TAIL_CHARS) return text;
 	const omitted = text.length - COMMAND_HEAD_CHARS - COMMAND_TAIL_CHARS;
-	return text.slice(0, COMMAND_HEAD_CHARS) + '\n…（中间省略 ' + omitted + ' 字符）…\n' + text.slice(-COMMAND_TAIL_CHARS);
+	// English, like every other line the reviewer reads: this string goes *into the prompt*,
+	// not into the panel dictionary, so no i18n setting reaches it (2026-11-18).
+	return text.slice(0, COMMAND_HEAD_CHARS) + '\n… (' + omitted + ' chars omitted) …\n' + text.slice(-COMMAND_TAIL_CHARS);
 }
 
 function summaryOf(name, args) {
