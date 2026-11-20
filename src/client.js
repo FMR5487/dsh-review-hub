@@ -179,7 +179,7 @@ window.__ModuleLoader__.load({
       'risk.unknown': '未知',
       'row.copy': '复制命令',
       'row.aiMs': '用时{t}',
-      'search.open': '查台账',
+      'search.open': '审批台账',
       'search.tool': '工具',
       'search.decidedBy': '决定者',
       'search.all': '全部',
@@ -504,7 +504,7 @@ window.__ModuleLoader__.load({
       'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
       'row.aiMs': '{t}',
-      'search.open': 'Search the ledger',
+      'search.open': 'Approval ledger',
       'search.tool': 'tool',
       'search.decidedBy': 'decided by',
       'search.all': 'all',
@@ -2716,7 +2716,9 @@ window.__ModuleLoader__.load({
   // The search is a list, not a card: one line per row, no boxes, so a long result set stays
   // scannable at the same density as the approval page.
   // A heading that happens to be clickable: same type as .ah-section, plus one affordance.
-  '.ah-section-head{display:flex;align-items:center;gap:6px;width:100%;margin:0;padding:0;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}',
+  // `font: inherit` reset the weight to body text and `border: 0` ate the underline, so the
+  // heading button stopped looking like the headings it has to match: both are restated here.
+  '.ah-section-head{display:flex;align-items:center;gap:6px;width:100%;margin:10px 0 2px;padding:0 0 4px;border:0;border-bottom:1px solid var(--dsw-alias-border-l2);background:transparent;font-family:inherit;font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer}',
   '.ah-section-mark{display:inline-flex;align-items:center;opacity:.5}',
   '.ah-section-head:hover .ah-section-mark{opacity:1}',
   '.ah-section-tail{margin-left:auto;font-weight:400;opacity:.75}',
@@ -2725,6 +2727,7 @@ window.__ModuleLoader__.load({
   '.ah-search-row{display:flex;align-items:baseline;gap:8px;padding:2px 0;font-size:12px;white-space:nowrap;overflow:hidden}',
   '.ah-search-when{flex:none;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
   '.ah-search-who{flex:none;color:var(--dsw-alias-label-secondary,#c0c3c7)}',
+  '.ah-search-session{flex:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
   '.ah-search-text{overflow:hidden;text-overflow:ellipsis}',
   // The shared .ah-icon-btn is a 24x24 square and the reason row aligns on the baseline, so it
   // sat visibly below the words it belongs to. No frame of its own: the button is only a hit
@@ -4795,7 +4798,13 @@ window.__ModuleLoader__.load({
                 setOpen('allstats', open !== true);
               },
             }, (open === true ? '▾ ' : '▸ ') + t('config.secTally')),
-            open === true ? h('div', { key: 'allstats-body', className: 'ah-group-body' }, body) : null,
+            open === true
+              ? h('div', { key: 'allstats-body', className: 'ah-group-body' }, body.concat([
+                // Same component, no session scope: the counts above answer "how many across
+                // every session", this answers "show me the rows" without leaving the page.
+                h(LedgerSearch, { key: 'allsearch', scope: 'all', locale: props === null || props === undefined ? undefined : props.locale }),
+              ]))
+              : null,
           ];
         })(),
 
@@ -5325,14 +5334,20 @@ window.__ModuleLoader__.load({
     function LedgerSearch(props) {
       const t = translator(props);
       const sessionId = typeof props.sessionId === 'string' ? props.sessionId : '';
+      // 'all' is the cross-session reading of the same question: /entries without a session
+      // returns every session the ledger still holds, newest first.
+      const allSessions = props.scope === 'all';
       const stateRef = React.useState({ open: false, loading: false, failed: false, rows: null, query: '', tool: '', decidedBy: '', from: '', to: '' });
       const ui = stateRef[0];
       const setUi = stateRef[1];
       const patch = function (next) { setUi(function (prev) { return Object.assign({}, prev, next); }); };
       const load = function () {
-        if (sessionId === '') return;
+        if (allSessions !== true && sessionId === '') return;
         patch({ loading: true, failed: false });
-        api('/entries?session=' + encodeURIComponent(sessionId) + '&limit=5000')
+        const query = allSessions === true
+          ? '/entries?limit=5000'
+          : '/entries?session=' + encodeURIComponent(sessionId) + '&limit=5000';
+        api(query)
           .then(function (body) {
             patch({ loading: false, rows: Array.isArray(body && body.entries) ? body.entries : [] });
           })
@@ -5421,6 +5436,8 @@ window.__ModuleLoader__.load({
         ...shown.map(function (row) {
           return h('div', { className: 'ah-search-row', key: String(row.id || row.ts) },
             h('span', { className: 'ah-search-when', key: 'when' }, stampOf(row.ts)),
+            // Cross-session only: inside one session the id is the answer to a question nobody asked.
+            allSessions === true ? h('span', { className: 'ah-search-session', key: 'sid' }, String(row.sessionId || '').replace(/^session-/, '').slice(0, 8)) : null,
             h('span', { className: 'ah-tool', key: 'tool' }, String(row.toolName || '—')),
             h('span', { className: 'ah-search-who', key: 'who' }, String(row.decidedBy || '—') + (row.riskLevel === undefined ? '' : ' · ' + String(row.riskLevel))),
             h('span', { className: 'ah-search-text', key: 'text' }, String(row.argsSummary || row.reason || row.aiReason || '').slice(0, 90)));
@@ -5480,8 +5497,6 @@ window.__ModuleLoader__.load({
         ];
 
       return h('div', { className: 'ah-panel ah-stats-tab' }, [
-        // Folded by default: the numbers are what this page is for, the search is the follow-up.
-        h(LedgerSearch, { key: 'search', sessionId: sessionId, locale: props === null || props === undefined ? undefined : props.locale }),
         h('div', { className: 'ah-section', key: 'sec-totals' }, t('stats.totals')),
         h('div', { className: 'ah-stat-line', key: 'totals' }, totals.join(' · ')),
         reviewer === null && laneNames.length === 0 ? null : h('div', { className: 'ah-section', key: 'sec-lanes' }, t('stats.lanes')),
@@ -5510,6 +5525,9 @@ window.__ModuleLoader__.load({
             ].join(' · ')),
           ]);
         }),
+        // Folded by default and last: the numbers are what this page is for; the search is the
+        // follow-up question ("which ones"), asked after reading them.
+        h(LedgerSearch, { key: 'search', sessionId: sessionId, locale: props === null || props === undefined ? undefined : props.locale }),
       ]);
     }
 
