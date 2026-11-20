@@ -967,7 +967,9 @@ window.__ModuleLoader__.load({
       chevronUp: 'M5.5 11.8l4.5-4.6 4.5 4.6',
       diff: 'M4.5 6.5h9M4.5 10h6M4.5 13.5h9',
       // The message itself: a rounded frame with two uneven lines inside it.
-      prompt: 'M6.6 3.2h6.8a2 2 0 0 1 2 2v9.6a2 2 0 0 1-2 2H6.6a2 2 0 0 1-2-2V5.2a2 2 0 0 1 2-2zM7 7.4h6M7 10.3h3.4',
+      // A page with its top-right corner folded: the fold says "a document", and the diagonal is
+      // what makes a 14px glyph read wider than a plain rectangle.
+      prompt: 'M12.4 3.2H6.2A1.8 1.8 0 0 0 4.4 5v10a1.8 1.8 0 0 0 1.8 1.8h7.6a1.8 1.8 0 0 0 1.8-1.8V6.4zM12.4 3.2V5.2a1.2 1.2 0 0 0 1.2 1.2h2M7 9.4h6.2M7 12.2h3.6',
       // A pencil: the nib at the lower left, the body reaching the upper right corner.
       pencil: 'M3.5 16.5l.8-3.4 9.2-9.2a1.7 1.7 0 0 1 2.4 0l.2.2a1.7 1.7 0 0 1 0 2.4l-9.2 9.2-3.4.8zM12.1 5.4l2.5 2.5',
       // A cog a 16px box can still read: eight teeth, one ring, nothing else.
