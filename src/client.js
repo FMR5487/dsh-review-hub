@@ -179,6 +179,19 @@ window.__ModuleLoader__.load({
       'risk.unknown': '未知',
       'row.copy': '复制命令',
       'row.aiMs': '用时{t}',
+      'search.open': '查台账',
+      'search.close': '收起',
+      'search.tool': '工具',
+      'search.decidedBy': '决定者',
+      'search.all': '全部',
+      'search.from': '起',
+      'search.to': '止',
+      'search.placeholder': '关键词：摘要 / 理由 / AI 理由 / 路径',
+      'search.result': '命中 {n} 条',
+      'search.empty': '没有命中的行',
+      'search.loading': '读取中…',
+      'search.failed': '台账读取失败',
+      'search.more': '只显示前 {n} 条',
       'prompt.open': '查看提示词',
       'prompt.tabTitle': '明镜 · 提示词',
       'prompt.system': '系统提示（system）',
@@ -492,6 +505,19 @@ window.__ModuleLoader__.load({
       'risk.unknown': 'unknown',
       'row.copy': 'Copy the command',
       'row.aiMs': '{t}',
+      'search.open': 'Search the ledger',
+      'search.close': 'Collapse',
+      'search.tool': 'tool',
+      'search.decidedBy': 'decided by',
+      'search.all': 'all',
+      'search.from': 'from',
+      'search.to': 'to',
+      'search.placeholder': 'keyword: summary / reason / AI reason / path',
+      'search.result': '{n} hits',
+      'search.empty': 'nothing matched',
+      'search.loading': 'Loading…',
+      'search.failed': 'the ledger could not be read',
+      'search.more': 'showing the first {n} only',
       'prompt.open': 'View the prompt',
       'prompt.tabTitle': 'MingJing · Prompt',
       'prompt.system': 'system prompt',
@@ -2689,6 +2715,14 @@ window.__ModuleLoader__.load({
   // No palette here on purpose: this block only has to read like a message, not look like a card.
   '.ah-prompt-body{margin:0 0 12px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto}',
   '.ah-prompt-missing{margin:0 0 6px}',
+  // The search is a list, not a card: one line per row, no boxes, so a long result set stays
+  // scannable at the same density as the approval page.
+  '.ah-search-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 8px}',
+  '.ah-search-field{display:inline-flex;align-items:center;gap:4px}',
+  '.ah-search-row{display:flex;align-items:baseline;gap:8px;padding:2px 0;font-size:12px;white-space:nowrap;overflow:hidden}',
+  '.ah-search-when{flex:none;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+  '.ah-search-who{flex:none;color:var(--dsw-alias-label-secondary,#c0c3c7)}',
+  '.ah-search-text{overflow:hidden;text-overflow:ellipsis}',
   // The shared .ah-icon-btn is a 24x24 square and the reason row aligns on the baseline, so it
   // sat visibly below the words it belongs to. No frame of its own: the button is only a hit
   // area, centred on the line, and the icon carries the shape (2026-11-18).
@@ -5276,6 +5310,117 @@ window.__ModuleLoader__.load({
      * the toolbar, which is where a number nobody can act on goes to die.
      */
     // ─── 05 · 组件 · StatsPanel：统计页 ───────────────────────────
+    /** How many hits the search list draws before it only reports the count. */
+    const SEARCH_MAX_ROWS = 200;
+
+    /**
+     * Ledger search for this session: the panel above answers 「how many」, this answers
+     * 「which ones」. It reads the same /entries route the approval list reads, so the two can
+     * never disagree, and filters in the browser — one session is bounded by
+     * maxEntriesPerSession, and a second server-side index for one text field is not worth it.
+     */
+    function LedgerSearch(props) {
+      const t = translator(props);
+      const sessionId = typeof props.sessionId === 'string' ? props.sessionId : '';
+      const stateRef = React.useState({ open: false, loading: false, failed: false, rows: null, query: '', tool: '', decidedBy: '', from: '', to: '' });
+      const ui = stateRef[0];
+      const setUi = stateRef[1];
+      const patch = function (next) { setUi(function (prev) { return Object.assign({}, prev, next); }); };
+      const load = function () {
+        if (sessionId === '') return;
+        patch({ loading: true, failed: false });
+        api('/entries?session=' + encodeURIComponent(sessionId) + '&limit=5000')
+          .then(function (body) {
+            patch({ loading: false, rows: Array.isArray(body && body.entries) ? body.entries : [] });
+          })
+          .catch(function () { patch({ loading: false, failed: true }); });
+      };
+      if (ui.open !== true) {
+        return h('div', { className: 'ah-search' }, h('button', {
+          type: 'button',
+          className: 'ah-btn',
+          onClick: function () {
+            patch({ open: true });
+            if (ui.rows === null && ui.loading !== true) load();
+          },
+        }, t('search.open')));
+      }
+      const rows = Array.isArray(ui.rows) ? ui.rows : [];
+      const needle = ui.query.trim().toLowerCase();
+      const tools = [];
+      for (const row of rows) {
+        const name = String(row.toolName || '');
+        if (name !== '' && tools.indexOf(name) < 0) tools.push(name);
+      }
+      tools.sort();
+      const fromTs = ui.from === '' ? 0 : Date.parse(ui.from);
+      const toTs = ui.to === '' ? 0 : Date.parse(ui.to);
+      const hit = rows.filter(function (row) {
+        if (ui.tool !== '' && String(row.toolName || '') !== ui.tool) return false;
+        if (ui.decidedBy !== '' && String(row.decidedBy || '') !== ui.decidedBy) return false;
+        const ts = Number(row.ts) || 0;
+        if (Number.isFinite(fromTs) && fromTs > 0 && ts < fromTs) return false;
+        if (Number.isFinite(toTs) && toTs > 0 && ts > toTs) return false;
+        if (needle === '') return true;
+        // The same material the row shows: what was run, why, the reviewer's advice, the path.
+        const hay = [row.argsSummary, row.reason, row.aiReason, row.filePath, row.toolName, row.riskRule]
+          .map(function (part) { return String(part === undefined || part === null ? '' : part); })
+          .join(' ')
+          .toLowerCase();
+        return hay.indexOf(needle) >= 0;
+      });
+      const shown = hit.slice(0, SEARCH_MAX_ROWS);
+      const picker = function (field, label, values) {
+        return h('label', { className: 'ah-search-field', key: field },
+          h('span', { className: 'ah-hint' }, label),
+          h('select', {
+            className: 'ah-input',
+            value: ui[field],
+            onChange: function (event) { patch({ [field]: event.target.value }); },
+          }, [h('option', { value: '', key: 'all' }, t('search.all'))].concat(values.map(function (name) {
+            return h('option', { value: name, key: name }, name);
+          }))));
+      };
+      const timeInput = function (field, label) {
+        return h('input', {
+          className: 'ah-time',
+          type: 'datetime-local',
+          title: label,
+          value: ui[field],
+          key: field,
+          onChange: function (event) { patch({ [field]: event.target.value }); },
+        });
+      };
+      return h('div', { className: 'ah-search' }, [
+        h('div', { className: 'ah-section', key: 'head' },
+          h('button', { type: 'button', className: 'ah-btn', key: 'toggle', onClick: function () { patch({ open: false }); } }, t('search.close')),
+          h('span', { className: 'ah-hint', key: 'count' }, ui.loading === true ? t('search.loading') : (ui.failed === true ? t('search.failed') : t('search.result', { n: String(hit.length) })))),
+        h('div', { className: 'ah-search-bar', key: 'bar' }, [
+          h('input', {
+            className: 'ah-input',
+            type: 'text',
+            key: 'q',
+            placeholder: t('search.placeholder'),
+            value: ui.query,
+            onChange: function (event) { patch({ query: event.target.value }); },
+          }),
+          picker('tool', t('search.tool'), tools),
+          picker('decidedBy', t('search.decidedBy'), ['ai', 'memory', 'human', 'external', 'fallback']),
+          timeInput('from', t('search.from')),
+          timeInput('to', t('search.to')),
+        ]),
+        shown.length === 0 ? h('div', { className: 'ah-empty', key: 'none' }, t('search.empty')) : null,
+        ...shown.map(function (row) {
+          return h('div', { className: 'ah-search-row', key: String(row.id || row.ts) },
+            h('span', { className: 'ah-search-when', key: 'when' }, stampOf(row.ts)),
+            h('span', { className: 'ah-tool', key: 'tool' }, String(row.toolName || '—')),
+            h('span', { className: 'ah-search-who', key: 'who' }, String(row.decidedBy || '—') + (row.riskLevel === undefined ? '' : ' · ' + String(row.riskLevel))),
+            h('span', { className: 'ah-search-text', key: 'text' }, String(row.argsSummary || row.reason || row.aiReason || '').slice(0, 90)));
+        }),
+        hit.length > shown.length ? h('div', { className: 'ah-hint', key: 'more' }, t('search.more', { n: String(SEARCH_MAX_ROWS) })) : null,
+      ]);
+    }
+
     function StatsPanel(props) {
       const t = translator(props);
       const sessionId = props !== null && props !== undefined && typeof props.sessionId === 'string' ? props.sessionId : '';
@@ -5327,6 +5472,8 @@ window.__ModuleLoader__.load({
         ];
 
       return h('div', { className: 'ah-panel ah-stats-tab' }, [
+        // Folded by default: the numbers are what this page is for, the search is the follow-up.
+        h(LedgerSearch, { key: 'search', sessionId: sessionId, locale: props === null || props === undefined ? undefined : props.locale }),
         h('div', { className: 'ah-section', key: 'sec-totals' }, t('stats.totals')),
         h('div', { className: 'ah-stat-line', key: 'totals' }, totals.join(' · ')),
         reviewer === null && laneNames.length === 0 ? null : h('div', { className: 'ah-section', key: 'sec-lanes' }, t('stats.lanes')),
