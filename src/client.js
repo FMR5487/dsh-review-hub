@@ -967,7 +967,7 @@ window.__ModuleLoader__.load({
       chevronUp: 'M5.5 11.8l4.5-4.6 4.5 4.6',
       diff: 'M4.5 6.5h9M4.5 10h6M4.5 13.5h9',
       // The message itself: a rounded frame with two uneven lines inside it.
-      prompt: 'M4.8 4h10.4a1.6 1.6 0 0 1 1.6 1.6v8.8a1.6 1.6 0 0 1-1.6 1.6H4.8a1.6 1.6 0 0 1-1.6-1.6V5.6A1.6 1.6 0 0 1 4.8 4zM6.6 8h6.2M6.6 11.2h3.6',
+      prompt: 'M7.2 3.2h5.6a1.8 1.8 0 0 1 1.8 1.8v10a1.8 1.8 0 0 1-1.8 1.8H7.2a1.8 1.8 0 0 1-1.8-1.8V5a1.8 1.8 0 0 1 1.8-1.8zM7.8 7.4h4.4M7.8 10.2h2.8',
       // A pencil: the nib at the lower left, the body reaching the upper right corner.
       pencil: 'M3.5 16.5l.8-3.4 9.2-9.2a1.7 1.7 0 0 1 2.4 0l.2.2a1.7 1.7 0 0 1 0 2.4l-9.2 9.2-3.4.8zM12.1 5.4l2.5 2.5',
       // A cog a 16px box can still read: eight teeth, one ring, nothing else.
@@ -2687,10 +2687,10 @@ window.__ModuleLoader__.load({
   // No palette here on purpose: this block only has to read like a message, not look like a card.
   '.ah-prompt-body{margin:0 0 12px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto}',
   '.ah-prompt-missing{margin:0 0 6px}',
-  // The shared .ah-icon-btn is a 24x24 square and the reason row aligns on the baseline, so a
-  // square sat visibly below the words it belongs to. A small rectangle centred on the line
-  // reads as part of the sentence instead (2026-11-18).
-  '.ah-prompt-btn{width:auto;height:18px;padding:0 5px;border-radius:5px;border:1px solid currentColor;opacity:.55;align-self:center;line-height:0;transition:opacity .12s ease}',
+  // The shared .ah-icon-btn is a 24x24 square and the reason row aligns on the baseline, so it
+  // sat visibly below the words it belongs to. No frame of its own: the button is only a hit
+  // area, centred on the line, and the icon carries the shape (2026-11-18).
+  '.ah-prompt-btn{width:auto;height:18px;padding:0 3px;border:0;border-radius:5px;background:transparent;opacity:.6;align-self:center;line-height:0;transition:opacity .12s ease}',
   '.ah-prompt-btn:hover{opacity:1}',
       '.ah-risk-exempt{color:var(--dsw-alias-label-tertiary,#9aa0a6);font-weight:700}',
       // Fake conversation page: the card is previewed where it will actually live.
@@ -3921,7 +3921,7 @@ window.__ModuleLoader__.load({
                           title: opts.t('prompt.open'),
                           'aria-label': opts.t('prompt.open'),
                           onClick: function () { openPrompt(entry); },
-                        }, icon('prompt', 13))
+                        }, icon('prompt', 14))
                         : null),
                     h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
               : null,
