@@ -157,6 +157,12 @@ export const cases = [
 				assertTrue(zh['setting.clearOn'] !== undefined);
 				assertTrue(JSON.stringify(zh).indexOf('已关闭') === -1, '设置里不再有那句提示');
 				assertTrue(JSON.stringify(zh).indexOf('⌕') === -1, '不再使用搜索图标');
+				// The ledger search landed in the stats page: the two keys carry placeholders, so a
+				// rename without the {n} would show a literal brace to the user.
+				assertEqual(zh['search.result'], '命中 {n} 条');
+				assertEqual(zh['search.more'], '只显示前 {n} 条');
+				assertTrue(zh['search.open'] !== undefined);
+				assertTrue(zh['prompt.open'] !== undefined);
 			});
 		},
 	},
