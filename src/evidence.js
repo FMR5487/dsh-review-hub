@@ -165,12 +165,41 @@ function firstJsonObject(text) {
  * only made the reviewer answer "command truncated, cannot confirm" — it could not see the
  * redirection target at the end, which is exactly where the risk lives.
  */
+/**
+ * What a long command's omitted middle looks like, in a few words.
+ *
+ * The reviewer only sees head + tail, so a harmless-looking head and tail with something else
+ * in between is exactly the blind spot the cut creates. Naming the classes found in the hole
+ * costs a handful of tokens and tells the model "the middle is not filler" — the deterministic
+ * L0 layer never had this problem, it reads the whole command (2026-11-21).
+ */
+const OMITTED_CLASSES = [
+	['deletes', /\b(rm|rmdir|del|Remove-Item|unlink|shred)\b/i],
+	['downloads', /\b(curl|wget|iwr|irm|Invoke-WebRequest|Invoke-RestMethod|bitsadmin|ncat|nc)\b/i],
+	['pipes to an interpreter', /\|\s*(?:ba|z|k|c)?sh\b|\|\s*(?:python3?|node|perl|ruby)\b|\bInvoke-Expression\b|\biex\b/i],
+	['elevation', /\b(sudo|runas|Set-ExecutionPolicy|schtasks|bcdedit)\b|\bsc(?:\.exe)?\s+(?:config|stop|delete|create)\b|\breg(?:\.exe)?\s+add\b|\bnet\s+user\s+\S+\s+\S+\s+\/add\b/i],
+	['system paths', /HKLM|HKEY_LOCAL_MACHINE|\/etc\/|\/dev\/sd|Windows\\(?:System32|Temp)/i],
+	['git history', /\bgit\s+(?:reset|restore|stash|branch|push)\b[^\n]*(?:--hard|--force|-f\b|drop|clear|-D\b)/i],
+	['redirection', />{1,2}\s*\S/],
+];
+
+function omittedClasses(text) {
+	const found = [];
+	for (const [label, pattern] of OMITTED_CLASSES) {
+		if (pattern.test(text) === true) found.push(label);
+	}
+	return found;
+}
+
 function trimCommand(text) {
 	if (text.length <= COMMAND_HEAD_CHARS + COMMAND_TAIL_CHARS) return text;
 	const omitted = text.length - COMMAND_HEAD_CHARS - COMMAND_TAIL_CHARS;
 	// English, like every other line the reviewer reads: this string goes *into the prompt*,
 	// not into the panel dictionary, so no i18n setting reaches it (2026-11-18).
-	return text.slice(0, COMMAND_HEAD_CHARS) + '\n… (' + omitted + ' chars omitted) …\n' + text.slice(-COMMAND_TAIL_CHARS);
+	const middle = text.slice(COMMAND_HEAD_CHARS, text.length - COMMAND_TAIL_CHARS);
+	const flags = omittedClasses(middle);
+	const note = flags.length === 0 ? '' : ': ' + flags.join(', ');
+	return text.slice(0, COMMAND_HEAD_CHARS) + '\n… (' + omitted + ' chars omitted' + note + ') …\n' + text.slice(-COMMAND_TAIL_CHARS);
 }
 
 function summaryOf(name, args) {

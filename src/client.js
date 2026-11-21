@@ -1797,6 +1797,24 @@ window.__ModuleLoader__.load({
       return { durationMs: total, delayMs: -used };
     }
 
+    /**
+     * The countdown and the close button in one place: they are the same promise ("this card
+     * goes away"), so two icons said it twice and cost a slot in a row that is already tight.
+     * The ring shows the timer; pointing at it turns the slot into the X (2026-11-21).
+     */
+    function ringCloseButton(ms, spent, label, onClick) {
+      return h('button', {
+        type: 'button',
+        className: 'ah-icon-btn ah-ring-btn',
+        title: label,
+        'aria-label': label,
+        onClick: onClick,
+      }, [
+        h('span', { className: 'ah-ring-swap', key: 'ring' }, countdownRing(ms, spent)),
+        h('span', { className: 'ah-ring-x', key: 'x' }, icon('close')),
+      ]);
+    }
+
     function countdownRing(ms, spent) {
       const timing = ringTiming(ms, spent);
       return h('span', { className: 'ah-ring', key: 'ring', 'aria-hidden': 'true' },
@@ -2575,6 +2593,11 @@ window.__ModuleLoader__.load({
       '.ah-card-chip-pending{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
       '.ah-card-chip-danger{background:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 16%, transparent);color:var(--dsw-alias-state-error-primary,#d93a3a)}',
       '.ah-ring{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:0;color:inherit;opacity:.9}',
+  // One slot, two readings: the ring by default, the X under the pointer.
+  '.ah-ring-btn .ah-ring-swap,.ah-ring-btn .ah-ring-x{display:inline-flex;align-items:center;justify-content:center;line-height:0}',
+  '.ah-ring-btn .ah-ring-x{display:none}',
+  '.ah-ring-btn:hover .ah-ring-swap{display:none}',
+  '.ah-ring-btn:hover .ah-ring-x{display:inline-flex}',
       '.ah-ring-track{fill:none;stroke:currentColor;stroke-width:1.5;opacity:.3}',
       '.ah-ring-arc{fill:none;stroke:currentColor;stroke-width:3.5;stroke-dasharray:31.416;transform:rotate(-90deg);transform-origin:8px 8px;animation-name:ah-ring-drain;animation-timing-function:linear;animation-fill-mode:forwards}',
       '@keyframes ah-ring-drain{from{stroke-dashoffset:0}to{stroke-dashoffset:31.416}}',
@@ -3316,6 +3339,10 @@ window.__ModuleLoader__.load({
         // The countdown sits right next to the close button: it is the same promise,
         // "this card goes away on its own", drawn instead of written.
         const ttl = hintMsOf(hint.kind);
+        const dismissHint = function () {
+          store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
+          notify();
+        };
         timed.push({ ts: Number(hint.ts) || Number(entry.ts) || 0, node: cardNode({
           key: hint.id,
           kind: hint.kind,
@@ -3324,11 +3351,9 @@ window.__ModuleLoader__.load({
           sub: stampOf(entry.ts),
           extra: [
             iconButton('copy', copyText === 'copied' ? t('dock.copied') : (copyText === 'copyFailed' ? t('dock.copyFailed') : t('dock.copy')), function () { copyEntry(entry); }, copyText === 'copied' ? 'ah-icon-ok' : ''),
-            ttl > 0 ? countdownRing(ttl, Date.now() - (Number(hint.ts) || Date.now())) : null,
-            iconButton('close', t('dock.dismiss'), function () {
-              store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
-              notify();
-            }),
+            ttl > 0
+              ? ringCloseButton(ttl, Date.now() - (Number(hint.ts) || Date.now()), t('dock.dismiss'), dismissHint)
+              : iconButton('close', t('dock.dismiss'), dismissHint),
           ],
         }) });
       }

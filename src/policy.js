@@ -35,6 +35,10 @@ const SECRET_PATHS = [
 const REMOTE_EXEC = [
 	/\b(curl|wget)\b[^\n|]*\|\s*(ba)?sh\b/i,
 	/\b(iwr|irm|invoke-webrequest|invoke-restmethod)\b[^\n|]*\|\s*iex\b/i,
+	// Piping into any interpreter, not just a POSIX shell: `curl x | python3` ran code the same
+	// way and was not a hard risk until this line existed (2026-11-21).
+	/\|\s*(python3?|node|perl|ruby)\b/i,
+	/\bInvoke-Expression\b/i,
 	/\bbitsadmin\b[^\n]*\/transfer\b/i,
 	/\bnc\b[^\n]*\s-[a-z]*e\b/i,
 	/\bncat\b/i,
