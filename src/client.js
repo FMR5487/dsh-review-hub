@@ -2265,7 +2265,13 @@ window.__ModuleLoader__.load({
         id: 'ask-' + String(payload.at || now),
         kind: 'ask',
         ttl: limit > 0 ? limit : 0,
-        entry: { id: 'ask-' + now, sessionId: sid, ts: Number(payload.at) || now, question: question },
+        entry: {
+          id: 'ask-' + now,
+          sessionId: sid,
+          title: typeof payload.title === 'string' ? payload.title : '',
+          ts: Number(payload.at) || now,
+          question: question,
+        },
         ts: now,
       };
       store.hints = store.hints.filter(function (item) { return item.kind !== 'ask'; }).concat([hint]);
@@ -2659,6 +2665,9 @@ window.__ModuleLoader__.load({
       '.ah-card-chip-ai{background:var(--ah-ai-bg);color:var(--ah-ai-fg)}',
       '.ah-card-chip-memory{background:var(--ah-memory-bg);color:var(--ah-memory-fg)}',
       '.ah-card-chip-pending{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
+      // The question chip and the question border are the same claim ("a human is needed"), so
+      // they speak in the same colour instead of one amber frame around a grey chip.
+      '.ah-card-chip-ask{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
       '.ah-card-chip-danger{background:color-mix(in srgb, var(--dsw-alias-state-error-primary,#d93a3a) 16%, transparent);color:var(--dsw-alias-state-error-primary,#d93a3a)}',
       '.ah-ring{flex:none;display:inline-flex;align-items:center;justify-content:center;line-height:0;color:inherit;opacity:.9}',
   // One slot, two readings: the ring by default, the X under the pointer.
@@ -3410,9 +3419,16 @@ window.__ModuleLoader__.load({
       }
       for (const hint of view.hints) {
         const entry = hint.entry;
-        if (belongsHere(entry) === false) continue;
-        // A question is not a decision: no tool, no verdict, no row behind it.
+        // A question is the mirror image of every other card: when it comes from *this* session
+        // the question is already on screen behind the composer, so a card repeating it is
+        // noise. Another session's question is the one the human cannot see at all (2026-11-25).
         const asking = hint.kind === 'ask';
+        if (asking === true) {
+          if (String(entry.sessionId || '') === '' || String(entry.sessionId) === ownSid) continue;
+        } else if (belongsHere(entry) === false) {
+          continue;
+        }
+        // A question is not a decision: no tool, no verdict, no row behind it.
         const chip = asking ? { text: t('dock.askChip'), tone: 'warn' } : chipOf(entry, t);
         // The countdown sits right next to the close button: it is the same promise,
         // "this card goes away on its own", drawn instead of written.
@@ -3429,7 +3445,11 @@ window.__ModuleLoader__.load({
           main: asking
             ? (String(entry.question || '') === '' ? t('dock.askFallback') : String(entry.question))
             : headlineOf(t, entry),
-          sub: stampOf(entry.ts),
+          // Whose question it is: the session title when the host gave us one, otherwise the
+          // same "会话 …ab12cd" shorthand the other-session card falls back to.
+          sub: asking
+            ? (String(entry.title || '') !== '' ? String(entry.title) : '会话 …' + String(entry.sessionId).slice(-6))
+            : stampOf(entry.ts),
           extra: [
             // Nothing to paste for a question: it is answered in the conversation, not copied.
             asking ? null : iconButton('copy', copyText === 'copied' ? t('dock.copied') : (copyText === 'copyFailed' ? t('dock.copyFailed') : t('dock.copy')), function () { copyEntry(entry); }, copyText === 'copied' ? 'ah-icon-ok' : ''),

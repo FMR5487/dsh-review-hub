@@ -532,6 +532,10 @@ export const cases = [
 			assertTrue(src.includes("source.addEventListener('ask'"), '要订阅 ask 帧');
 			assertTrue(src.includes("if (settings().notifyAiAsk !== true) return;"), '有自己的开关');
 			assertTrue(src.includes('askSeenSid') && src.includes('30000'), '同一会话 30 秒内只提示一次');
+			// 待回答卡只替别的会话说话：当前会话的提问本来就在屏幕上。
+			assertTrue(src.includes("if (asking === true) {"), '提问要单独走一条落座判据');
+			assertTrue(src.includes("String(entry.sessionId) === ownSid) continue;"), '本会话的提问不出卡');
+			assertTrue(src.includes('.ah-card-chip-ask'), '提问胶囊要有人工色');
 			assertTrue(src.includes("'setting.notifyAiAsk'") && src.includes("'dock.askTitle'"), '文案键要存在');
 			assertTrue(src.includes('border-style:dashed'), '虚线形状不改，只换颜色');
 			assertTrue(src.includes('dock.pendingTimeout'), '超时要用自己的正文文案');

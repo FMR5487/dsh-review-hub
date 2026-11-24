@@ -534,8 +534,12 @@ export function createRoutes(deps) {
 				// keeps the two apart (one is a task, one is a question) and an approval-shaped
 				// row here would put a question into the ledger.
 				const frameAsk = (event) => {
+					const askSid = typeof event.sessionId === 'string' ? event.sessionId : '';
 					frame('ask', {
-						sessionId: typeof event.sessionId === 'string' ? event.sessionId : '',
+						sessionId: askSid,
+						// The card speaks for another session, so it has to name it: this is the same
+						// title the other-session card already shows.
+						title: askSid !== '' && typeof deps.titleFor === 'function' ? deps.titleFor(askSid) : '',
 						question: typeof event.question === 'string' ? event.question : '',
 						// The call's own bound, when it states one; 0 means "panel default".
 						limit: Number(event.limit) || 0,
