@@ -2273,7 +2273,6 @@ window.__ModuleLoader__.load({
       // the question will actually stay askable (2026-11-25).
       const limit = Number(payload.limit) || 0;
       const lifeMs = limit > 0 ? limit : hintMsOf('ask');
-      const deadline = now + lifeMs;
       // Same rhythm as an approval that nobody answers, and now the same two gates: **the
       // question is still open** and **the window is still in the background**. Asking both is
       // what keeps the rule honest — a human staring at the question does not need to be told
