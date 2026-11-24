@@ -26,6 +26,7 @@ window.__ModuleLoader__.load({
     const zh = {
       'tab': '审批',
       'dock.handedOver': '审批交给你了',
+      'dock.pendingAgain': '仍在等待：{body}',
       'dock.pending': '等待人工审批',
       'dock.pendingAi': 'AI 建议人工 · {risk} · {reason}',
       'dock.pendingLine': '等待审批中 {time}',
@@ -357,6 +358,7 @@ window.__ModuleLoader__.load({
     const en = {
       'tab': 'Approvals',
       'dock.handedOver': 'Approval is yours',
+      'dock.pendingAgain': 'Still waiting: {body}',
       'dock.pending': 'Waiting for a human',
       'dock.pendingAi': 'AI suggests a human · {risk} · {reason}',
       'dock.pendingLine': 'Awaiting approval since {time}',
@@ -2357,6 +2359,18 @@ window.__ModuleLoader__.load({
           ? what
           : t('dock.pendingAi', { risk: risk, reason: reason }) + ' · ' + what;
         toast(t('dock.pending'), body);
+        // Same rhythm the other-session card already had: if this row is still undecided
+        // twenty seconds later, say it again and leave it in the notification centre. The
+        // second pass asks "is it still waiting?", and — unlike the first pass — also checks
+        // that the window is still in the background, so a human who is looking at the panel
+        // is never told twice about the thing in front of them (2026-11-25).
+        setTimeout(function () {
+          if (settings().toastEnabled !== true) return;
+          const open = (store.pending || []).some(function (item) { return String(item.id) === key; });
+          if (open !== true) return;
+          if (windowIsFocused() === true) return;
+          toast(t('dock.pending'), t('dock.pendingAgain', { body: body }), { sticky: true, key: key });
+        }, 20000);
       }
       if (seenPending.size > 200) seenPending.clear();
     }
