@@ -539,9 +539,14 @@ export function createRoutes(deps) {
 							sessionId: row.sessionId,
 							title: typeof deps.titleFor === 'function' ? deps.titleFor(row.sessionId) : '',
 							count: 0,
+							// "Waiting" and "waiting for you" are not the same state: the reviewer may
+							// still be thinking, or the AI may yet pass it by itself. Only `humanAsked`
+							// means the human options are on screen somewhere else (2026-11-25).
+							needHuman: 0,
 							oldest: 0,
 						};
 						entry.count += 1;
+						if (row.humanAsked === true) entry.needHuman += 1;
 						const started = Number(row.startedAt) || 0;
 						if (started > 0 && (entry.oldest === 0 || started < entry.oldest)) entry.oldest = started;
 						bySession.set(row.sessionId, entry);

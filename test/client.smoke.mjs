@@ -524,6 +524,10 @@ export const cases = [
 			assertTrue(src.includes('ah-float-tags'), '胶囊要单独占一行、放在正文顶上');
 			assertTrue(src.includes('ah-float-advice') === false, '旧的同排胶囊样式应已删除');
 			assertTrue(src.includes('row.aiTimeout'), '超时要用自己的胶囊文案');
+			// 其他会话卡的包边只有一种例外：那个会话真的在等人。
+			assertTrue(src.includes("tone: Number(other.needHuman) > 0 ? 'human' : undefined"), '只有需要人工才上人工色');
+			assertTrue(src.includes('.ah-card-other.ah-card-need-human'), '例外要有自己的样式');
+			assertTrue(src.includes('border-style:dashed'), '虚线形状不改，只换颜色');
 			assertTrue(src.includes('dock.pendingTimeout'), '超时要用自己的正文文案');
 			assertTrue(src.includes('ah-float-quoted'), '建议卡的命令要有弱化的引用线');
 			assertTrue(src.includes('row.aiError'), '其它失败要用「AI 错误」胶囊');

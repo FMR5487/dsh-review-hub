@@ -1838,7 +1838,15 @@ window.__ModuleLoader__.load({
 
     function cardNode(props) {
       const extra = Array.isArray(props.extra) ? props.extra : [];
-      return h('div', { className: 'ah-card ah-card-' + props.kind + (props.danger === true ? ' ah-card-danger' : ''), key: props.key },
+      // `tone` is the one deliberate exception to "a card's border says which layer decided":
+      // an *other session* card is not a decision at all, so its dashed border only changes
+      // when that session is actually waiting for a human (2026-11-25).
+      return h('div', {
+        className: 'ah-card ah-card-' + props.kind
+          + (props.danger === true ? ' ah-card-danger' : '')
+          + (props.tone === 'human' ? ' ah-card-need-human' : ''),
+        key: props.key,
+      },
         // A decision chip only makes sense once there *is* a decision: the pending
         // card is rendered before one exists, so it shows the risk (if any) and no verdict.
         props.chip === '' || props.chip === undefined ? null : h('span', { className: cardChipClass(props.kind, props.danger) }, props.chip),
@@ -2581,6 +2589,8 @@ window.__ModuleLoader__.load({
       '.ah-card-memory{border-color:color-mix(in srgb, var(--ah-memory-fg) 50%, transparent)}',
       '.ah-card-pending{border-color:color-mix(in srgb, var(--ah-human-fg) 60%, transparent)}',
       '.ah-card-other{border-style:dashed;border-color:color-mix(in srgb, #ffffff 32%, transparent);opacity:.92}',
+      // Dashed stays dashed: the shape says "not yours", the colour says "someone is blocked".
+      '.ah-card-other.ah-card-need-human{border-color:color-mix(in srgb, var(--ah-human-fg) 78%, transparent);opacity:1}',
       // Another session is information, not a task: the text carries the weight, the
       // chip keeps its own voice.
       '.ah-card-other .ah-card-main,.ah-card-other .ah-card-sub{font-weight:600}',
@@ -3390,6 +3400,10 @@ window.__ModuleLoader__.load({
         cards.push(cardNode({
           key: 'o-' + other.sessionId,
           kind: 'other',
+          // Amber only when that session is genuinely blocked on a human. A session whose
+          // reviewer is still thinking keeps the neutral dashed border: colouring it would
+          // promise attention the human cannot spend yet.
+          tone: Number(other.needHuman) > 0 ? 'human' : undefined,
           chip: t('dock.otherChip'),
           main: name,
           sub: counts.join(' · '),
