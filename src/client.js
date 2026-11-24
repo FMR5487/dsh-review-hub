@@ -3260,8 +3260,12 @@ window.__ModuleLoader__.load({
             if (alive !== true) return;
             store.pending = Array.isArray(pendingBody && pendingBody.pending) ? pendingBody.pending : [];
             noticePending(store.pending, t);
-            // Questions are polled, not only streamed: the stream is closed while the window is
-            // hidden, which is precisely when a question toast is wanted (2026-11-25).
+            // Questions and other-session waits are polled, not only streamed: the stream is closed
+            // while the window is hidden, which is precisely when both matter (2026-11-25).
+            if (Array.isArray(pendingBody && pendingBody.others)) {
+              store.otherPending = pendingBody.others;
+              noticeOtherPending(store.otherPending, t);
+            }
             for (const entry of Array.isArray(pendingBody && pendingBody.asks) ? pendingBody.asks : []) {
               noticeAsk(entry, t);
             }
@@ -3560,10 +3564,14 @@ window.__ModuleLoader__.load({
       for (const waiting of Array.isArray(view.otherPending) ? view.otherPending : []) {
         const known = othersView.get(waiting.sessionId);
         const cur = known === undefined
-          ? { sessionId: waiting.sessionId, title: '', ai: 0, memory: 0, human: 0, lastTs: 0 }
+          ? { sessionId: waiting.sessionId, title: '', ai: 0, memory: 0, human: 0, needHuman: 0, lastTs: 0 }
           : known;
         if (cur.title === '' && typeof waiting.title === 'string') cur.title = waiting.title;
         cur.waiting = Number(waiting.count) || 0;
+        // The field the border reads. It was produced by the server and then dropped right here:
+        // the merge copied count/title/oldest and forgot this one, so the card could never turn
+        // amber no matter what the server said (2026-11-25).
+        cur.needHuman = Number(waiting.needHuman) || 0;
         cur.lastTs = Math.max(Number(cur.lastTs) || 0, Number(waiting.oldest) || 0);
         othersView.set(waiting.sessionId, cur);
       }

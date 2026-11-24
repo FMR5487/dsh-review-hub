@@ -536,6 +536,9 @@ export const cases = [
 			assertTrue(src.includes("if (asking === true) {"), '提问要单独走一条落座判据');
 			assertTrue(src.includes("String(entry.sessionId) === ownSid) continue;"), '本会话的提问不出卡');
 			assertTrue(src.includes('.ah-card-chip-ask'), '提问胶囊要有人工色');
+			// 服务端算出来的 needHuman 必须在客户端合并时保留，否则边框永远不会变色。
+			assertTrue(src.includes('cur.needHuman = Number(waiting.needHuman) || 0;'), 'needHuman 要穿过合并');
+			assertTrue(src.includes("cardChipClass(props.tone === undefined ? props.kind : props.tone"), '胶囊要跟着包边的 tone 走');
 			assertTrue(src.includes("'setting.notifyAiAsk'") && src.includes("'dock.askTitle'"), '文案键要存在');
 			assertTrue(src.includes('border-style:dashed'), '虚线形状不改，只换颜色');
 			assertTrue(src.includes('dock.pendingTimeout'), '超时要用自己的正文文案');

@@ -386,6 +386,36 @@ export function createRoutes(deps) {
 	const pendingView = typeof deps.pendingView === 'function' ? deps.pendingView : () => [];
 	const asksView = typeof deps.asksView === 'function' ? deps.asksView : () => [];
 
+	/**
+	 * Other sessions' waiting requests, aggregated: counts only, never content.
+	 *
+	 * One definition for both channels. The polling path is the only one that works while the
+	 * window is hidden, so if it answered with a different shape the cards would change their
+	 * appearance depending on which channel happened to deliver last (2026-11-25).
+	 */
+	const othersFor = (session) => {
+		const bySession = new Map();
+		for (const row of pendingView()) {
+			if (row.sessionId === session) continue;
+			const entry = bySession.get(row.sessionId) ?? {
+				sessionId: row.sessionId,
+				title: typeof deps.titleFor === 'function' ? deps.titleFor(row.sessionId) : '',
+				count: 0,
+				// "Waiting" and "waiting for you" are not the same state: the reviewer may still
+				// be thinking, or the AI may yet pass it by itself. Only `humanAsked` means the
+				// human options are on screen somewhere else.
+				needHuman: 0,
+				oldest: 0,
+			};
+			entry.count += 1;
+			if (row.humanAsked === true) entry.needHuman += 1;
+			const started = Number(row.startedAt) || 0;
+			if (started > 0 && (entry.oldest === 0 || started < entry.oldest)) entry.oldest = started;
+			bySession.set(row.sessionId, entry);
+		}
+		return [...bySession.values()];
+	};
+
 	const guard = (handler, methods) => async (req, res) => {
 		try {
 			const method = req?.method ?? 'GET';
@@ -548,28 +578,7 @@ export function createRoutes(deps) {
 					});
 				};
 				/** Other sessions' waiting requests, aggregated: counts only, never content. */
-				const pendingOthers = () => {
-					const bySession = new Map();
-					for (const row of pendingView()) {
-						if (row.sessionId === session) continue;
-						const entry = bySession.get(row.sessionId) ?? {
-							sessionId: row.sessionId,
-							title: typeof deps.titleFor === 'function' ? deps.titleFor(row.sessionId) : '',
-							count: 0,
-							// "Waiting" and "waiting for you" are not the same state: the reviewer may
-							// still be thinking, or the AI may yet pass it by itself. Only `humanAsked`
-							// means the human options are on screen somewhere else (2026-11-25).
-							needHuman: 0,
-							oldest: 0,
-						};
-						entry.count += 1;
-						if (row.humanAsked === true) entry.needHuman += 1;
-						const started = Number(row.startedAt) || 0;
-						if (started > 0 && (entry.oldest === 0 || started < entry.oldest)) entry.oldest = started;
-						bySession.set(row.sessionId, entry);
-					}
-					return [...bySession.values()];
-				};
+				const pendingOthers = () => othersFor(session);
 				write('retry: 3000\n\n');
 				frame('ready', { session });
 				frame('pending', { pending: pendingFor(), others: pendingOthers() });
@@ -656,7 +665,9 @@ export function createRoutes(deps) {
 					at: entry.at,
 					title: typeof deps.titleFor === 'function' ? deps.titleFor(entry.sessionId) : '',
 				}));
-				sendJson(res, 200, { pending: list, asks: asks });
+				// `others` rides along for the same reason `asks` does: while the window is hidden the
+				// stream is closed, and the poll is the only thing keeping other-session cards honest.
+				sendJson(res, 200, { pending: list, others: othersFor(session), asks: asks });
 			}, ['GET', 'HEAD']),
 		},
 		{
