@@ -2296,23 +2296,26 @@ window.__ModuleLoader__.load({
       const ladder = [ASK_REPEAT_MS, ASK_REPEAT_MS + 6000, ASK_REPEAT_MS + 12000]
         .map(function (ms) { return Math.min(ms, lifeMs - 1000); })
         .filter(function (ms, index, all) { return ms >= 1000 && all.indexOf(ms) === index; });
+      const remind = function (dueAt) {
+        // Evidence, not decoration: two reports said "the second toast never came", and the
+        // only way to tell a refused gate from a throttled timer is to record both numbers.
+        const trace = { dueAt: dueAt, late: Date.now() - now, open: stillOpen(), focused: windowIsFocused() };
+        // Kept on the window as well as logged: DevTools keeps the log, but a value that
+        // survives a re-render is what lets "did it even fire?" be answered in one line.
+        try { window.__reviewHubAskTrace = trace; } catch (error) { /* not every shell allows it */ }
+        console.info('[review-hub] ask reminder', trace);
+        if (stickyNote !== null) return;
+        if (trace.late >= lifeMs) return;
+        if (trace.open !== true) return;
+        if (trace.focused === true) return;
+        const body = t('dock.askAgain', { q: askBody });
+        stickyNote = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + sid, tag: 'review-hub-ask-reminder-' + sid });
+        // A shell that refuses requireInteraction would otherwise swallow the reminder
+        // entirely; a plain notification is worth more than a silent failure.
+        if (stickyNote === null) stickyNote = toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + sid });
+      };
       for (const delay of ladder) {
-        setTimeout(function () {
-          // Evidence, not decoration: the last two reports were "the second toast never
-          // came" and the only way to tell a refused gate from a starved timer is to log
-          // which one happened (2026-11-25).
-          const trace = { delay: delay, open: stillOpen(), focused: windowIsFocused(), late: Date.now() - now };
-          console.info('[review-hub] ask reminder', trace);
-          if (stickyNote !== null) return;
-          if (trace.late >= lifeMs) return;
-          if (trace.open !== true) return;
-          if (trace.focused === true) return;
-          const body = t('dock.askAgain', { q: askBody });
-          stickyNote = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + sid, tag: 'review-hub-ask-reminder-' + sid });
-          // A shell that refuses requireInteraction would otherwise swallow the reminder
-          // entirely; a plain notification is worth more than a silent failure.
-          if (stickyNote === null) stickyNote = toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + sid });
-        }, delay);
+        setTimeout(function () { remind(delay); }, delay);
       }
       // Retract the surviving notification when the question expires. The tag is the reliable
       // way to take it back: opening a notification with the same tag and closing it removes the
