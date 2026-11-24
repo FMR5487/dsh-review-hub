@@ -2271,6 +2271,7 @@ window.__ModuleLoader__.load({
       // the question will actually stay askable (2026-11-25).
       const limit = Number(payload.limit) || 0;
       const lifeMs = limit > 0 ? limit : hintMsOf('ask');
+      const deadline = now + lifeMs;
       // Same rhythm as an approval that nobody answers: say it once, and once more twenty
       // seconds later as a sticky notification. The difference is the ending — a question has
       // a deadline the call itself stated, so when that deadline passes the notification is
@@ -2286,8 +2287,11 @@ window.__ModuleLoader__.load({
       for (const delay of ladder) {
         setTimeout(function () {
           if (stickyNote !== null) return;
-          if (settings().notifyAiAsk !== true) return;
-          if (windowIsFocused() === true) return;
+          // State, not focus. The approval reminder re-checks "is it still waiting?" — it never
+          // re-checks the window. Re-checking focus here was the bug: glancing at the screen for
+          // one second dropped the reminder for good, which is exactly the opposite of what a
+          // reminder for an absent human should do (2026-11-25).
+          if (Date.now() >= deadline) return;
           stickyNote = toast(t('dock.askTitle'), t('dock.askAgain', { q: askBody }), { sticky: true, key: 'ask-' + sid });
         }, delay);
       }
