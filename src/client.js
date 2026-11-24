@@ -2281,29 +2281,20 @@ window.__ModuleLoader__.load({
       // the question will actually stay askable (2026-11-25).
       const limit = Number(payload.limit) || 0;
       const lifeMs = limit > 0 ? limit : hintMsOf('ask');
-      // The ladder is advanced by the 3s poll, not by setTimeout: a background window throttles
-      // timers hard, and "the second toast never came" is exactly what a starved timer looks
-      // like. The poll runs for another reason anyway, so it costs nothing to hang this on it
-      // (2026-11-25).
-      /** Still unanswered: the card pushed for this question has not been withdrawn. */
-      const stillOpen = function () {
-        return (store.hints || []).some(function (item) {
-          return item.kind === 'ask' && String((item.entry || {}).sessionId || '') === sid;
-        });
-      };
-      // Twelve seconds, then two more chances. One instant is a single unlucky glance away from
-      // never happening, and "no second toast" is exactly the report that produced this ladder.
-      const ASK_REPEAT_MS = 12000;
-      const ladder = [ASK_REPEAT_MS, ASK_REPEAT_MS + 6000, ASK_REPEAT_MS + 12000]
-        .map(function (ms) { return Math.min(ms, lifeMs - 1000); })
-        .filter(function (ms, index, all) { return ms >= 1000 && all.indexOf(ms) === index; });
+      // The clock is advanced by the 3s poll, not by setTimeout: a hidden window is exactly the
+      // case this exists for, and a timer that never fires there looks identical to a gate that
+      // said no (2026-11-25).
+      // One reminder, twelve seconds in, and no rungs to fall off: the previous version kept a
+      // ladder index that a tick could consume *without* firing (when the window happened to be
+      // focused at that instant), so three unlucky ticks retired the reminder for good. A single
+      // `reminded` flag cannot be spent without also sending the notification.
+      const ASK_REPEAT_MS = Math.min(12000, Math.max(1000, lifeMs - 1000));
       askReminders.set(sid, {
         sid: sid,
         startedAt: now,
         lifeMs: lifeMs,
         body: askBody,
-        ladder: ladder,
-        next: 0,
+        repeatAt: ASK_REPEAT_MS,
         reminded: false,
       });
 
@@ -2333,7 +2324,7 @@ window.__ModuleLoader__.load({
      */
     const askReminders = new Map();
 
-    /** One poll tick: advance the reminder ladder, retract at the deadline. */
+    /** One poll tick: send the reminder when it is due, retract at the deadline. */
     function tickAsks(t) {
       if (askReminders.size === 0) return;
       const now = Date.now();
@@ -2358,9 +2349,9 @@ window.__ModuleLoader__.load({
           continue;
         }
         if (item.reminded === true) continue;
-        if (item.next >= item.ladder.length) continue;
-        if (age < item.ladder[item.next]) continue;
-        item.next += 1;
+        if (age < item.repeatAt) continue;
+        // A focused window is not "skip and never come back": the flag stays false, so the
+        // reminder is still armed for the next tick. Losing it to a single glance was the bug.
         if (windowIsFocused() === true) continue;
         item.reminded = true;
         const body = t('dock.askAgain', { q: item.body });
