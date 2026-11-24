@@ -2281,11 +2281,10 @@ window.__ModuleLoader__.load({
       // the question will actually stay askable (2026-11-25).
       const limit = Number(payload.limit) || 0;
       const lifeMs = limit > 0 ? limit : hintMsOf('ask');
-      // Same rhythm as an approval that nobody answers, and now the same two gates: **the
-      // question is still open** and **the window is still in the background**. Asking both is
-      // what keeps the rule honest — a human staring at the question does not need to be told
-      // about it twice (2026-11-25, user decision).
-      let stickyNote = null;
+      // The ladder is advanced by the 3s poll, not by setTimeout: a background window throttles
+      // timers hard, and "the second toast never came" is exactly what a starved timer looks
+      // like. The poll runs for another reason anyway, so it costs nothing to hang this on it
+      // (2026-11-25).
       /** Still unanswered: the card pushed for this question has not been withdrawn. */
       const stillOpen = function () {
         return (store.hints || []).some(function (item) {
@@ -2298,39 +2297,16 @@ window.__ModuleLoader__.load({
       const ladder = [ASK_REPEAT_MS, ASK_REPEAT_MS + 6000, ASK_REPEAT_MS + 12000]
         .map(function (ms) { return Math.min(ms, lifeMs - 1000); })
         .filter(function (ms, index, all) { return ms >= 1000 && all.indexOf(ms) === index; });
-      const remind = function (dueAt) {
-        // Evidence, not decoration: two reports said "the second toast never came", and the
-        // only way to tell a refused gate from a throttled timer is to record both numbers.
-        const trace = { dueAt: dueAt, late: Date.now() - now, open: stillOpen(), focused: windowIsFocused() };
-        // Kept on the window as well as logged: DevTools keeps the log, but a value that
-        // survives a re-render is what lets "did it even fire?" be answered in one line.
-        try { window.__reviewHubAskTrace = trace; } catch (error) { /* not every shell allows it */ }
-        console.info('[review-hub] ask reminder', trace);
-        if (stickyNote !== null) return;
-        if (trace.late >= lifeMs) return;
-        if (trace.open !== true) return;
-        if (trace.focused === true) return;
-        const body = t('dock.askAgain', { q: askBody });
-        stickyNote = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + sid, tag: 'review-hub-ask-reminder-' + sid });
-        // A shell that refuses requireInteraction would otherwise swallow the reminder
-        // entirely; a plain notification is worth more than a silent failure.
-        if (stickyNote === null) stickyNote = toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + sid });
-      };
-      for (const delay of ladder) {
-        setTimeout(function () { remind(delay); }, delay);
-      }
-      // Retract the surviving notification when the question expires. The tag is the reliable
-      // way to take it back: opening a notification with the same tag and closing it removes the
-      // one still in the notification centre even when the original object is out of reach.
-      setTimeout(function () {
-        try {
-          if (stickyNote !== null && typeof stickyNote.close === 'function') stickyNote.close();
-          const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: 'review-hub-ask-reminder-' + sid });
-          reclaim.close();
-        } catch (error) {
-          /* already dismissed by the OS: nothing to take back */
-        }
-      }, Math.max(1000, lifeMs - 200));
+      askReminders.set(sid, {
+        sid: sid,
+        startedAt: now,
+        lifeMs: lifeMs,
+        body: askBody,
+        ladder: ladder,
+        next: 0,
+        reminded: false,
+      });
+
       const hint = {
         id: 'ask-' + String(payload.at || now),
         kind: 'ask',
@@ -2346,12 +2322,52 @@ window.__ModuleLoader__.load({
       };
       store.hints = store.hints.filter(function (item) { return item.kind !== 'ask'; }).concat([hint]);
       notify();
-      const ttl = lifeMs;
-      if (ttl <= 0) return;
-      setTimeout(function () {
-        store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
-        notify();
-      }, ttl);
+    }
+
+    /**
+     * Everything a question needs on a clock, keyed by session.
+     *
+     * Driven by `tickAsks()`, which the 3-second poll calls: a hidden window throttles timers
+     * and `setTimeout` was the part of this feature nobody could keep alive. The poll already
+     * runs for the question itself, so the clock is free (2026-11-25).
+     */
+    const askReminders = new Map();
+
+    /** One poll tick: advance the reminder ladder, retract at the deadline. */
+    function tickAsks(t) {
+      if (askReminders.size === 0) return;
+      const now = Date.now();
+      for (const item of [...askReminders.values()]) {
+        const age = now - item.startedAt;
+        // Two gates, the same two the approval reminder uses: the question is still open, and
+        // the window is still in the background.
+        const open = (store.hints || []).some(function (hint) {
+          return hint.kind === 'ask' && String((hint.entry || {}).sessionId || '') === item.sid;
+        });
+        const expired = age >= item.lifeMs;
+        const trace = { age: age, open: open, focused: windowIsFocused(), reminded: item.reminded };
+        try { window.__reviewHubAskTrace = trace; } catch (error) { /* not every shell allows it */ }
+        if (expired === true || open !== true) {
+          // The question is over: take the notification back by tag, which is the only way to
+          // remove one whose handle we may no longer hold.
+          try {
+            const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: 'review-hub-ask-reminder-' + item.sid });
+            reclaim.close();
+          } catch (error) { /* already gone */ }
+          askReminders.delete(item.sid);
+          continue;
+        }
+        if (item.reminded === true) continue;
+        if (item.next >= item.ladder.length) continue;
+        if (age < item.ladder[item.next]) continue;
+        item.next += 1;
+        if (windowIsFocused() === true) continue;
+        item.reminded = true;
+        const body = t('dock.askAgain', { q: item.body });
+        const note = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + item.sid, tag: 'review-hub-ask-reminder-' + item.sid });
+        // A shell that refuses requireInteraction would otherwise swallow the reminder.
+        if (note === null) toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + item.sid });
+      }
     }
 
     function noticePending(rows, t) {
@@ -3269,6 +3285,9 @@ window.__ModuleLoader__.load({
             for (const entry of Array.isArray(pendingBody && pendingBody.asks) ? pendingBody.asks : []) {
               noticeAsk(entry, t);
             }
+            // The same tick advances the reminder clock: a hidden window starves setTimeout,
+            // and that is exactly the window this feature exists for (2026-11-25).
+            tickAsks(t);
             const stats = await api('/stats?session=' + encodeURIComponent(sid));
             if (alive !== true) return;
             store.stats = isPlainObject(stats) ? stats : null;
