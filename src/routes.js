@@ -30,7 +30,7 @@ export const ROUTES = Object.freeze({
 const CONFIG_FIELDS = [
 	'aiEnabled', 'aiEnabledLocal', 'memoryEnabled', 'composerHint', 'pendingCard', 'toastEnabled',
 	'threshold', 'aiFailurePolicy', 'humanFirstMs', 'reviewTimeoutMs', 'aiBudgetPerTurn', 'aiBreakerFails',
-	'aiCacheTtlMs', 'aiReasonChars', 'reviewerLocale', 'panelLocale', 'promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled', 'aiNotifyHandover', 'aiContextTurns', 'aiContextTokens', 'aiContextLocal', 'aiToolBriefLocal', 'aiEnvLocal', 'strictVerdict', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
+	'aiCacheTtlMs', 'aiReasonChars', 'reviewerLocale', 'panelLocale', 'promptAppend', 'aiToolBrief', 'aiContextEnabled', 'aiEnvEnabled', 'aiNotifyHandover', 'notifyAiAsk', 'aiContextTurns', 'aiContextTokens', 'aiContextLocal', 'aiToolBriefLocal', 'aiEnvLocal', 'strictVerdict', 'reviewerModel', 'reviewerModelLocal', 'clearEnabled', 'maxEntriesPerSession', 'pollMs',
 	'exportScope', 'agentPolicy', 'hintMs', 'fpIgnoreJustification', 'autoExpandDescription', 'hideKnobs', 'translateActions', 'snapshotRetentionDays', 'fileAutoPass', 'fileFingerprint', 'aiTools', 'aiToolsDeny', 'credentialExemptPaths', 'aiAdviceCard', 'dangerCard', 'debugHeaders', 'debugReview',
 ];
 
@@ -530,6 +530,16 @@ export function createRoutes(deps) {
 				};
 				const frame = (event, payload) => write('event: ' + event + '\ndata: ' + JSON.stringify(payload) + '\n\n');
 				const pendingFor = () => pendingView().filter((row) => row.sessionId === session);
+				// The AI stopping to ask is not an approval, so it rides its own frame: the panel
+				// keeps the two apart (one is a task, one is a question) and an approval-shaped
+				// row here would put a question into the ledger.
+				const frameAsk = (event) => {
+					frame('ask', {
+						sessionId: typeof event.sessionId === 'string' ? event.sessionId : '',
+						question: typeof event.question === 'string' ? event.question : '',
+						at: Number(event.at) || Date.now(),
+					});
+				};
 				/** Other sessions' waiting requests, aggregated: counts only, never content. */
 				const pendingOthers = () => {
 					const bySession = new Map();
@@ -580,6 +590,10 @@ export function createRoutes(deps) {
 				};
 				const unsubscribe = typeof store.subscribe === 'function'
 					? store.subscribe((event) => {
+						if (event?.kind === 'ask') {
+							frameAsk(event);
+							return;
+						}
 						if (event?.kind === 'pending') {
 							pendingQueued = true;
 							queueFlush();

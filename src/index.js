@@ -86,6 +86,37 @@ export function observedReviewRoutes() {
 const TOOL_BRIEF_MAX = 200;
 const toolBriefs = new Map();
 
+/**
+ * Tell the panel that the agent is now waiting on the human. Fire-and-forget: the announce
+ * channel is the same one pending rows use, and a missing store simply means nobody listens.
+ */
+function noteIfAsking(exec) {
+	try {
+		const name = nonEmptyTool(exec);
+		if (ASK_TOOLS.has(name) === false) return;
+		const args = exec?.arguments ?? exec?.args ?? exec?.input;
+		const sessionId = sessionOfExec(exec);
+		activeStore?.announce?.({
+			kind: 'ask',
+			sessionId: sessionId,
+			question: askTextOf(args),
+			at: Date.now(),
+		});
+	} catch {
+		/* an observation must never block the tool it observes */
+	}
+}
+
+function nonEmptyTool(exec) {
+	const name = exec?.tool?.name ?? exec?.name ?? exec?.toolName;
+	return typeof name === 'string' ? name : '';
+}
+
+function sessionOfExec(exec) {
+	const id = exec?.agent?.id ?? exec?.agent?.session?.id ?? exec?.sessionId ?? exec?.session?.id;
+	return typeof id === 'string' ? id : '';
+}
+
 /** Learn (or refresh) one tool's description and top-level parameter names from `exec.tool`. */
 function rememberTool(exec) {
 	try {
@@ -100,6 +131,27 @@ function rememberTool(exec) {
 		if (toolBriefs.size > TOOL_BRIEF_MAX) toolBriefs.delete(toolBriefs.keys().next().value);
 	} catch {
 		/* a tool without a readable definition simply stays unknown */
+	}
+}
+
+/**
+ * Tools that mean "the agent stopped and is waiting for the human", observed on the same
+ * waterfall as everything else. A tool name is the only reliable signal here: assistant text
+ * asking a question looks exactly like assistant text describing one, and a false positive
+ * teaches people to ignore the notification (2026-11-25).
+ */
+const ASK_TOOLS = new Set(['ask_user_question']);
+
+/** First line of the first question, so a toast says what is being asked, not that one exists. */
+function askTextOf(args) {
+	try {
+		const list = Array.isArray(args?.questions) ? args.questions : [];
+		const first = list[0];
+		const raw = typeof first?.question === 'string' ? first.question : (typeof args?.question === 'string' ? args.question : '');
+		const line = String(raw).replace(/\s+/g, ' ').trim();
+		return line.length > 80 ? line.slice(0, 80) + '…' : line;
+	} catch {
+		return '';
 	}
 }
 
@@ -755,6 +807,8 @@ export function apply(ctx, rawConfig = {}) {
 				// carries arguments and a reason, never the description.
 				rememberTool(exec);
 				snapshot.capture(exec);
+				// An observation, not a decision: every branch below still returns next().
+				noteIfAsking(exec);
 			} catch {
 				// A capture failure means "no diff for this row", never a blocked tool.
 			}

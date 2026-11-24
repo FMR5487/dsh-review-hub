@@ -527,6 +527,12 @@ export const cases = [
 			// 其他会话卡的包边只有一种例外：那个会话真的在等人。
 			assertTrue(src.includes("tone: Number(other.needHuman) > 0 ? 'human' : undefined"), '只有需要人工才上人工色');
 			assertTrue(src.includes('.ah-card-other.ah-card-need-human'), '例外要有自己的样式');
+			// AI 提问的提示卡：判据是工具名，不是从文本里猜
+			assertTrue(src.includes("const ASK_TOOLS = new Set(['ask_user_question'])") === false, '钩子在 index.js，不在客户端');
+			assertTrue(src.includes("source.addEventListener('ask'"), '要订阅 ask 帧');
+			assertTrue(src.includes("if (settings().notifyAiAsk !== true) return;"), '有自己的开关');
+			assertTrue(src.includes('askSeenSid') && src.includes('30000'), '同一会话 30 秒内只提示一次');
+			assertTrue(src.includes("'setting.notifyAiAsk'") && src.includes("'dock.askTitle'"), '文案键要存在');
 			assertTrue(src.includes('border-style:dashed'), '虚线形状不改，只换颜色');
 			assertTrue(src.includes('dock.pendingTimeout'), '超时要用自己的正文文案');
 			assertTrue(src.includes('ah-float-quoted'), '建议卡的命令要有弱化的引用线');

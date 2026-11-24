@@ -273,6 +273,11 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI 审批',
       'setting.tokens': '一条审批约需 {min}~{max} Token（估算，随下面开关变化）',
       'setting.aiContext': '上下文增强审批',
+      'setting.notifyAiAsk': '有问题待回答时通知',
+      'setting.notifyAiAskNote': 'AI 停下来问你时弹一条；只在窗口没聚焦时。默认关',
+      'dock.askTitle': 'AI 在问你',
+      'dock.askChip': '待回答',
+      'dock.askFallback': 'AI 有一个问题等你回答',
       'setting.secNotify': '系统通知',
       'setting.notifyHandover': '交权后立即通知',
       'setting.notifyHandoverNote': '审批交给你的那一刻就弹通知，不等 AI 出结论。默认关：AI 有结果（建议人工 / 超时 / 错误）时本来就会弹',
@@ -598,6 +603,11 @@ window.__ModuleLoader__.load({
       'setting.secAi': 'AI review',
       'setting.tokens': 'One review costs about {min}~{max} tokens (estimate; follows the switches below)',
       'setting.aiContext': 'Context-enhanced review',
+      'setting.notifyAiAsk': 'Notify when a question is waiting',
+      'setting.notifyAiAskNote': 'One toast when the AI stops to ask you; only while the window is unfocused. Off by default',
+      'dock.askTitle': 'The AI is asking you',
+      'dock.askChip': 'Waiting',
+      'dock.askFallback': 'The AI has a question for you',
       'setting.secNotify': 'System notifications',
       'setting.notifyHandover': 'Notify me at handover',
       'setting.notifyHandoverNote': 'Toast the moment an approval reaches you, without waiting for the reviewer. Off by default: a toast already fires when the reviewer finishes (suggests a human / timed out / failed)',
@@ -898,6 +908,9 @@ window.__ModuleLoader__.load({
       if (Number.isFinite(value) && value >= 0) return value;
       if (kind === 'memory') return 8000;
       if (kind === 'pending') return 0;
+      // A question stays until it is answered: six seconds would take it away while the human
+      // is still reading the question that produced it.
+      if (kind === 'ask') return 60000;
       return 30000;
     }
 
@@ -2223,6 +2236,39 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * The AI stopped to ask a question. Separate from noticePending on purpose: that one is
+     * about approvals (a task with an answer), this one is about a conversation waiting for
+     * the human, and they have different switch, gate and throttle (2026-11-25).
+     */
+    let askSeenAt = 0;
+    let askSeenSid = '';
+    function noticeAsk(payload, t) {
+      if (settings().notifyAiAsk !== true) return;
+      if (payload === null || typeof payload !== 'object') return;
+      const sid = typeof payload.sessionId === 'string' ? payload.sessionId : '';
+      // Focus is the gate, exactly like the approval toast above: looking at the window means
+      // the question is already on screen. Same rule with no exception for other sessions —
+      // two different focus rules for two notifications is how people stop trusting both.
+      if (windowIsFocused() === true) return;
+      // One reminder per session per 30s: three questions in a row must not be three toasts.
+      const now = Date.now();
+      if (sid === askSeenSid && now - askSeenAt < 30000) return;
+      askSeenSid = sid;
+      askSeenAt = now;
+      const question = typeof payload.question === 'string' ? payload.question : '';
+      toast(t('dock.askTitle'), question === '' ? t('dock.askFallback') : question);
+      const hint = { id: 'ask-' + String(payload.at || now), kind: 'ask', entry: { id: 'ask-' + now, sessionId: sid, ts: Number(payload.at) || now, question: question }, ts: now };
+      store.hints = store.hints.filter(function (item) { return item.kind !== 'ask'; }).concat([hint]);
+      notify();
+      const ttl = hintMsOf('ask');
+      if (ttl <= 0) return;
+      setTimeout(function () {
+        store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
+        notify();
+      }, ttl);
+    }
+
     function noticePending(rows, t) {
       // Focus is the only gate: unfocused means the human is elsewhere, whatever page the
       // panel happens to be left on. Checking `pageVisible` here silenced exactly the case the
@@ -2588,6 +2634,9 @@ window.__ModuleLoader__.load({
       '.ah-card-ai{border-color:color-mix(in srgb, var(--ah-ai-fg) 55%, transparent)}',
       '.ah-card-memory{border-color:color-mix(in srgb, var(--ah-memory-fg) 50%, transparent)}',
       '.ah-card-pending{border-color:color-mix(in srgb, var(--ah-human-fg) 60%, transparent)}',
+      // A question is waiting on the same human the pending card is, so it speaks in the same
+      // colour — but solid, because unlike the pending card it will not resolve itself.
+      '.ah-card-ask{border-color:color-mix(in srgb, var(--ah-human-fg) 70%, transparent)}',
       '.ah-card-other{border-style:dashed;border-color:color-mix(in srgb, #ffffff 32%, transparent);opacity:.92}',
       // Dashed stays dashed: the shape says "not yours", the colour says "someone is blocked".
       '.ah-card-other.ah-card-need-human{border-color:color-mix(in srgb, var(--ah-human-fg) 78%, transparent);opacity:1}',
@@ -3177,6 +3226,14 @@ window.__ModuleLoader__.load({
               /* same */
             }
           });
+          // The AI stopping to ask: its own frame, its own handler, its own switch.
+          source.addEventListener('ask', function (event) {
+            try {
+              noticeAsk(JSON.parse(event.data), t);
+            } catch (error) {
+              /* a malformed frame must not kill the stream */
+            }
+          });
           source.addEventListener('pending', function (event) {
             try {
               const data = JSON.parse(event.data);
@@ -3345,7 +3402,9 @@ window.__ModuleLoader__.load({
       for (const hint of view.hints) {
         const entry = hint.entry;
         if (belongsHere(entry) === false) continue;
-        const chip = chipOf(entry, t);
+        // A question is not a decision: no tool, no verdict, no row behind it.
+        const asking = hint.kind === 'ask';
+        const chip = asking ? { text: t('dock.askChip'), tone: 'warn' } : chipOf(entry, t);
         // The countdown sits right next to the close button: it is the same promise,
         // "this card goes away on its own", drawn instead of written.
         const ttl = hintMsOf(hint.kind);
@@ -3357,10 +3416,13 @@ window.__ModuleLoader__.load({
           key: hint.id,
           kind: hint.kind,
           chip: chip.text,
-          main: headlineOf(t, entry),
+          main: asking
+            ? (String(entry.question || '') === '' ? t('dock.askFallback') : String(entry.question))
+            : headlineOf(t, entry),
           sub: stampOf(entry.ts),
           extra: [
-            iconButton('copy', copyText === 'copied' ? t('dock.copied') : (copyText === 'copyFailed' ? t('dock.copyFailed') : t('dock.copy')), function () { copyEntry(entry); }, copyText === 'copied' ? 'ah-icon-ok' : ''),
+            // Nothing to paste for a question: it is answered in the conversation, not copied.
+            asking ? null : iconButton('copy', copyText === 'copied' ? t('dock.copied') : (copyText === 'copyFailed' ? t('dock.copyFailed') : t('dock.copy')), function () { copyEntry(entry); }, copyText === 'copied' ? 'ah-icon-ok' : ''),
             ttl > 0
               ? ringCloseButton(ttl, Date.now() - (Number(hint.ts) || Date.now()), t('dock.dismiss'), dismissHint)
               : iconButton('close', t('dock.dismiss'), dismissHint),
@@ -3849,6 +3911,9 @@ window.__ModuleLoader__.load({
         // Off by default: the card already moved to the floating seat, and a second signal for
         // "someone is waiting" is only wanted by people who keep the window in the background.
         row('ai-notify-handover', t('setting.notifyHandover'), t('setting.notifyHandoverNote'), config.aiNotifyHandover === true, flip('aiNotifyHandover')),
+        // A question is answered in the conversation, so this only helps people who keep the
+        // window in the background. A new interruption, therefore off by default.
+        row('ai-notify-ask', t('setting.notifyAiAsk'), t('setting.notifyAiAskNote'), config.notifyAiAsk === true, flip('notifyAiAsk')),
         h('div', { className: 'ah-section', key: 'sec-data' }, t('setting.secData')),
         h('div', { className: 'ah-settings-row', key: 'export' },
           h('span', { className: 'ah-settings-label' }, t('setting.export')),
@@ -4342,6 +4407,7 @@ window.__ModuleLoader__.load({
       aiContextEnabled: false,
       aiEnvEnabled: true,
       aiNotifyHandover: false,
+      notifyAiAsk: false,
       aiContextTurns: 2,
       aiContextTokens: 1500,
       reviewerLocale: '',
