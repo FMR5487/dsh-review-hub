@@ -275,6 +275,7 @@ window.__ModuleLoader__.load({
       'setting.aiContext': '上下文增强审批',
       'setting.notifyAiAsk': '有问题待回答时通知',
       'setting.notifyAiAskNote': 'AI 停下来问你时弹一条；只在窗口没聚焦时。默认关',
+      'dock.askAgain': '仍未回答：{q}',
       'dock.askTitle': 'AI 在问你',
       'dock.askChip': '待回答',
       'dock.askFallback': 'AI 有一个问题等你回答',
@@ -605,6 +606,7 @@ window.__ModuleLoader__.load({
       'setting.aiContext': 'Context-enhanced review',
       'setting.notifyAiAsk': 'Notify when a question is waiting',
       'setting.notifyAiAskNote': 'One toast when the AI stops to ask you; only while the window is unfocused. Off by default',
+      'dock.askAgain': 'Still unanswered: {q}',
       'dock.askTitle': 'The AI is asking you',
       'dock.askChip': 'Waiting',
       'dock.askFallback': 'The AI has a question for you',
@@ -1862,7 +1864,11 @@ window.__ModuleLoader__.load({
       },
         // A decision chip only makes sense once there *is* a decision: the pending
         // card is rendered before one exists, so it shows the risk (if any) and no verdict.
-        props.chip === '' || props.chip === undefined ? null : h('span', { className: cardChipClass(props.kind, props.danger) }, props.chip),
+        // A chip inherits the card's tone: an amber frame around a grey chip reads as two
+        // different claims about the same row (2026-11-25).
+        props.chip === '' || props.chip === undefined
+          ? null
+          : h('span', { className: cardChipClass(props.tone === undefined ? props.kind : props.tone, props.danger) }, props.chip),
         props.spin === true
           ? h('svg', {
             className: 'ah-spin',
@@ -2153,15 +2159,17 @@ window.__ModuleLoader__.load({
       placeAdviceOverlay(placed);
     }
 
+    /** @returns the Notification when one was shown, otherwise null — a caller may retract it. */
     function toast(title, body, options) {
-      if (settings().toastEnabled !== true) return;
+      if (settings().toastEnabled !== true) return null;
       try {
-        if (typeof Notification === 'undefined') return;
-        if (Notification.permission !== 'granted') return;
+        if (typeof Notification === 'undefined') return null;
+        if (Notification.permission !== 'granted') return null;
         const sticky = options !== null && options !== undefined && options.sticky === true;
-        new Notification(title, { body: body, requireInteraction: sticky, tag: sticky ? 'review-hub-waiting-' + String(options.key || '') : undefined });
+        return new Notification(title, { body: body, requireInteraction: sticky, tag: sticky ? 'review-hub-waiting-' + String(options.key || '') : undefined });
       } catch (error) {
         /* notifications are a nicety, never a failure */
+        return null;
       }
     }
 
@@ -2257,10 +2265,30 @@ window.__ModuleLoader__.load({
       askSeenSid = sid;
       askSeenAt = now;
       const question = typeof payload.question === 'string' ? payload.question : '';
-      toast(t('dock.askTitle'), question === '' ? t('dock.askFallback') : question);
+      const askBody = question === '' ? t('dock.askFallback') : question;
+      toast(t('dock.askTitle'), askBody);
       // The call's own limit wins over the default: it is the only party that knows how long
       // the question will actually stay askable (2026-11-25).
       const limit = Number(payload.limit) || 0;
+      const lifeMs = limit > 0 ? limit : hintMsOf('ask');
+      // Same rhythm as an approval that nobody answers: say it once, and once more twenty
+      // seconds later as a sticky notification. The difference is the ending — a question has
+      // a deadline the call itself stated, so when that deadline passes the notification is
+      // retracted instead of sitting in the notification centre forever (2026-11-25).
+      let stickyNote = null;
+      setTimeout(function () {
+        if (settings().notifyAiAsk !== true) return;
+        if (windowIsFocused() === true) return;
+        stickyNote = toast(t('dock.askTitle'), t('dock.askAgain', { q: askBody }), { sticky: true, key: 'ask-' + sid });
+      }, Math.min(20000, Math.max(1000, lifeMs - 1000)));
+      // Retract the surviving notification when the question expires.
+      setTimeout(function () {
+        try {
+          if (stickyNote !== null && typeof stickyNote.close === 'function') stickyNote.close();
+        } catch (error) {
+          /* already dismissed by the OS: nothing to take back */
+        }
+      }, lifeMs);
       const hint = {
         id: 'ask-' + String(payload.at || now),
         kind: 'ask',
@@ -2276,7 +2304,7 @@ window.__ModuleLoader__.load({
       };
       store.hints = store.hints.filter(function (item) { return item.kind !== 'ask'; }).concat([hint]);
       notify();
-      const ttl = Number(hint.ttl) > 0 ? Number(hint.ttl) : hintMsOf('ask');
+      const ttl = lifeMs;
       if (ttl <= 0) return;
       setTimeout(function () {
         store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
@@ -2665,6 +2693,8 @@ window.__ModuleLoader__.load({
       '.ah-card-chip-ai{background:var(--ah-ai-bg);color:var(--ah-ai-fg)}',
       '.ah-card-chip-memory{background:var(--ah-memory-bg);color:var(--ah-memory-fg)}',
       '.ah-card-chip-pending{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
+      // `tone: 'human'` is the card-level claim "someone is blocked"; the chip borrows it verbatim.
+      '.ah-card-chip-human{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
       // The question chip and the question border are the same claim ("a human is needed"), so
       // they speak in the same colour instead of one amber frame around a grey chip.
       '.ah-card-chip-ask{background:var(--ah-human-bg);color:var(--ah-human-fg)}',
