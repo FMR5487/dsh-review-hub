@@ -170,6 +170,9 @@ ctx.inject(['sidebarRightTabs', 'sidebarRight'], (scoped) => {
 
 ## 11. 提交前 checklist
 
+- [ ] **汇报以「三句抬头」开始**：① 用户可感的变化（纯人话，无内部词）② 动了/没动哪些承诺与红线（见 `OWNER.md` 四条）③ 进行到哪、等什么。三句讲不清这件事为什么存在=先停再解释。
+- [ ] 对外行为/设置位置有变 → 同轮更新 `OWNER.md`（≤20 行，用户唯一锚点页）
+
 - [ ] `node --check src/*.js` 无输出
 - [ ] `node test/run.mjs` 全绿（当前基线 **71 passed**）
 - [ ] 新增文案 zh/en 成对
