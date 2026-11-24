@@ -2274,27 +2274,39 @@ window.__ModuleLoader__.load({
       const limit = Number(payload.limit) || 0;
       const lifeMs = limit > 0 ? limit : hintMsOf('ask');
       const deadline = now + lifeMs;
-      // Same rhythm as an approval that nobody answers: say it once, and once more twenty
-      // seconds later as a sticky notification. The difference is the ending — a question has
-      // a deadline the call itself stated, so when that deadline passes the notification is
-      // retracted instead of sitting in the notification centre forever (2026-11-25).
+      // Same rhythm as an approval that nobody answers, and now the same two gates: **the
+      // question is still open** and **the window is still in the background**. Asking both is
+      // what keeps the rule honest — a human staring at the question does not need to be told
+      // about it twice (2026-11-25, user decision).
       let stickyNote = null;
-      // A single retry at exactly 20s is one unlucky instant away from never happening: glance at
-      // the window for a second and the reminder is gone for good. The ladder gives it three
-      // chances, all of them still before the deadline (2026-11-25, after a report of
-      // "the second toast never came").
-      const ladder = [20000, 26000, 34000]
+      /** Still unanswered: the card pushed for this question has not been withdrawn. */
+      const stillOpen = function () {
+        return (store.hints || []).some(function (item) {
+          return item.kind === 'ask' && String((item.entry || {}).sessionId || '') === sid;
+        });
+      };
+      // Twelve seconds, then two more chances. One instant is a single unlucky glance away from
+      // never happening, and "no second toast" is exactly the report that produced this ladder.
+      const ASK_REPEAT_MS = 12000;
+      const ladder = [ASK_REPEAT_MS, ASK_REPEAT_MS + 6000, ASK_REPEAT_MS + 12000]
         .map(function (ms) { return Math.min(ms, lifeMs - 1000); })
         .filter(function (ms, index, all) { return ms >= 1000 && all.indexOf(ms) === index; });
       for (const delay of ladder) {
         setTimeout(function () {
+          // Evidence, not decoration: the last two reports were "the second toast never
+          // came" and the only way to tell a refused gate from a starved timer is to log
+          // which one happened (2026-11-25).
+          const trace = { delay: delay, open: stillOpen(), focused: windowIsFocused(), late: Date.now() - now };
+          console.info('[review-hub] ask reminder', trace);
           if (stickyNote !== null) return;
-          // State, not focus. The approval reminder re-checks "is it still waiting?" — it never
-          // re-checks the window. Re-checking focus here was the bug: glancing at the screen for
-          // one second dropped the reminder for good, which is exactly the opposite of what a
-          // reminder for an absent human should do (2026-11-25).
-          if (Date.now() >= deadline) return;
-          stickyNote = toast(t('dock.askTitle'), t('dock.askAgain', { q: askBody }), { sticky: true, key: 'ask-' + sid });
+          if (trace.late >= lifeMs) return;
+          if (trace.open !== true) return;
+          if (trace.focused === true) return;
+          const body = t('dock.askAgain', { q: askBody });
+          stickyNote = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + sid });
+          // A shell that refuses requireInteraction would otherwise swallow the reminder
+          // entirely; a plain notification is worth more than a silent failure.
+          if (stickyNote === null) stickyNote = toast(t('dock.askTitle'), body);
         }, delay);
       }
       // Retract the surviving notification when the question expires. The tag is the reliable
