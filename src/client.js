@@ -2168,7 +2168,13 @@ window.__ModuleLoader__.load({
         if (typeof Notification === 'undefined') return null;
         if (Notification.permission !== 'granted') return null;
         const sticky = options !== null && options !== undefined && options.sticky === true;
-        return new Notification(title, { body: body, requireInteraction: sticky, tag: sticky ? 'review-hub-waiting-' + String(options.key || '') : undefined });
+        // A reminder must be a *different* notification from the first one. Reusing the same tag
+        // makes the platform replace it in place — the notification centre silently updates and
+        // nothing pops, which reads exactly like "the second toast never came" (2026-11-25).
+        const tag = typeof options?.tag === 'string' && options.tag !== ''
+          ? options.tag
+          : (sticky ? 'review-hub-waiting-' + String(options?.key || '') : undefined);
+        return new Notification(title, { body: body, requireInteraction: sticky, tag: tag });
       } catch (error) {
         /* notifications are a nicety, never a failure */
         return null;
@@ -2302,10 +2308,10 @@ window.__ModuleLoader__.load({
           if (trace.open !== true) return;
           if (trace.focused === true) return;
           const body = t('dock.askAgain', { q: askBody });
-          stickyNote = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + sid });
+          stickyNote = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + sid, tag: 'review-hub-ask-reminder-' + sid });
           // A shell that refuses requireInteraction would otherwise swallow the reminder
           // entirely; a plain notification is worth more than a silent failure.
-          if (stickyNote === null) stickyNote = toast(t('dock.askTitle'), body);
+          if (stickyNote === null) stickyNote = toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + sid });
         }, delay);
       }
       // Retract the surviving notification when the question expires. The tag is the reliable
@@ -2314,7 +2320,7 @@ window.__ModuleLoader__.load({
       setTimeout(function () {
         try {
           if (stickyNote !== null && typeof stickyNote.close === 'function') stickyNote.close();
-          const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: 'review-hub-waiting-ask-' + sid });
+          const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: 'review-hub-ask-reminder-' + sid });
           reclaim.close();
         } catch (error) {
           /* already dismissed by the OS: nothing to take back */
