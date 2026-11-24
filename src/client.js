@@ -3400,6 +3400,11 @@ window.__ModuleLoader__.load({
               source = null;
             }
             store.streaming = false;
+            // Closing the stream used to be the whole story, which left the panel completely
+            // deaf while hidden — no stream, and the poll only started on a stream *error*.
+            // A hidden window is exactly when a toast is the only way to reach anyone, so the
+            // poll has to take over here, not on the next failure (2026-11-25).
+            startFallback();
             notify();
             return;
           }
