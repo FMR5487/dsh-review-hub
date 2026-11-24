@@ -2258,10 +2258,19 @@ window.__ModuleLoader__.load({
       askSeenAt = now;
       const question = typeof payload.question === 'string' ? payload.question : '';
       toast(t('dock.askTitle'), question === '' ? t('dock.askFallback') : question);
-      const hint = { id: 'ask-' + String(payload.at || now), kind: 'ask', entry: { id: 'ask-' + now, sessionId: sid, ts: Number(payload.at) || now, question: question }, ts: now };
+      // The call's own limit wins over the default: it is the only party that knows how long
+      // the question will actually stay askable (2026-11-25).
+      const limit = Number(payload.limit) || 0;
+      const hint = {
+        id: 'ask-' + String(payload.at || now),
+        kind: 'ask',
+        ttl: limit > 0 ? limit : 0,
+        entry: { id: 'ask-' + now, sessionId: sid, ts: Number(payload.at) || now, question: question },
+        ts: now,
+      };
       store.hints = store.hints.filter(function (item) { return item.kind !== 'ask'; }).concat([hint]);
       notify();
-      const ttl = hintMsOf('ask');
+      const ttl = Number(hint.ttl) > 0 ? Number(hint.ttl) : hintMsOf('ask');
       if (ttl <= 0) return;
       setTimeout(function () {
         store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
@@ -3407,7 +3416,8 @@ window.__ModuleLoader__.load({
         const chip = asking ? { text: t('dock.askChip'), tone: 'warn' } : chipOf(entry, t);
         // The countdown sits right next to the close button: it is the same promise,
         // "this card goes away on its own", drawn instead of written.
-        const ttl = hintMsOf(hint.kind);
+        // A hint may carry its own lifetime (a question bounded by the call that asked it).
+        const ttl = Number(hint.ttl) > 0 ? Number(hint.ttl) : hintMsOf(hint.kind);
         const dismissHint = function () {
           store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
           notify();

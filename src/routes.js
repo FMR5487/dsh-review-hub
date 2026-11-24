@@ -537,6 +537,8 @@ export function createRoutes(deps) {
 					frame('ask', {
 						sessionId: typeof event.sessionId === 'string' ? event.sessionId : '',
 						question: typeof event.question === 'string' ? event.question : '',
+						// The call's own bound, when it states one; 0 means "panel default".
+						limit: Number(event.limit) || 0,
 						at: Number(event.at) || Date.now(),
 					});
 				};

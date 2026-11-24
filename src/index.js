@@ -100,6 +100,7 @@ function noteIfAsking(exec) {
 			kind: 'ask',
 			sessionId: sessionId,
 			question: askTextOf(args),
+			limit: askLimitOf(args),
 			at: Date.now(),
 		});
 	} catch {
@@ -141,6 +142,24 @@ function rememberTool(exec) {
  * teaches people to ignore the notification (2026-11-25).
  */
 const ASK_TOOLS = new Set(['ask_user_question']);
+
+/**
+ * How long the question should stay on screen, when the call says so.
+ *
+ * The host may bound a question's lifetime; that bound is the only honest source for the
+ * card's own lifetime, so it travels with the event instead of being re-guessed downstream.
+ * Absent or unusable, 0 means "use the panel's default".
+ */
+function askLimitOf(args) {
+	try {
+		const raw = args?.limit ?? args?.limitMs ?? args?.timeoutMs;
+		const value = Number(raw);
+		if (Number.isFinite(value) === false || value <= 0) return 0;
+		return Math.min(600000, Math.max(5000, Math.round(value)));
+	} catch {
+		return 0;
+	}
+}
 
 /** First line of the first question, so a toast says what is being asked, not that one exists. */
 function askTextOf(args) {
