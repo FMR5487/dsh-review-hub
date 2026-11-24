@@ -2276,19 +2276,33 @@ window.__ModuleLoader__.load({
       // a deadline the call itself stated, so when that deadline passes the notification is
       // retracted instead of sitting in the notification centre forever (2026-11-25).
       let stickyNote = null;
-      setTimeout(function () {
-        if (settings().notifyAiAsk !== true) return;
-        if (windowIsFocused() === true) return;
-        stickyNote = toast(t('dock.askTitle'), t('dock.askAgain', { q: askBody }), { sticky: true, key: 'ask-' + sid });
-      }, Math.min(20000, Math.max(1000, lifeMs - 1000)));
-      // Retract the surviving notification when the question expires.
+      // A single retry at exactly 20s is one unlucky instant away from never happening: glance at
+      // the window for a second and the reminder is gone for good. The ladder gives it three
+      // chances, all of them still before the deadline (2026-11-25, after a report of
+      // "the second toast never came").
+      const ladder = [20000, 26000, 34000]
+        .map(function (ms) { return Math.min(ms, lifeMs - 1000); })
+        .filter(function (ms, index, all) { return ms >= 1000 && all.indexOf(ms) === index; });
+      for (const delay of ladder) {
+        setTimeout(function () {
+          if (stickyNote !== null) return;
+          if (settings().notifyAiAsk !== true) return;
+          if (windowIsFocused() === true) return;
+          stickyNote = toast(t('dock.askTitle'), t('dock.askAgain', { q: askBody }), { sticky: true, key: 'ask-' + sid });
+        }, delay);
+      }
+      // Retract the surviving notification when the question expires. The tag is the reliable
+      // way to take it back: opening a notification with the same tag and closing it removes the
+      // one still in the notification centre even when the original object is out of reach.
       setTimeout(function () {
         try {
           if (stickyNote !== null && typeof stickyNote.close === 'function') stickyNote.close();
+          const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: 'review-hub-waiting-ask-' + sid });
+          reclaim.close();
         } catch (error) {
           /* already dismissed by the OS: nothing to take back */
         }
-      }, lifeMs);
+      }, Math.max(1000, lifeMs - 200));
       const hint = {
         id: 'ask-' + String(payload.at || now),
         kind: 'ask',
