@@ -384,6 +384,7 @@ export function createRoutes(deps) {
 	const probeOn = () => (typeof deps.debugHeaders === 'function' ? deps.debugHeaders() === true : deps.debugHeaders === true);
 	const settings = () => (typeof deps.settings === 'function' ? deps.settings() : {});
 	const pendingView = typeof deps.pendingView === 'function' ? deps.pendingView : () => [];
+	const asksView = typeof deps.asksView === 'function' ? deps.asksView : () => [];
 
 	const guard = (handler, methods) => async (req, res) => {
 		try {
@@ -646,7 +647,16 @@ export function createRoutes(deps) {
 			handler: guard(async (req, res) => {
 				const session = urlOf(req).searchParams.get('session') ?? '';
 				const list = pendingView().filter((row) => session === '' || row.sessionId === session);
-				sendJson(res, 200, { pending: list });
+				// Every live question, not just this session's: the card speaks for other sessions,
+				// and the poller has no stream to learn from while the window is hidden.
+				const asks = asksView().map((entry) => ({
+					sessionId: entry.sessionId,
+					question: entry.question,
+					limit: entry.limit,
+					at: entry.at,
+					title: typeof deps.titleFor === 'function' ? deps.titleFor(entry.sessionId) : '',
+				}));
+				sendJson(res, 200, { pending: list, asks: asks });
 			}, ['GET', 'HEAD']),
 		},
 		{

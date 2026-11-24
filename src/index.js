@@ -96,13 +96,14 @@ function noteIfAsking(exec) {
 		if (ASK_TOOLS.has(name) === false) return;
 		const args = exec?.arguments ?? exec?.args ?? exec?.input;
 		const sessionId = sessionOfExec(exec);
-		activeStore?.announce?.({
-			kind: 'ask',
+		const entry = {
 			sessionId: sessionId,
 			question: askTextOf(args),
 			limit: askLimitOf(args),
 			at: Date.now(),
-		});
+		};
+		rememberAsk(entry);
+		activeStore?.announce?.({ kind: 'ask', ...entry });
 	} catch {
 		/* an observation must never block the tool it observes */
 	}
@@ -142,6 +143,40 @@ function rememberTool(exec) {
  * teaches people to ignore the notification (2026-11-25).
  */
 const ASK_TOOLS = new Set(['ask_user_question']);
+
+/**
+ * The question each session is waiting on, kept server-side.
+ *
+ * The live stream is closed while the window is hidden — which is exactly when a toast is
+ * wanted — so an event that exists only as an SSE frame reaches nobody at the one moment it
+ * matters. Keeping the last ask per session makes it pollable, the same way pending rows
+ * already are (2026-11-25, after a report of "not one toast").
+ */
+const asks = new Map();
+const ASK_MAX_SESSIONS = 64;
+
+function rememberAsk(entry) {
+	asks.delete(entry.sessionId);
+	asks.set(entry.sessionId, entry);
+	if (asks.size <= ASK_MAX_SESSIONS) return;
+	const oldest = asks.keys().next();
+	if (oldest.done !== true) asks.delete(oldest.value);
+}
+
+/** Live asks only: an expired question is not "still waiting", it is gone. */
+function asksNow() {
+	const now = Date.now();
+	const out = [];
+	for (const [sessionId, entry] of asks) {
+		const life = Number(entry.limit) > 0 ? Number(entry.limit) : 60000;
+		if (now - Number(entry.at) > life) {
+			asks.delete(sessionId);
+			continue;
+		}
+		out.push(entry);
+	}
+	return out;
+}
 
 /**
  * How long the question should stay on screen, when the call says so.
@@ -936,6 +971,9 @@ export function apply(ctx, rawConfig = {}) {
 			version: VERSION,
 			settings: () => store.settingsSnapshot(),
 			pendingView: () => [...pending.values()],
+		// The window closes the SSE stream while it is hidden, so a question that only ever
+		// existed as a frame reached nobody at the one moment a toast is wanted.
+		asksView: () => asksNow(),
 			// Opt-in hardening: reject requests that carry neither Origin nor Sec-Fetch-Site.
 			// Off by default — the desktop shell sends neither, so this would brick the panel.
 			strictOrigin: rawConfig?.strictOrigin === true,

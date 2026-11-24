@@ -531,7 +531,7 @@ export const cases = [
 			assertTrue(src.includes("const ASK_TOOLS = new Set(['ask_user_question'])") === false, '钩子在 index.js，不在客户端');
 			assertTrue(src.includes("source.addEventListener('ask'"), '要订阅 ask 帧');
 			assertTrue(src.includes("if (settings().notifyAiAsk !== true) return;"), '有自己的开关');
-			assertTrue(src.includes('askSeenSid') && src.includes('30000'), '同一会话 30 秒内只提示一次');
+			assertTrue(src.includes('const askDone = new Set();'), '提问要按 id 去重，避免轮询与推送各弹一次');
 			// 待回答卡只替别的会话说话：当前会话的提问本来就在屏幕上。
 			assertTrue(src.includes("if (asking === true) {"), '提问要单独走一条落座判据');
 			assertTrue(src.includes("String(entry.sessionId) === ownSid) continue;"), '本会话的提问不出卡');

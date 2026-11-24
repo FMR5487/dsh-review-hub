@@ -2257,21 +2257,23 @@ window.__ModuleLoader__.load({
      * about approvals (a task with an answer), this one is about a conversation waiting for
      * the human, and they have different switch, gate and throttle (2026-11-25).
      */
-    let askSeenAt = 0;
-    let askSeenSid = '';
+    /** Ask ids already announced: polling and streaming both deliver the same question. */
+    const askDone = new Set();
     function noticeAsk(payload, t) {
       if (settings().notifyAiAsk !== true) return;
       if (payload === null || typeof payload !== 'object') return;
       const sid = typeof payload.sessionId === 'string' ? payload.sessionId : '';
+      // The same question arrives twice — once as a stream frame, once from the 3s poll — so
+      // it is identified by its own id rather than by recent activity on the session.
+      const askId = sid + '|' + String(Number(payload.at) || 0);
+      if (askDone.has(askId)) return;
       // Focus is the gate, exactly like the approval toast above: looking at the window means
       // the question is already on screen. Same rule with no exception for other sessions —
       // two different focus rules for two notifications is how people stop trusting both.
       if (windowIsFocused() === true) return;
-      // One reminder per session per 30s: three questions in a row must not be three toasts.
+      askDone.add(askId);
+      if (askDone.size > 200) askDone.clear();
       const now = Date.now();
-      if (sid === askSeenSid && now - askSeenAt < 30000) return;
-      askSeenSid = sid;
-      askSeenAt = now;
       const question = typeof payload.question === 'string' ? payload.question : '';
       const askBody = question === '' ? t('dock.askFallback') : question;
       toast(t('dock.askTitle'), askBody);
@@ -3258,6 +3260,11 @@ window.__ModuleLoader__.load({
             if (alive !== true) return;
             store.pending = Array.isArray(pendingBody && pendingBody.pending) ? pendingBody.pending : [];
             noticePending(store.pending, t);
+            // Questions are polled, not only streamed: the stream is closed while the window is
+            // hidden, which is precisely when a question toast is wanted (2026-11-25).
+            for (const entry of Array.isArray(pendingBody && pendingBody.asks) ? pendingBody.asks : []) {
+              noticeAsk(entry, t);
+            }
             const stats = await api('/stats?session=' + encodeURIComponent(sid));
             if (alive !== true) return;
             store.stats = isPlainObject(stats) ? stats : null;
@@ -3274,7 +3281,9 @@ window.__ModuleLoader__.load({
         const startFallback = function () {
           if (fallbackTimer !== null) return;
           fallbackTimer = setInterval(function () {
-            if (typeof document !== 'undefined' && document.hidden === true) return;
+            // No "hidden window can wait" skip: polling is the only channel that still carries
+            // anything once the stream is closed, and a hidden window is exactly when a toast
+            // matters. Cost is one small GET per 3s for a window nobody is looking at.
             void loadOnce();
           }, 3000);
         };
