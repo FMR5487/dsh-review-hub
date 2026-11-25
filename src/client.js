@@ -2161,6 +2161,10 @@ window.__ModuleLoader__.load({
       placeAdviceOverlay(placed);
     }
 
+    /** Proof that the OS actually displayed something: 'onshow' fires after it is on screen. */
+    let noteShown = 0;
+    let noteErrors = 0;
+
     /** @returns the Notification when one was shown, otherwise null — a caller may retract it. */
     function toast(title, body, options) {
       if (settings().toastEnabled !== true) return null;
@@ -2178,12 +2182,20 @@ window.__ModuleLoader__.load({
         // same tag is still in the notification centre, the platform replaces it **silently** —
         // no pop, no sound. Without this flag a reminder looks sent (the object exists) and is
         // never noticed, which is exactly the report that produced this line (2026-11-25).
-        return new Notification(title, {
+        const note = new Notification(title, {
           body: body,
           requireInteraction: sticky,
           tag: tag,
           renotify: tag !== undefined,
         });
+        // `new Notification()` only means "handed to the OS". Whether it was ever *shown* is a
+        // different question, and until now the code could not tell the two apart — which is why
+        // "sent: true" and "I saw nothing" kept coexisting (2026-11-25).
+        try {
+          note.onshow = function () { noteShown = Math.max(noteShown, Date.now()); };
+          note.onerror = function () { noteErrors += 1; };
+        } catch (error) { /* older shells expose neither hook */ }
+        return note;
       } catch (error) {
         /* notifications are a nicety, never a failure */
         return null;
@@ -2270,7 +2282,7 @@ window.__ModuleLoader__.load({
      * Stamped into every trace so "is the page running the code I just wrote?" costs one glance.
      * Three test rounds were spent reading a trace left behind by an older bundle.
      */
-    const ASK_CLIENT_REV = 'ask-2026-11-25-g';
+    const ASK_CLIENT_REV = 'ask-2026-11-25-h';
     /** Ask ids already announced: polling and streaming both deliver the same question. */
     const askDone = new Set();
     function noticeAsk(payload, t) {
@@ -2430,15 +2442,30 @@ window.__ModuleLoader__.load({
         const body = t('dock.askAgain', { q: item.body });
         // Unique per question: a tag shared across sessions means this reminder silently
         // replaces the *previous test's* reminder, which is still sitting in the centre.
-        const note = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + item.sid, tag: item.tag });
-        // A shell that refuses requireInteraction would otherwise swallow the reminder.
-        const plain = note === null ? toast(t('dock.askTitle'), body, { tag: item.tag }) : null;
+        // NO requireInteraction here. The first toast (plain, no tag, no sticky) always shows;
+        // the reminder never does. `requireInteraction` is the one flag they do not share, and
+        // Windows is known to accept such a notification without ever displaying it. A reminder
+        // that pops matters more than one that cannot be dismissed (2026-11-25).
+        const note = toast(t('dock.askTitle'), body, { key: 'ask-' + item.sid, tag: item.tag });
+        const plain = note === null ? toast(t('dock.askTitle'), body) : null;
         // Only a notification that actually exists counts as sent. "Tried and failed" used to
         // look identical to "sent" from the outside, which cost three test rounds.
         item.sent = note !== null || plain !== null;
         if (item.sent === true) item.reminded = true;
         try {
-          window.__reviewHubAskTrace = { rev: ASK_CLIENT_REV, age: age, open: open, focused: false, sent: item.sent, permission: Notification.permission };
+          window.__reviewHubAskTrace = {
+            rev: ASK_CLIENT_REV,
+            age: age,
+            open: open,
+            focused: false,
+            sent: item.sent,
+            permission: Notification.permission,
+            // The honest answer to "did anything appear on screen": the OS said so, or it did not.
+            shown: noteShown > 0,
+            shownAgo: noteShown === 0 ? null : Date.now() - noteShown,
+            errors: noteErrors,
+            tag: item.tag,
+          };
         } catch (error) { /* not every shell allows it */ }
       }
     }
