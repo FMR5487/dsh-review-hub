@@ -3191,6 +3191,10 @@ window.__ModuleLoader__.load({
         let alive = true;
         let source = null;
         let fallbackTimer = null;
+        /** When the last poll ran, and when the last stream frame arrived. The gap between them
+         *  is what decides whether the stream still deserves to be trusted. */
+        let lastPollAt = 0;
+        let lastFrameAt = Date.now();
         let busy = false;
 
         store.sessionId = sid;
@@ -3329,21 +3333,35 @@ window.__ModuleLoader__.load({
           }
         };
 
+        /**
+         * The two channels back each other up instead of one replacing the other.
+         *
+         * A silently dead stream is the dangerous case: no `error` event arrives, `ready` never
+         * fires again, and the panel looks online while receiving nothing. So the poll always
+         * runs; it only goes quiet (15s instead of 3s) while frames are still arriving. That is
+         * a heartbeat on the stream rather than trust in it (2026-11-25).
+         */
+        const POLL_FAST_MS = 3000;
+        const POLL_SLOW_MS = 15000;
+        /** Silence longer than this means the stream is not delivering, whatever it claims. */
+        const STREAM_STALE_MS = 20000;
+
         const startFallback = function () {
           if (fallbackTimer !== null) return;
           fallbackTimer = setInterval(function () {
             // No "hidden window can wait" skip: polling is the only channel that still carries
             // anything once the stream is closed, and a hidden window is exactly when a toast
-            // matters. Cost is one small GET per 3s for a window nobody is looking at.
+            // matters.
+            const healthy = store.streaming === true && Date.now() - lastFrameAt < STREAM_STALE_MS;
+            const due = healthy === true ? POLL_SLOW_MS : POLL_FAST_MS;
+            if (Date.now() - lastPollAt < due) return;
+            lastPollAt = Date.now();
             void loadOnce();
-          }, 3000);
+          }, 1000);
         };
 
-        const stopFallback = function () {
-          if (fallbackTimer === null) return;
-          clearInterval(fallbackTimer);
-          fallbackTimer = null;
-        };
+        /** Kept as a name: the poll is never switched off any more, only slowed down. */
+        const stopFallback = function () {};
 
         const openStream = function () {
           if (typeof EventSource !== 'function') {
@@ -3358,10 +3376,13 @@ window.__ModuleLoader__.load({
           }
           source.addEventListener('ready', function () {
             store.streaming = true;
-            stopFallback();
+            lastFrameAt = Date.now();
             notify();
           });
+          // Any frame is proof the stream is alive: refresh the heartbeat before parsing, so a
+          // malformed payload cannot make the connection look dead.
           source.addEventListener('entry', function (event) {
+            lastFrameAt = Date.now();
             try {
               acceptRow(JSON.parse(event.data)?.row);
             } catch (error) {
@@ -3371,6 +3392,7 @@ window.__ModuleLoader__.load({
           // Bursts arrive as one frame; the rows inside are treated one by one so the
           // hint/floor/unread rules stay identical to the single-row path.
           source.addEventListener('entries', function (event) {
+            lastFrameAt = Date.now();
             try {
               const rows = JSON.parse(event.data)?.rows;
               if (Array.isArray(rows) === false) return;
@@ -3380,6 +3402,7 @@ window.__ModuleLoader__.load({
             }
           });
           source.addEventListener('other', function (event) {
+            lastFrameAt = Date.now();
             try {
               accumulate(JSON.parse(event.data));
             } catch (error) {
@@ -3388,6 +3411,7 @@ window.__ModuleLoader__.load({
           });
           // The AI stopping to ask: its own frame, its own handler, its own switch.
           source.addEventListener('ask', function (event) {
+            lastFrameAt = Date.now();
             try {
               noticeAsk(JSON.parse(event.data), t);
             } catch (error) {
@@ -3395,6 +3419,7 @@ window.__ModuleLoader__.load({
             }
           });
           source.addEventListener('pending', function (event) {
+            lastFrameAt = Date.now();
             try {
               const data = JSON.parse(event.data);
               if (data === null || typeof data !== 'object') return;
@@ -3428,10 +3453,8 @@ window.__ModuleLoader__.load({
               source = null;
             }
             store.streaming = false;
-            // Closing the stream used to be the whole story, which left the panel completely
-            // deaf while hidden — no stream, and the poll only started on a stream *error*.
-            // A hidden window is exactly when a toast is the only way to reach anyone, so the
-            // poll has to take over here, not on the next failure (2026-11-25).
+            // The poll is always running now, so hiding only has to make sure it is *fast*:
+            // a hidden window is exactly when a toast is the only way to reach anyone.
             startFallback();
             notify();
             return;
@@ -3445,6 +3468,9 @@ window.__ModuleLoader__.load({
         }
 
         reportProbe();
+        // The poll starts unconditionally: it is the backup channel, and a backup that only
+        // starts once the primary has already failed is not a backup (2026-11-25).
+        startFallback();
         void loadOnce().then(function () {
           if (alive === true) openStream();
         });
