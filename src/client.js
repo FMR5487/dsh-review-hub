@@ -2257,6 +2257,11 @@ window.__ModuleLoader__.load({
      * about approvals (a task with an answer), this one is about a conversation waiting for
      * the human, and they have different switch, gate and throttle (2026-11-25).
      */
+    /**
+     * Stamped into every trace so "is the page running the code I just wrote?" costs one glance.
+     * Three test rounds were spent reading a trace left behind by an older bundle.
+     */
+    const ASK_CLIENT_REV = 'ask-2026-11-25-e';
     /** Ask ids already announced: polling and streaming both deliver the same question. */
     const askDone = new Set();
     function noticeAsk(payload, t) {
@@ -2336,7 +2341,7 @@ window.__ModuleLoader__.load({
           return hint.kind === 'ask' && String((hint.entry || {}).sessionId || '') === item.sid;
         });
         const expired = age >= item.lifeMs;
-        const trace = { age: age, open: open, focused: windowIsFocused(), reminded: item.reminded };
+        const trace = { rev: ASK_CLIENT_REV, age: age, open: open, focused: windowIsFocused(), reminded: item.reminded };
         try { window.__reviewHubAskTrace = trace; } catch (error) { /* not every shell allows it */ }
         if (expired === true || open !== true) {
           // The question is over: take the notification back by tag, which is the only way to
@@ -2362,7 +2367,7 @@ window.__ModuleLoader__.load({
         item.sent = note !== null || plain !== null;
         if (item.sent === true) item.reminded = true;
         try {
-          window.__reviewHubAskTrace = { age: age, open: open, focused: false, sent: item.sent, permission: Notification.permission };
+          window.__reviewHubAskTrace = { rev: ASK_CLIENT_REV, age: age, open: open, focused: false, sent: item.sent, permission: Notification.permission };
         } catch (error) { /* not every shell allows it */ }
       }
     }
