@@ -2174,7 +2174,16 @@ window.__ModuleLoader__.load({
         const tag = typeof options?.tag === 'string' && options.tag !== ''
           ? options.tag
           : (sticky ? 'review-hub-waiting-' + String(options?.key || '') : undefined);
-        return new Notification(title, { body: body, requireInteraction: sticky, tag: tag });
+        // `renotify` is the difference between "shown" and "seen": when a notification with the
+        // same tag is still in the notification centre, the platform replaces it **silently** —
+        // no pop, no sound. Without this flag a reminder looks sent (the object exists) and is
+        // never noticed, which is exactly the report that produced this line (2026-11-25).
+        return new Notification(title, {
+          body: body,
+          requireInteraction: sticky,
+          tag: tag,
+          renotify: tag !== undefined,
+        });
       } catch (error) {
         /* notifications are a nicety, never a failure */
         return null;
@@ -2261,7 +2270,7 @@ window.__ModuleLoader__.load({
      * Stamped into every trace so "is the page running the code I just wrote?" costs one glance.
      * Three test rounds were spent reading a trace left behind by an older bundle.
      */
-    const ASK_CLIENT_REV = 'ask-2026-11-25-e';
+    const ASK_CLIENT_REV = 'ask-2026-11-25-f';
     /** Ask ids already announced: polling and streaming both deliver the same question. */
     const askDone = new Set();
     function noticeAsk(payload, t) {
@@ -2306,6 +2315,9 @@ window.__ModuleLoader__.load({
         body: askBody,
         repeatAt: ASK_REPEAT_MS,
         reminded: false,
+        // One tag per question, not per session: a per-session tag would make this reminder
+        // silently replace the previous question's reminder, which is still in the centre.
+        tag: 'review-hub-ask-' + sid + '-' + String(Number(payload.at) || now),
       });
 
       const hint = {
@@ -2367,13 +2379,13 @@ window.__ModuleLoader__.load({
           return hint.kind === 'ask' && String((hint.entry || {}).sessionId || '') === item.sid;
         });
         const expired = age >= item.lifeMs;
-        const trace = { rev: ASK_CLIENT_REV, age: age, open: open, focused: windowIsFocused(), reminded: item.reminded };
+        const trace = { rev: ASK_CLIENT_REV, age: age, open: open, focused: windowIsFocused(), reminded: item.reminded, sent: item.sent === true };
         try { window.__reviewHubAskTrace = trace; } catch (error) { /* not every shell allows it */ }
         if (expired === true || open !== true) {
           // The question is over: take the notification back by tag, which is the only way to
           // remove one whose handle we may no longer hold.
           try {
-            const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: 'review-hub-ask-reminder-' + item.sid });
+            const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: item.tag });
             reclaim.close();
           } catch (error) { /* already gone */ }
           askReminders.delete(item.sid);
@@ -2385,9 +2397,11 @@ window.__ModuleLoader__.load({
         // reminder is still armed for the next tick. Losing it to a single glance was the bug.
         if (windowIsFocused() === true) continue;
         const body = t('dock.askAgain', { q: item.body });
-        const note = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + item.sid, tag: 'review-hub-ask-reminder-' + item.sid });
+        // Unique per question: a tag shared across sessions means this reminder silently
+        // replaces the *previous test's* reminder, which is still sitting in the centre.
+        const note = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + item.sid, tag: item.tag });
         // A shell that refuses requireInteraction would otherwise swallow the reminder.
-        const plain = note === null ? toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + item.sid }) : null;
+        const plain = note === null ? toast(t('dock.askTitle'), body, { tag: item.tag }) : null;
         // Only a notification that actually exists counts as sent. "Tried and failed" used to
         // look identical to "sent" from the outside, which cost three test rounds.
         item.sent = note !== null || plain !== null;
