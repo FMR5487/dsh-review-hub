@@ -885,6 +885,8 @@ export function apply(ctx, rawConfig = {}) {
 			} catch {
 				// A capture failure means "no diff for this row", never a blocked tool.
 			}
+			// `tools/pre-execute` is (exec, next) — two arguments — and its default decision is
+			// `{ kind: 'allow' }`. Returning next()'s value is what keeps that default intact.
 			return next();
 		};
 		try {
@@ -899,13 +901,23 @@ export function apply(ctx, rawConfig = {}) {
 	// a host without it simply keeps the question until its own `limit` expires, which is the
 	// behaviour we had before this hook existed.
 	ctx.effect(() => {
-		const listener = (exec, next) => {
+		// The waterfall for `tools/post-execute` passes THREE arguments — (exec, result, next) —
+		// not two. Declaring it as (exec, next) made `next` the *result object*, so the guard
+		// below saw a non-function and returned `undefined`; a waterfall listener that returns
+		// undefined replaces the decision object with nothing, and the pipeline then reads
+		// `.additionalContexts` off it. That is the 2026-11-26 profile-wide crash, reproduced by
+		// contract rather than by timing (see dsh-tools/lib/pipeline.js:669).
+		//
+		// Rule for every hook in this file: call `next()` and RETURN ITS VALUE. Never return a
+		// hand-built object, and never return nothing — the default is `{ kind: 'accept' }` and
+		// only `next()` knows what the layers below decided.
+		const listener = async (exec, result, next) => {
 			try {
 				noteAskSettled(exec);
 			} catch {
 				/* never a reason to fail a tool call */
 			}
-			return typeof next === 'function' ? next() : undefined;
+			return next();
 		};
 		try {
 			return ctx.on('tools/post-execute', listener, { prepend: true });

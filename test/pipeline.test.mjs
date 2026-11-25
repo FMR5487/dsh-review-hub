@@ -199,6 +199,27 @@ export const cases = [
 		},
 	},
 	{
+		name: 'post-execute 钩子必须按 (exec, result, next) 三参调用，并原样返回 next()',
+		async fn() {
+			const { listeners } = await boot('pipe-post-hook');
+			const hook = listeners.find((entry) => entry.event === 'tools/post-execute');
+			assertTrue(hook !== undefined, 'post-execute 钩子已注册');
+			// 宿主契约（dsh-tools/lib/pipeline.js:669）：
+			//   waterfall(carrier, 'tools/post-execute', exec, result, () => ({ kind: 'accept' }))
+			// 把监听器写成 (exec, next) 会让 next 变成 result 对象，于是返回 undefined，
+			// 瀑布的决策被替换成 undefined → 上层读 .additionalContexts 直接崩。
+			let seenResult;
+			const result = await hook.listener(
+				{ name: 'ops_bash', callId: 'h2', agent: { id: 's1' }, arguments: { command: 'echo hi' } },
+				{ content: [{ type: 'text', text: 'hi' }], additionalContexts: [] },
+				() => { seenResult = 'CALLED'; return { kind: 'accept', additionalContexts: [{ text: 'ctx' }] }; },
+			);
+			assertEqual(seenResult, 'CALLED', '三参里的第三个必须是 next 函数');
+			assertEqual(result.kind, 'accept', '必须原样返回下层决策');
+			assertEqual(Array.isArray(result.additionalContexts), true, '决策对象不能被替换成 undefined');
+		},
+	},
+	{
 		name: '硬风险连 AI 都不看：reviewer 一次都不调用',
 		async fn() {
 			let calls = 0;

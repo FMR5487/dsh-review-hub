@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 未发 — 致命修复：post-execute 钩子签名错误导致宿主每轮工具装配崩溃
+
+### 加进 profile bundles 后整个宿主的工具通道全灭
+
+- 现象：`dsh-review-hub` 一旦加入 `dsh.profile.bundles`，宿主每轮工具装配抛
+  `Cannot read properties of undefined (reading 'additionalContexts')`，`run_code` 与所有 `ops_*` 报废；
+  回退该行即恢复。控制变量两次复现，与时机、热重载无关。
+- **根因是我写错了钩子的参数个数。** 宿主（`dsh-tools/lib/pipeline.js:669`）用三个参数调用：
+
+  ```js
+  waterfall(carrier, 'tools/post-execute', exec, result, () => ({ kind: 'accept' }))
+  ```
+
+  而我写的是 `(exec, next)`——于是 `next` 收到的是 **result 对象**，`typeof next !== 'function'`
+  这一句让监听器返回了 `undefined`。瀑布里返回 undefined 会**顶掉整份决策对象**，
+  上层随后的 `decision.additionalContexts` 就是在 `undefined` 上取属性。
+- 一处签名写错，代价是整个宿主的工具面。这也是为什么它看起来像「宿主 bug」：崩溃点在宿主的
+  `dsh-agent-loop` 里，而不带保护的那一侧正好是宿主（`ptc` executor 用了 `?? []`，`agent-loop` 没有）。
+
+### 修法与防线
+
+- 监听器改成 `async (exec, result, next) => { …; return next(); }`，**原样返回下层的决策**。
+- 文件里加了一条注释规则：本插件所有 `ctx.on` 钩子只做「观察 + `return next()`」，
+  不自行构造决策对象、也不允许有返回 `undefined` 的分支。
+- 测试里加了一条照宿主真实调用形状写的用例（三参数 + 断言返回的决策对象仍带 `additionalContexts`），
+  以后再写错签名会先红。
+
+### 验证
+
+- `node test/run.mjs`：110 passed。
+- 真机验证要求（报告里写明的验收标准）：加回 bundles + 重启后，`return "alive"` 这种裸 `run_code`
+  程序必须正常返回——这条由维护会话在宿主侧重启后确认。
+
 ## 未发 — 提示卡包边只为一件事变色；AI 提问时通知
 
 ### 待回答卡不自己消失（三重失效叠在一起）
