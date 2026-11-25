@@ -2294,6 +2294,11 @@ window.__ModuleLoader__.load({
       // focused at that instant), so three unlucky ticks retired the reminder for good. A single
       // `reminded` flag cannot be spent without also sending the notification.
       const ASK_REPEAT_MS = Math.min(12000, Math.max(1000, lifeMs - 1000));
+      // The clock needs a driver that is not the poll. "Unfocused" and "hidden" are different
+      // states: switching to another app leaves the window visible, so the stream stays open,
+      // the poll never starts, and a poll-driven ticker never ticks — the reminder sat armed and
+      // silent for three test rounds (2026-11-25). A plain 2s interval costs no network.
+      ensureAskTicker(t);
       askReminders.set(sid, {
         sid: sid,
         startedAt: now,
@@ -2328,6 +2333,27 @@ window.__ModuleLoader__.load({
      * runs for the question itself, so the clock is free (2026-11-25).
      */
     const askReminders = new Map();
+
+    /** The ticker's translator: it changes with every render, so it is captured, not closed over. */
+    let askTickT = null;
+    let askTickTimer = null;
+
+    function ensureAskTicker(t) {
+      askTickT = t;
+      if (askTickTimer !== null) return;
+      askTickTimer = setInterval(function () {
+        if (askReminders.size === 0) {
+          clearInterval(askTickTimer);
+          askTickTimer = null;
+          return;
+        }
+        try {
+          tickAsks(askTickT);
+        } catch (error) {
+          /* a failing tick must never stop the next one */
+        }
+      }, 2000);
+    }
 
     /** One poll tick: send the reminder when it is due, retract at the deadline. */
     function tickAsks(t) {
