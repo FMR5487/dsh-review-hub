@@ -2164,6 +2164,8 @@ window.__ModuleLoader__.load({
     /** Proof that the OS actually displayed something: 'onshow' fires after it is on screen. */
     let noteShown = 0;
     let noteErrors = 0;
+    /** How many notifications were handed to the OS at all: "constructed" vs "shown". */
+    let noteCount = 0;
 
     /** @returns the Notification when one was shown, otherwise null — a caller may retract it. */
     function toast(title, body, options) {
@@ -2182,6 +2184,7 @@ window.__ModuleLoader__.load({
         // same tag is still in the notification centre, the platform replaces it **silently** —
         // no pop, no sound. Without this flag a reminder looks sent (the object exists) and is
         // never noticed, which is exactly the report that produced this line (2026-11-25).
+        noteCount += 1;
         const note = new Notification(title, {
           body: body,
           requireInteraction: sticky,
@@ -2282,7 +2285,7 @@ window.__ModuleLoader__.load({
      * Stamped into every trace so "is the page running the code I just wrote?" costs one glance.
      * Three test rounds were spent reading a trace left behind by an older bundle.
      */
-    const ASK_CLIENT_REV = 'ask-2026-11-25-h';
+    const ASK_CLIENT_REV = 'ask-2026-11-25-i';
     /** Ask ids already announced: polling and streaming both deliver the same question. */
     const askDone = new Set();
     function noticeAsk(payload, t) {
@@ -2413,7 +2416,22 @@ window.__ModuleLoader__.load({
           return hint.kind === 'ask' && String((hint.entry || {}).sessionId || '') === item.sid;
         });
         const expired = age >= item.lifeMs;
-        const trace = { rev: ASK_CLIENT_REV, age: age, open: open, focused: windowIsFocused(), reminded: item.reminded, sent: item.sent === true };
+        // One writer, not two: the tick used to overwrite the richer trace written at send time,
+        // so `shown`/`errors` were never readable — the report kept looking like "no evidence"
+        // even though the evidence existed (2026-11-25).
+        const trace = {
+          rev: ASK_CLIENT_REV,
+          age: age,
+          open: open,
+          focused: windowIsFocused(),
+          reminded: item.reminded,
+          sent: item.sent === true,
+          constructed: noteCount,
+          shown: noteShown > 0,
+          shownAgo: noteShown === 0 ? null : Date.now() - noteShown,
+          errors: noteErrors,
+          tag: item.tag,
+        };
         try { window.__reviewHubAskTrace = trace; } catch (error) { /* not every shell allows it */ }
         if (expired === true || open !== true) {
           // The question is over: take the notification back by tag, which is the only way to
