@@ -2353,11 +2353,17 @@ window.__ModuleLoader__.load({
         // A focused window is not "skip and never come back": the flag stays false, so the
         // reminder is still armed for the next tick. Losing it to a single glance was the bug.
         if (windowIsFocused() === true) continue;
-        item.reminded = true;
         const body = t('dock.askAgain', { q: item.body });
         const note = toast(t('dock.askTitle'), body, { sticky: true, key: 'ask-' + item.sid, tag: 'review-hub-ask-reminder-' + item.sid });
         // A shell that refuses requireInteraction would otherwise swallow the reminder.
-        if (note === null) toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + item.sid });
+        const plain = note === null ? toast(t('dock.askTitle'), body, { tag: 'review-hub-ask-reminder-' + item.sid }) : null;
+        // Only a notification that actually exists counts as sent. "Tried and failed" used to
+        // look identical to "sent" from the outside, which cost three test rounds.
+        item.sent = note !== null || plain !== null;
+        if (item.sent === true) item.reminded = true;
+        try {
+          window.__reviewHubAskTrace = { age: age, open: open, focused: false, sent: item.sent, permission: Notification.permission };
+        } catch (error) { /* not every shell allows it */ }
       }
     }
 
