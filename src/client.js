@@ -2270,7 +2270,7 @@ window.__ModuleLoader__.load({
      * Stamped into every trace so "is the page running the code I just wrote?" costs one glance.
      * Three test rounds were spent reading a trace left behind by an older bundle.
      */
-    const ASK_CLIENT_REV = 'ask-2026-11-25-f';
+    const ASK_CLIENT_REV = 'ask-2026-11-25-g';
     /** Ask ids already announced: polling and streaming both deliver the same question. */
     const askDone = new Set();
     function noticeAsk(payload, t) {
