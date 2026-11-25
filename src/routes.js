@@ -610,6 +610,15 @@ export function createRoutes(deps) {
 							frameAsk(event);
 							return;
 						}
+						// Answered / cancelled / failed: the question is over either way, and the
+						// panel needs to hear it to drop the card without waiting for a poll.
+						if (event?.kind === 'ask-done') {
+							frame('ask-done', {
+								sessionId: typeof event.sessionId === 'string' ? event.sessionId : '',
+								at: Number(event.at) || Date.now(),
+							});
+							return;
+						}
 						if (event?.kind === 'pending') {
 							pendingQueued = true;
 							queueFlush();

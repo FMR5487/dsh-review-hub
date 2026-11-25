@@ -109,6 +109,25 @@ function noteIfAsking(exec) {
 	}
 }
 
+/**
+ * The question is over when that tool call finishes — answered, cancelled, failed, all the same.
+ *
+ * Without this the server keeps handing the question to every poller until its `limit` runs out,
+ * and a client that switched sessions in between has no way to tell it was answered
+ * (2026-11-25).
+ */
+function noteAskSettled(exec) {
+	try {
+		if (ASK_TOOLS.has(nonEmptyTool(exec)) === false) return;
+		const sessionId = sessionOfExec(exec);
+		if (sessionId === '') return;
+		if (asks.delete(sessionId) === false) return;
+		activeStore?.announce?.({ kind: 'ask-done', sessionId: sessionId, at: Date.now() });
+	} catch {
+		/* same rule: an observation is never a failure mode */
+	}
+}
+
 function nonEmptyTool(exec) {
 	const name = exec?.tool?.name ?? exec?.name ?? exec?.toolName;
 	return typeof name === 'string' ? name : '';
@@ -875,6 +894,26 @@ export function apply(ctx, rawConfig = {}) {
 			return () => {};
 		}
 	}, 'review-hub: snapshots');
+
+	// A question is over when its tool call returns. `tools/post-execute` is feature-detected:
+	// a host without it simply keeps the question until its own `limit` expires, which is the
+	// behaviour we had before this hook existed.
+	ctx.effect(() => {
+		const listener = (exec, next) => {
+			try {
+				noteAskSettled(exec);
+			} catch {
+				/* never a reason to fail a tool call */
+			}
+			return typeof next === 'function' ? next() : undefined;
+		};
+		try {
+			return ctx.on('tools/post-execute', listener, { prepend: true });
+		} catch (error) {
+			console.warn('review-hub: post-execute hook unavailable: ' + (error instanceof Error ? error.message : String(error)));
+			return () => {};
+		}
+	}, 'review-hub: ask settlement');
 
 	ctx.inject(['agents'], (scoped) => {
 		agentsService = scoped?.agents;

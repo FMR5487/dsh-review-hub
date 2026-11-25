@@ -2367,6 +2367,28 @@ window.__ModuleLoader__.load({
       }, 2000);
     }
 
+    /**
+     * Drop one session's question everywhere: the card, the armed reminder, the notification.
+     * Called when the host says the call settled, and when a poll shows the question is gone.
+     */
+    function forgetAsk(sessionId, t) {
+      const sid = typeof sessionId === 'string' ? sessionId : '';
+      if (sid === '') return;
+      const item = askReminders.get(sid);
+      if (item !== undefined) {
+        try {
+          const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: item.tag });
+          reclaim.close();
+        } catch (error) { /* already gone */ }
+        askReminders.delete(sid);
+      }
+      const before = (store.hints || []).length;
+      store.hints = (store.hints || []).filter(function (hint) {
+        return hint.kind !== 'ask' || String((hint.entry || {}).sessionId || '') !== sid;
+      });
+      if (store.hints.length !== before) notify();
+    }
+
     /** One poll tick: send the reminder when it is due, retract at the deadline. */
     function tickAsks(t) {
       if (askReminders.size === 0) return;
@@ -2388,6 +2410,15 @@ window.__ModuleLoader__.load({
             const reclaim = new Notification(t('dock.askTitle'), { body: '', tag: item.tag });
             reclaim.close();
           } catch (error) { /* already gone */ }
+          // The card has to go with it. Its removal used to ride a setTimeout inside noticeAsk,
+          // and that timer was deleted when the clock moved here — so an expired question kept
+          // its card forever, invisible while you were on the asking session (the renderer skips
+          // your own session) and back the moment you switched away (2026-11-25).
+          const before = (store.hints || []).length;
+          store.hints = (store.hints || []).filter(function (hint) {
+            return hint.kind !== 'ask' || String((hint.entry || {}).sessionId || '') !== item.sid;
+          });
+          if (store.hints.length !== before) notify();
           askReminders.delete(item.sid);
           continue;
         }
@@ -3328,8 +3359,14 @@ window.__ModuleLoader__.load({
               store.otherPending = pendingBody.others;
               noticeOtherPending(store.otherPending, t);
             }
-            for (const entry of Array.isArray(pendingBody && pendingBody.asks) ? pendingBody.asks : []) {
-              noticeAsk(entry, t);
+            // A poll that no longer lists a session's question means it was answered or expired:
+            // the server is the authority, so drop what it no longer has (2026-11-25).
+            const liveAsks = Array.isArray(pendingBody && pendingBody.asks) ? pendingBody.asks : [];
+            for (const entry of liveAsks) noticeAsk(entry, t);
+            const liveSids = new Set(liveAsks.map(function (entry) { return String(entry.sessionId || ''); }));
+            for (const hint of (store.hints || []).filter(function (item) { return item.kind === 'ask'; })) {
+              const hintSid = String((hint.entry || {}).sessionId || '');
+              if (liveSids.has(hintSid) === false) forgetAsk(hintSid, t);
             }
             // The same tick advances the reminder clock: a hidden window starves setTimeout,
             // and that is exactly the window this feature exists for (2026-11-25).
@@ -3424,6 +3461,15 @@ window.__ModuleLoader__.load({
             }
           });
           // The AI stopping to ask: its own frame, its own handler, its own switch.
+          // Answered or cancelled: drop the card now instead of waiting for its limit.
+          source.addEventListener('ask-done', function (event) {
+            lastFrameAt = Date.now();
+            try {
+              forgetAsk(JSON.parse(event.data)?.sessionId, t);
+            } catch (error) {
+              /* same rule as every other frame */
+            }
+          });
           source.addEventListener('ask', function (event) {
             lastFrameAt = Date.now();
             try {

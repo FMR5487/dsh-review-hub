@@ -534,6 +534,10 @@ export const cases = [
 			assertTrue(src.includes('const askDone = new Set();'), '提问要按 id 去重，避免轮询与推送各弹一次');
 			// 待回答卡只替别的会话说话：当前会话的提问本来就在屏幕上。
 			assertTrue(src.includes("if (asking === true) {"), '提问要单独走一条落座判据');
+			// 提问结束时卡片必须一起走：这条曾经漏掉，过期卡会一直挂在别的会话里。
+			assertTrue(src.includes('function forgetAsk(sessionId, t)'), '提问要有一个统一的撤销入口');
+			assertTrue(src.includes("source.addEventListener('ask-done'"), '答完要能从流里立刻知道');
+			assertTrue(src.includes('const liveSids = new Set('), '轮询里消失的提问也要撤卡');
 			assertTrue(src.includes("String(entry.sessionId) === ownSid) continue;"), '本会话的提问不出卡');
 			assertTrue(src.includes('.ah-card-chip-ask'), '提问胶囊要有人工色');
 			// 服务端算出来的 needHuman 必须在客户端合并时保留，否则边框永远不会变色。
