@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 未发 — 致命修复：post-execute 钩子签名错误导致宿主每轮工具装配崩溃
+## 1.4.1 — 致命修复：post-execute 钩子签名错误导致宿主每轮工具装配崩溃
 
 ### 加进 profile bundles 后整个宿主的工具通道全灭
 
