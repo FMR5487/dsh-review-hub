@@ -502,7 +502,7 @@ async function answerer(request, next) {
 	const fileMode = settings?.fileFingerprint === true && filePath !== '';
 	const fp = fpInfo === undefined ? undefined : (fileMode === true ? fileFingerprintOf(toolName, filePath) : fpInfo.fp);
 	const agentKind = classifyAgent(request?.agent);
-	const { tier: baseTier, hardRisk, coarse, hardRiskExempt } = classify(toolName, argsText, { toolsPolicy: toolsPolicyOf(settings), credentialExempt: settings?.credentialExemptPaths });
+	const { tier: baseTier, hardRisk, coarse, hardRiskExempt, deleteRelaxed } = classify(toolName, argsText, { toolsPolicy: toolsPolicyOf(settings), credentialExempt: settings?.credentialExemptPaths });
 	// Two deterministic blockers, two names: L0 hard risk and L1 coarse keys.
 	// Either one means "no AI, no memory, no file switch — a human decides".
 	// `coarse` (the D layer) only blocks the reviewer: it is a shape we cannot judge, not a
@@ -511,7 +511,10 @@ async function answerer(request, next) {
 	const tier = clampByAgent(baseTier, agentKind, settings?.agentPolicy);
 	// Opt-in per file, and never for a hard-risk call: the switch widens what may
 	// auto-pass, it does not disable the deterministic L0 layer.
-	const fileArmed = fileKey !== '' && hardRisk === undefined
+	// A relaxed delete is L0 in every way that matters except who judges it: it may reach the
+	// reviewer, and nothing else. Memory and the file switch would turn it into an auto-pass.
+	const softRisk = hardRisk === undefined && deleteRelaxed !== undefined;
+	const fileArmed = fileKey !== '' && hardRisk === undefined && softRisk === false
 		&& (settings?.fileFingerprint === true || settings?.fileAutoPass?.[fileKey] === true);
 	// Record the lane of every request, not only the ones the reviewer sees: the
 	// settings menu is built from real lanes, and an AI-off approval still proves one.
@@ -525,8 +528,8 @@ async function answerer(request, next) {
 		operation: escalation.operation,
 		mode: escalation.mode,
 		argsSummary: evidence.argsSummary,
-		riskLevel: hardRisk === undefined ? 'unknown' : 'high',
-		riskRule: hardRisk === undefined ? undefined : hardRisk.rule,
+		riskLevel: hardRisk === undefined && softRisk === false ? 'unknown' : 'high',
+		riskRule: hardRisk === undefined ? (softRisk === true ? deleteRelaxed.rule : undefined) : hardRisk.rule,
 	});
 	row.agentKind = agentKind;
 	row.tier = tier;
@@ -563,7 +566,7 @@ async function answerer(request, next) {
 	};
 	try {
 		// 记忆: a repeatable operation the human already approved N times.
-		const hit = hardRisk === undefined ? await decideMemory(store, sessionId, fp, settings) : undefined;
+		const hit = hardRisk === undefined && softRisk === false ? await decideMemory(store, sessionId, fp, settings) : undefined;
 		const fileHits = fileArmed === false || store === undefined
 			? 0
 			: await store.fileCount(sessionId, filePath).catch(() => 0);
@@ -799,6 +802,9 @@ async function answerer(request, next) {
 	if (escalation.mode !== '') finished.reqMode = escalation.mode;
 	// Kept in the ledger: "this row reached the AI only because the path was exempt".
 	if (hardRiskExempt !== undefined) finished.hardRiskExempt = hardRiskExempt.rule;
+	// Same idea for the one relaxed delete shape: the row still carries risk = high, and this
+	// field is what lets the panel say *why* a delete was reviewable instead of human-only.
+	if (deleteRelaxed !== undefined) finished.deleteRelaxed = deleteRelaxed.relaxed;
 	// What the reviewer was told, and how much of it had to be masked first. A row with a large
 	// redaction count is a row where the session's own text was the reason it could not be judged.
 	if (ctxGiven.text !== '') {

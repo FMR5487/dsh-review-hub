@@ -25,6 +25,76 @@ export const cases = [
 		},
 	},
 	{
+		name: 'policy: 自建自删的探针文件交给 AI，而不是直接转人工',
+		fn() {
+			// The recurring shape in this project: build a probe, run it, delete it in the same line.
+			const scratch = shell('echo hi > probe.mjs && node probe.mjs; rm -f probe.mjs');
+			assertEqual(hardRisk('ops_bash', scratch)?.relaxed, 'scratch', '本行自建的单个文件');
+			// The other, more common shape: the probe was written by the previous call, so this line
+			// only removes it. One plain file is still all the command line can destroy.
+			const later = shell('cd /d/Work/x && node probe-debuge.mjs 2>&1 | head -5; rm -f probe-debuge.mjs');
+			assertEqual(hardRisk('ops_bash', later)?.relaxed, 'single', '本行只删单个文件');
+			assertEqual(classify('ops_bash', later).tier, 'ai', '交 AI 判');
+			// Deleting a named file without having created it here is still a deletion, and it is
+			// relaxed only because one plain file is all it touches.
+			assertEqual(hardRisk('ops_bash', shell('rm -f out.txt'))?.relaxed, 'single');
+			assertEqual(classify('ops_bash', shell('rm -f out.txt')).riskLevel, 'high', '风险等级仍是高');
+		},
+	},
+	{
+		name: 'policy: 递归 / 通配 / 目录 / 多个目标 / 跳上级 仍是 L0',
+		fn() {
+			const l0 = [
+				'rm -rf ./dist',
+				'rm -r build',
+				'rm -f probe.mjs; rm -rf node_modules',
+				'rm -f *.log',
+				'rm -f out/*.txt',
+				'rm -f ../other/file.txt',
+				'rmdir build',
+				'rm -f a.txt b.txt',
+				'Remove-Item build -Recurse',
+				'del /s /q build',
+			];
+			for (const command of l0) {
+				const hit = hardRisk('ops_bash', shell(command));
+				assertEqual(hit?.rule, 'delete', command + ' 仍是删除类');
+				assertEqual(hit?.relaxed, undefined, command + ' 不放宽');
+				assertEqual(classify('ops_bash', shell(command)).tier, 'human', command + ' 转人工');
+			}
+		},
+	},
+	{
+		name: 'policy: 锚点删除的四个漏洞：凭据路径 / 命令替换 / 一次删两个 / 目录',
+		fn() {
+			// Each of these reads as "one plain file" until you look at what the target is.
+			for (const command of [
+				'rm -f ~/.ssh/id_rsa',
+				'rm -f .env',
+				'rm -f C:/Users/FMR/.dsh/.credentials.yaml',
+				'rm -f $(pwd)/x.txt',
+				'rm -f `whoami`.txt',
+				'rm -f a.txt; rm -f b.txt',
+				'Remove-Item dist',       // 不带 -Recurse 也能删空目录
+				'Remove-Item -Force dist',
+				'Remove-Item -Path build -WhatIf:false',
+			]) {
+				const hit = hardRisk('ops_bash', shell(command));
+				assertEqual(hit?.rule, 'delete', command + ' 仍是删除类');
+				assertEqual(hit?.relaxed, undefined, command + ' 不放宽');
+			}
+		},
+	},
+	{
+		name: 'policy: 放宽的删除不写进记忆，也挡不住文件级自动放行',
+		fn() {
+			const out = classify('ops_bash', shell('rm -f probe.done'), { toolsPolicy: undefined });
+			assertEqual(out.deleteRelaxed?.relaxed, 'single', '标注为单个文件删除');
+			assertEqual(out.hardRisk, undefined, '不是硬风险再转人工');
+			assertEqual(out.riskLevel, 'high', '风险仍是高');
+		},
+	},
+	{
 		name: 'policy: 普通命令不误伤',
 		fn() {
 			assertEqual(hardRisk('ops_bash', shell('npm run build')), undefined);

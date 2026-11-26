@@ -66,7 +66,14 @@ const DELETE = [
 	/\bdel\s+\/[sq]/i,
 	/\bdel\s+[^\n\/]/i,
 	/\bRemove-Item\b[^\n]*-Recurse/i,
-	/\bRemove-Item\s+(?![^\n]*-)[^\n]+/i,
+	// `Remove-Item -Force dist` hit nothing: the rule below requires a target with no dash in
+	// front of it, so any flag between the verb and the path hid the whole command (2026-11-26).
+	// Anchored to a statement start (or an inner quote) so a *mention* of the verb —
+	// `grep -r Remove-Item src`, `echo Remove-Item x` — is not read as a deletion.
+	/(?:^|[;&|"'(]\s*)Remove-Item\b(?:\s+-[A-Za-z]+)*\s+[^\s-][^\n]*/i,
+	// Statement start only: `grep -r Remove-Item src` mentions the verb, it does not delete
+	// anything, and this project greps its own rule table all day (2026-11-26).
+	/(?:^|[;&|"'(]\s*)Remove-Item\s+(?![^\n]*-)[^\n]+/i,
 	/\bgit\s+clean\b[^\n]*\s-[a-z]*[xdf]/i,
 	/\bunlink\b/i,
 	/\bshred\b/i,
@@ -189,6 +196,137 @@ function matchesExempt(text, exempt) {
 }
 
 /**
+ * The one relaxation of the delete rule, stated as a single boundary:
+ *
+ *   A deletion stops being L0 only when it removes exactly ONE plain file — no recursive
+ *   flag, no wildcard, no directory, no `..`, no shell substitution, and one deletion in the
+ *   whole command line. Anything else stays L0 and goes straight to a human.
+ *
+ * Why that is the line: the shapes kept out are exactly the ones where "how much will this
+ * take" cannot be answered by reading the command line. One named file can be read off the
+ * line, so the reviewer can judge it; `rm -rf build/*` cannot, so a human does.
+ *
+ * When the same command line also wrote that file (`echo x > p.mjs; rm -f p.mjs`), the row is
+ * marked as scratch: same relaxation, different evidence, and the panel can say so.
+ *
+ * What a relaxed delete keeps: risk stays **high**, the row still reaches the reviewer, and
+ * the ledger records `deleteRelaxed`. What it loses: memory and the file switch — so a delete
+ * can be approved and can never be learned into an auto-pass (2026-11-26).
+ */
+const DELETE_VERBS = new Set(['rm', 'del', 'erase', 'unlink', 'rmdir', 'remove-item', 'ri']);
+// The verbs this relaxation may cover. `rmdir` obviously not; `Remove-Item` neither, because
+// without `-Recurse` it still removes an *empty directory*, and "is this a file or a folder"
+// cannot be read off the command line. `rm`/`del`/`erase`/`unlink` refuse a directory outright.
+const FILE_ONLY_VERBS = new Set(['rm', 'unlink']);
+// A wildcard, a brace, or a shell substitution: all shapes whose target is computed at run
+// time, so "which single file is this" is not answerable by reading the line.
+const GLOB_SHAPE = /[*?\[\]{}]/;
+const COMPUTED_SHAPE = /[$`!]/;
+
+/** Split a command line into the statements a shell would run, in order. */
+function statementsOf(command) {
+	return String(command)
+		.split(/\n|;|&&|\|\||\||\r/)
+		.map((part) => part.trim())
+		.filter((part) => part !== '');
+}
+
+/** The bare words of one statement, quotes stripped. */
+function wordsOf(statement) {
+	return statement.split(/\s+/).map((word) => word.replace(/^["']|["']$/g, '')).filter((word) => word !== '');
+}
+
+/** A flag that widens a delete: recursion, subdirectories, or a forced tree walk. */
+function wideFlag(word) {
+	const flag = word.toLowerCase().replace(/^[-/]+/, '');
+	if (flag.indexOf('recurse') >= 0) return true;
+	if (flag === 's') return true;
+	return /r/.test(flag);
+}
+
+/** `> file` / `>> file` / `tee file`: the shapes that write a scratch file in the same line. */
+function writtenIn(statement) {
+	const out = [];
+	for (const hit of statement.match(/(?:^|[^>])>>?\s*([^\s|;&]+)/g) ?? []) {
+		const name = hit.replace(/^.*>>?\s*/, '').trim();
+		if (name !== '') out.push(name);
+	}
+	const words = wordsOf(statement);
+	const tee = words.indexOf('tee');
+	if (tee >= 0) for (const word of words.slice(tee + 1)) if (word.charAt(0) !== '-') out.push(word);
+	return out;
+}
+
+/** The one plain file a delete statement removes, or '' when the shape is wider than that. */
+function plainDeleteTarget(statement) {
+	const words = wordsOf(statement);
+	if (words.length === 0) return '';
+	const verb = words[0].toLowerCase();
+	if (DELETE_VERBS.has(verb) === false) return '';
+	if (FILE_ONLY_VERBS.has(verb) === false) return '';
+	const targets = [];
+	for (const word of words.slice(1)) {
+		if (word.charAt(0) === '-' || word.charAt(0) === '/') {
+			if (wideFlag(word) === true) return '';
+			continue;
+		}
+		targets.push(word);
+	}
+	if (targets.length !== 1) return '';
+	const target = targets[0];
+	if (GLOB_SHAPE.test(target) === true) return '';
+	if (COMPUTED_SHAPE.test(target) === true) return '';
+	if (target.indexOf('..') >= 0) return '';
+	if (target.endsWith('/') || target.endsWith('\\')) return '';
+	return target;
+}
+
+/** Does any word of this statement name a delete verb? (`echo rm -f x` does not count.) */
+function deletesAnything(statement) {
+	return wordsOf(statement).some((word) => DELETE_VERBS.has(word.toLowerCase()));
+}
+
+/**
+ * How far a deletion may be relaxed, or undefined to leave it as a hard risk.
+ *
+ *   'scratch' — the single target was written earlier in the same command line.
+ *   'single'  — one named plain file, written elsewhere (or not at all).
+ */
+function deleteRelaxation(command) {
+	const statements = statementsOf(command);
+	const written = [];
+	let mode;
+	let deletes = 0;
+	for (const statement of statements) {
+		if (deletesAnything(statement) === true) {
+			deletes += 1;
+			// Two deletions are two decisions, and "each of them is one file" says nothing about
+			// the pair: `rm -f a; rm -f b` is exactly the shape a relaxed rule would be abused by.
+			if (deletes > 1) return undefined;
+			const target = plainDeleteTarget(statement);
+			if (target === '') return undefined;
+			const base = target.split(/[\\/]/).pop();
+			const mine = written.some((name) => name.split(/[\\/]/).pop() === base);
+			mode = mine === true ? 'scratch' : 'single';
+			continue;
+		}
+		for (const name of writtenIn(statement)) written.push(name);
+	}
+	return mode;
+}
+
+/** Does any hard-risk class other than `skip` match this text? */
+function otherClassMatches(skip, text, command, runsCommands) {
+	for (const entry of CLASSES) {
+		if (entry === skip) continue;
+		if (entry.shape === 'command' && runsCommands === false) continue;
+		for (const pattern of entry.patterns) {
+			if (pattern.test(text) || (command !== text && pattern.test(command))) return true;
+		}
+	}
+	return false;
+}
+/**
  * Match one approval against the hard-risk classes.
  * @returns {{rule:string,label:string}|undefined}
  */
@@ -204,6 +342,12 @@ export function hardRisk(toolName, argsText, options = {}) {
 		if (entry.shape === 'command' && runsCommands === false) continue;
 		for (const pattern of entry.patterns) {
 			if (pattern.test(text) || (command !== text && pattern.test(command))) {
+				// A deletion that also trips another class is not this shape: `rm -f ~/.ssh/id_rsa`
+				// reads as one plain file and is exactly the file a human must see.
+				if (entry.rule === 'delete' && otherClassMatches(entry, text, command, runsCommands) === false) {
+					const how = deleteRelaxation(command !== '' ? command : text);
+					if (how !== undefined) return { rule: entry.rule, label: entry.label, relaxed: how };
+				}
 				// A path the human put on the exempt list is still *reported* as a credential hit —
 				// it just stops deciding alone. The caller sends it to the reviewer with risk = high.
 				const lifted = entry.rule === 'credentials' && matchesExempt(text, exempt);
@@ -511,6 +655,12 @@ export function classify(toolName, argsText, options = {}) {
 			// The exempt hit only changes *who decides*; the risk level is the reviewer's call,
 			// and the row carries a `命中豁免` label so nobody has to guess why it got there.
 			return { tier: callTierOf(toolName, argsText, options.toolsPolicy), hardRiskExempt: hit, riskLevel: 'unknown' };
+		}
+		// A relaxed delete still reads as a deletion (risk stays high) and still reaches the
+		// reviewer; what it loses is memory and the file switch, so no number of approvals can
+		// turn a delete into an auto-pass. Reported, never absorbed (2026-11-26).
+		if (typeof hit.relaxed === 'string') {
+			return { tier: callTierOf(toolName, argsText, options.toolsPolicy), deleteRelaxed: { ...hit }, riskLevel: 'high' };
 		}
 		// Hard risk wins outright: no AI, no memory, no counting.
 		return { tier: 'human', hardRisk: hit, riskLevel: 'high' };

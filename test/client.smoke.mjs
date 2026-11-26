@@ -441,9 +441,38 @@ export const cases = [
 			const tp = function (k, p) { return p === undefined ? k : k + '|' + String(p.text) + '|' + String(p.n); };
 			const codeArgs = JSON.stringify({ code: 'const fs = await import("node:fs");\nconst link = "C:/x";' });
 			assertEqual(bag.valueOf({ argsText: codeArgs }, tp), 'row.bodyLine|const fs = await import("node:fs");|2', 'run_code 只给首行 + 行数');
+
 			assertEqual(bag.timelineTextOf(tp, { toolName: 'run_code', argsText: codeArgs }), 'row.bodyLine|const fs = await import("node:fs");|2', '时间线不再铺转义过的 JSON');
 			assertEqual(bag.valueOf({ argsText: '{"content":"line1\\nline2\\nline3"}' }, tp), 'row.bodyLine|line1|3');
 			assertEqual(bag.valueOf({ argsText: '{"query":"needle"}' }, tp), 'needle', '短标识符直接显示');
+			// 长命令折叠：三行以内不折，超过就折；单行超长也要折（它换行后同样占据多行视图）
+			assertEqual(bag.needsFold('a\nb\nc'), false, '三行不折');
+			assertEqual(bag.needsFold('a\nb\nc\nd'), true, '四行要折');
+			assertEqual(bag.needsFold('x'.repeat(241)), true, '单行超长也要折');
+			assertEqual(bag.needsFold(''), false, '空文本不折');
+			// 悬浮卡的锚点：量不到时不许丢上一次的测量。丢掉的后果是退回按视口算的 CSS，
+			// 左边栏一开就比对话列宽、压到侧栏上（#10）。
+			bag.store.hints = [];
+			const first = bag.adoptAnchor({ left: 280, width: 1000, top: 76 });
+			assertEqual(first.width, 1000, '第一次测量直接采用');
+			assertEqual(bag.adoptAnchor(null).width, 1000, '量不到时保留上一次');
+			assertEqual(bag.adoptAnchor(undefined).width, 1000, '未定义同样保留');
+			assertEqual(bag.adoptAnchor({ left: 300, width: 700, top: 76 }).width, 700, '真变了就换');
+			// A body that opens with a blank line or a brace used to reduce to an empty first line:
+			// the timeline read `· 19 行` and looked like a rule that hides the code (2026-11-26).
+			const blankFirst = JSON.stringify({ code: "\n\nconst x = 1;\nconst y = 2;" });
+			assertEqual(bag.valueOf({ argsText: blankFirst }, tp), 'row.bodyLine|const x = 1;|4', '首行空时取第一条非空行');
+			const braceFirst = JSON.stringify({ code: "{\n  return 1;\n}" });
+			assertEqual(bag.valueOf({ argsText: braceFirst }, tp), 'row.bodyLine|return 1;|3', '纯花括号不算内容');
+		// A card's lifetime is a field on the card, not a timer armed next to it: the ring and the
+		// removal then read the same deadline, and a throttled timer can no longer leave a drained
+		// ring over a card that is still on screen (2026-11-26).
+		const now = Date.now();
+		assertEqual(bag.hintExpired({ kind: 'ai', ts: now, expiresAt: now + 30000 }, now), false, '未到期');
+		assertEqual(bag.hintExpired({ kind: 'ai', ts: now, expiresAt: now + 30000 }, now + 30001), true, '到期即过期');
+		assertEqual(bag.hintExpired({ kind: 'ai', ts: now }, now + 30001), true, '没有字段也能从 ts + ttl 算出来');
+		assertEqual(bag.hintExpired({ kind: 'pending', ts: now }, now + 3600000), false, '没有期限的卡永不过期');
+
 			assertEqual(bag.valueOf({ argsText: '{"foo":1,"bar":"x"}' }, tp), 'foo: 1 · bar: x', '认不出的参数降级，不铺 JSON');
 			assertTrue(bag.valueOf({ argsText: '{"foo":1,"bar":"x"}' }, tp).indexOf('{"') < 0, '正文里不再出现 JSON 花括号');
 			// 复制给"能粘贴的东西"：正文型给正文本身（理由/描述留在台账里），记账型给完整原始参数

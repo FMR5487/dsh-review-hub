@@ -168,12 +168,17 @@ window.__ModuleLoader__.load({
       'setting.secData': '数据',
       'list.divider': '以上为新增审批',
       'row.showReason': '展开详情',
+      'row.foldMore': '展开全文',
+      'row.foldLess': '收起全文',
       'row.hideReason': '收起详情',
       'row.aiReject': 'AI 打回理由',
       'row.aiAllow': 'AI 通过理由',
       'row.risk': '风险',
       'row.exempt': '命中豁免',
       'row.exemptNote': '这条调用命中了凭据类硬风险，但路径在你的豁免表里，所以交给 AI 判；风险等级按 AI 的判断记',
+      'row.deleteNote': '这是一条删除，只因为删的是「一个具名文件、不带递归和通配」才交给 AI 判；记忆和文件级自动放行都不适用',
+      'row.deleteScratch': '删除（本行自建）',
+      'row.deleteSingle': '删除（单个文件）',
       'risk.high': '高',
       'risk.medium': '中',
       'risk.low': '低',
@@ -500,12 +505,17 @@ window.__ModuleLoader__.load({
       'setting.secData': 'Data',
       'list.divider': 'New approvals above',
       'row.showReason': 'Show details',
+      'row.foldMore': 'Show full text',
+      'row.foldLess': 'Collapse text',
       'row.hideReason': 'Hide details',
       'row.aiReject': 'Reviewer reason',
       'row.aiAllow': 'Reviewer passed it',
       'row.risk': 'risk',
       'row.exempt': 'exempt',
       'row.exemptNote': 'This call hit a credential hard-risk rule, but the path is on your exempt list, so the reviewer judged it; the risk level is the reviewer\'s own',
+      'row.deleteNote': 'This is a deletion, and it reached the reviewer only because it removes one named file with no recursive flag and no wildcard; memory and file auto-pass never apply',
+      'row.deleteScratch': 'delete (created in this line)',
+      'row.deleteSingle': 'delete (single file)',
       'risk.high': 'high',
       'risk.medium': 'medium',
       'risk.low': 'low',
@@ -918,6 +928,48 @@ window.__ModuleLoader__.load({
       return 30000;
     }
 
+    /**
+     * When a card dies, derived from the card itself — never from a timer armed beside it.
+     *
+     * One `setTimeout` per card looked equivalent and was not: a hidden window throttles
+     * timers, so the ring finished draining while the card stayed on screen; and a card
+     * pushed again under the same id could be cut short by the *previous* card's timer.
+     * Both directions disappear once the deadline is a field and one ticker reads it
+     * (2026-11-25).
+     */
+    function expiresAtOf(hint) {
+      const own = Number(hint && hint.expiresAt) || 0;
+      if (own > 0) return own;
+      const ttl = Number(hint && hint.ttl) > 0 ? Number(hint.ttl) : hintMsOf(hint && hint.kind);
+      return ttl > 0 ? (Number(hint && hint.ts) || 0) + ttl : 0;
+    }
+
+    /** Expired by the clock alone: no render may draw a card whose ring has already run out. */
+    function hintExpired(hint, now) {
+      const deadline = expiresAtOf(hint);
+      return deadline > 0 && now >= deadline;
+    }
+
+    let hintTickTimer = null;
+    /** One ticker for every card that has a deadline; it stops itself when none is left. */
+    function ensureHintTicker() {
+      if (hintTickTimer !== null) return;
+      hintTickTimer = setInterval(function () {
+        const now = Date.now();
+        const list = store.hints || [];
+        const kept = list.filter(function (hint) { return hintExpired(hint, now) === false; });
+        if (kept.length !== list.length) {
+          store.hints = kept;
+          notify();
+        }
+        const anyTimed = kept.some(function (hint) { return expiresAtOf(hint) > 0; });
+        if (anyTimed === false) {
+          clearInterval(hintTickTimer);
+          hintTickTimer = null;
+        }
+      }, 1000);
+    }
+
     function storageGet(key) {
       try {
         const value = Number(window.localStorage.getItem(key));
@@ -1065,15 +1117,12 @@ window.__ModuleLoader__.load({
     }
 
     function pushHint(kind, entry) {
-      const hint = { id: 'h-' + entry.id, kind: kind, entry: entry, ts: Date.now() };
-      store.hints = store.hints.filter(function (item) { return item.id !== hint.id; }).concat([hint]);
-      notify();
       const ttl = hintMsOf(kind);
-      if (ttl <= 0) return;
-      setTimeout(function () {
-        store.hints = store.hints.filter(function (item) { return item.id !== hint.id; });
-        notify();
-      }, ttl);
+      const now = Date.now();
+      const hint = { id: 'h-' + entry.id, kind: kind, entry: entry, ts: now, expiresAt: ttl > 0 ? now + ttl : 0 };
+      store.hints = store.hints.filter(function (item) { return item.id !== hint.id; }).concat([hint]);
+      ensureHintTicker();
+      notify();
     }
 
     /** Per-tool counts for the whole ledger; the row icon is the only consumer. */
@@ -1665,6 +1714,35 @@ window.__ModuleLoader__.load({
      * escapes, no content. Now a body reads as its first line plus its size, and anything
      * unrecognised degrades to `key: value` pairs instead of a JSON dump.
      */
+    /**
+     * The first line worth reading: blank lines and bare braces are skipped, because a body
+     * that opens with `{` or a blank line says nothing about what the call does.
+     */
+    /** Lines a long command is allowed to take before it is folded away. */
+    const ARGS_FOLD_LINES = 3;
+
+    /**
+     * A command worth folding: more than a few lines, or one line long enough to wrap past
+     * them. Both bounds are needed — a single 400-character command wraps to more than three
+     * lines, and counting newlines alone would leave it unfolded (2026-11-26).
+     */
+    function needsFold(text) {
+      const value = String(text || '');
+      if (value === '') return false;
+      if (value.split('\n').length > ARGS_FOLD_LINES) return true;
+      return value.length > 240;
+    }
+
+    function firstLineOf(text) {
+      const lines = String(text).split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed === '' || trimmed === '{' || trimmed === '}') continue;
+        return trimmed;
+      }
+      return '';
+    }
+
     function valueOf(entry, t) {
       const raw = typeof entry.argsText === 'string' ? entry.argsText : '';
       const payload = argsOf(entry);
@@ -1672,11 +1750,14 @@ window.__ModuleLoader__.load({
       // command / path / target: the literal a human pastes, unchanged.
       const literal = commandOf(entry);
       if (literal !== raw) return literal;
-      // Bodies: the first line is the only part that tells you what the call does.
+      // Bodies: the first *substantive* line is the only part that tells you what the call
+      // does. It used to be literally the first line, and a `run_code` body almost always
+      // starts with a blank or an import block, so the timeline read `· 19 行` with nothing
+      // in front of it and looked like a rule that hides the code (2026-11-26).
       for (const key of BODY_KEYS) {
         const value = payload[key];
         if (typeof value !== 'string' || value.trim() === '') continue;
-        const first = value.split('\n')[0].trim();
+        const first = firstLineOf(value);
         return t('row.bodyLine', { n: lineCountOf(value), text: first.length > 80 ? first.slice(0, 80) + '…' : first });
       }
       // Short identifiers worth showing on their own.
@@ -1938,6 +2019,9 @@ window.__ModuleLoader__.load({
      */
     function describeDockAnchor(node) {
       if (node === null || node === undefined || typeof node.getBoundingClientRect !== 'function') return null;
+      // A hidden window defers layout, so the measurement is a zero rather than an answer.
+      if (typeof document !== 'undefined' && document.hidden === true) return null;
+      if (node.isConnected === false) return null;
       const rect = node.getBoundingClientRect();
       if (rect.width <= 0) return null;
       let top = 0;
@@ -1959,6 +2043,22 @@ window.__ModuleLoader__.load({
       return { left: rect.left, width: rect.width, top: top };
     }
 
+    /**
+     * Adopt a fresh measurement, or keep the last good one.
+     *
+     * "No measurement" is the one case that must never move the card: the old code cleared its
+     * inline geometry and let the stylesheet take over, and that rule is sized against the
+     * viewport, so with the sidebar open the card sat wider than the conversation and spilled
+     * onto the sidebar. A measurement that is absent (hidden window, unmounted dock, the very
+     * first frame) is not evidence that the column moved, so the previous value survives it
+     * (2026-11-26).
+     */
+    function adoptAnchor(anchor) {
+      if (anchor === null || anchor === undefined) return adviceOverlay.anchor;
+      adviceOverlay.anchor = anchor;
+      return anchor;
+    }
+
     function placeAdviceOverlay(anchor) {
       const node = adviceOverlay.node;
       if (node === null) return;
@@ -1969,6 +2069,8 @@ window.__ModuleLoader__.load({
         anchor = describeDockAnchor(document.querySelector('.ah-dock'));
       }
       if (anchor === null || anchor === undefined) {
+        // Never measured: the stylesheet rule is all there is. Kept as the *last* resort on
+        // purpose — clearing here used to be the path every lone card took.
         node.style.left = '';
         node.style.width = '';
         node.style.top = '';
@@ -2130,8 +2232,9 @@ window.__ModuleLoader__.load({
       if (typeof document === 'undefined' || document.body === null || document.body === undefined) return;
       // Keep the last real measurement: the settings page has no dock of its own, and the
       // preview there should still land on the conversation instead of the window centre.
-      if (anchor !== null && anchor !== undefined) adviceOverlay.anchor = anchor;
-      const placed = anchor === null || anchor === undefined ? adviceOverlay.anchor : anchor;
+      // A measurement is adopted only after it repeats (adoptAnchor), so one bad frame cannot
+      // move the card and the next good frame always can.
+      const placed = adoptAnchor(anchor);
       const session = store.sessionId;
       const row = floatCandidateOf(store.pending, session, adviceOverlay.dismissed);
       const wanted = row !== undefined && settings().composerHint !== false
@@ -2347,8 +2450,10 @@ window.__ModuleLoader__.load({
           question: question,
         },
         ts: now,
+        expiresAt: limit > 0 ? now + limit : 0,
       };
       store.hints = store.hints.filter(function (item) { return item.kind !== 'ask'; }).concat([hint]);
+      ensureHintTicker();
       notify();
     }
 
@@ -3138,6 +3243,12 @@ window.__ModuleLoader__.load({
       '.ah-line{display:flex;align-items:center;gap:6px;min-width:0}',
       '.ah-main .ah-args{flex:0 1 auto;min-width:0}',
       '.ah-args{flex:1 1 auto;min-width:0;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary,#b6bcc4);white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;}',
+      // Folded: exactly the three lines the toggle promises, cut with an ellipsis so the cut is
+      // visible instead of the text just stopping. -webkit-line-clamp is the one clamp that
+      // works over block content in every engine this panel runs in.
+      '.ah-args-fold{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
+      '.ah-fold-btn{align-self:flex-start;margin:0 0 2px;padding:0;border:0;background:none;cursor:pointer;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+      '.ah-fold-btn:hover{color:var(--dsw-alias-label-secondary,#b6bcc4);text-decoration:underline}',
       '.ah-line{min-width:0}',
       '.ah-chip{background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.16))}',
       '.ah-empty{padding:24px 16px;text-align:center;font-size:12px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
@@ -3273,6 +3384,49 @@ window.__ModuleLoader__.load({
       // when this seat goes away.
       React.useEffect(function () {
         return function () { removeAdviceOverlay(); };
+      }, []);
+
+      // Where the card gets re-measured.
+      //
+      // Only a *content* change used to re-place it, so a card that had been measured while
+      // the window was in the background kept the wrong geometry until something else
+      // happened (2026-11-26). These are the moments the column actually moves: the window
+      // resizes, the sidebar opens (the dock's own box changes size), and the page becomes
+      // visible again — the last one measured over a few frames, because layout is not final
+      // on the first frame after a background tab comes back.
+      React.useEffect(function () {
+        if (typeof document === 'undefined') return undefined;
+        let frames = [];
+        const remeasure = function () {
+          placeAdviceOverlay(adoptAnchor(describeDockAnchor(dockRef.current)));
+        };
+        const afterVisible = function () {
+          for (const frame of frames) cancelAnimationFrame(frame);
+          frames = [0, 1, 2].map(function (step) {
+            return requestAnimationFrame(function () { if (step >= 0) remeasure(); });
+          });
+        };
+        const onResize = function () { remeasure(); };
+        const onVisibility = function () {
+          if (document.hidden === true) return;
+          afterVisible();
+        };
+        const view = typeof window === 'undefined' ? null : window;
+        if (view !== null && typeof view.addEventListener === 'function') view.addEventListener('resize', onResize);
+        document.addEventListener('visibilitychange', onVisibility);
+        // The dock's box changes when the sidebar opens without any window resize at all.
+        let observer = null;
+        const host = dockRef.current;
+        if (host !== null && host !== undefined && typeof ResizeObserver !== 'undefined') {
+          observer = new ResizeObserver(function () { remeasure(); });
+          observer.observe(host);
+        }
+        return function () {
+          for (const frame of frames) cancelAnimationFrame(frame);
+          if (view !== null && typeof view.removeEventListener === 'function') view.removeEventListener('resize', onResize);
+          document.removeEventListener('visibilitychange', onVisibility);
+          if (observer !== null) observer.disconnect();
+        };
       }, []);
 
       React.useEffect(function () {
@@ -3696,6 +3850,9 @@ window.__ModuleLoader__.load({
         }
       }
       for (const hint of view.hints) {
+        // A card whose ring has run out is gone, whether or not the ticker has caught up: the
+        // ring is a promise, and a fully drained ring over a card still on screen breaks it.
+        if (hintExpired(hint, Date.now())) continue;
         const entry = hint.entry;
         // A question is the mirror image of every other card: when it comes from *this* session
         // the question is already on screen behind the composer, so a card repeating it is
@@ -3788,9 +3945,15 @@ window.__ModuleLoader__.load({
         }));
       }
 
-      if (cards.length === 0) return null;
-      // No approval card on screen: fall back to the stylesheet's composer-width rule.
-      return h('div', { className: 'ah-dock', ref: dockRef }, cards);
+      // Mounted even with nothing to show: this element is also the ruler the floating card
+      // measures the conversation column with. Returning null here meant "no dock cards" also
+      // meant "no anchor", so a lone floating card fell back to the stylesheet's viewport rule
+      // and spilled over the sidebar (2026-11-26).
+      return h('div', {
+        className: 'ah-dock',
+        ref: dockRef,
+        style: cards.length === 0 ? { padding: 0 } : undefined,
+      }, cards);
     }
 
     /**
@@ -4284,6 +4447,9 @@ window.__ModuleLoader__.load({
         const stamp = stampOf(entry.ts);
         const reason = reasonBlockOf(entry);
         const reasonOpen = opts.isReasonOpen(entry.id);
+        const argsText = timelineTextOf(opts.t, entry);
+        const argFold = needsFold(argsText);
+        const argOpen = typeof opts.isArgsOpen === 'function' ? opts.isArgsOpen(entry.id) : false;
         const mark = entry.outcome === 'rejected' ? '×' : (entry.outcome === 'allowed-once' ? '✓' : '·');
         return h('div', { className: 'ah-row', key: entry.id },
           // Left rail: the decision mark plus a connector, so a dense list still reads
@@ -4321,12 +4487,23 @@ window.__ModuleLoader__.load({
               // Every line of the command is shown: an approval you cannot read is an
               // approval you are rubber-stamping.
               h('div', { className: 'ah-line' },
-                h('span', { className: 'ah-args' }, (function () {
-                  const text = timelineTextOf(opts.t, entry);
-                  return text === '' ? '—' : text;
-                })()),
+                h('span', {
+                  className: 'ah-args' + (argOpen === false && argFold === true ? ' ah-args-fold' : ''),
+                  key: 'args',
+                }, argsText === '' ? '—' : argsText),
                 deltaChip(rowDelta(entry), 'delta')
               ),
+              // The fold is a promise the row keeps: the full text is one click away and the
+              // button says which way the click goes. Folding without a control is how a long
+              // command became "an approval you cannot read" (2026-11-26).
+              argFold === true
+                ? h('button', {
+                  type: 'button',
+                  className: 'ah-fold-btn',
+                  key: 'fold',
+                  onClick: function () { opts.toggleArgs(entry.id); },
+                }, opts.t(argOpen === true ? 'row.foldLess' : 'row.foldMore'))
+                : null,
               // Description, then the change, then the one-click copy of the command.
               h('div', { className: 'ah-row-actions', key: 'actions' },
                 entry.hasSnapshot === true
@@ -4364,6 +4541,15 @@ window.__ModuleLoader__.load({
                       entry.hardRiskExempt === undefined
                         ? null
                         : h('span', { className: 'ah-risk ah-risk-exempt', key: 'exempt', title: opts.t('row.exemptNote') }, opts.t('row.exempt')),
+                      // The same honesty for the one relaxed delete shape: a row that says
+                      // "high risk" while the AI judged it needs to say why it was reviewable.
+                      typeof entry.deleteRelaxed !== 'string'
+                        ? null
+                        : h('span', {
+                          className: 'ah-risk ah-risk-exempt',
+                          key: 'relaxed',
+                          title: opts.t('row.deleteNote'),
+                        }, opts.t(entry.deleteRelaxed === 'scratch' ? 'row.deleteScratch' : 'row.deleteSingle')),
                       // Next to the risk level, not on a line of its own: both answer "how much
                       // did this verdict cost", and the label is shortened to one word.
                       Number.isFinite(Number(entry.aiMs))
@@ -4430,6 +4616,17 @@ window.__ModuleLoader__.load({
       const autoExpand = view.config !== null && view.config.autoExpandDescription === true;
       const isReasonOpen = function (id) {
         return openRows[id] === true || (autoExpand === true && openRows[id] !== false);
+      };
+      // Which rows have their long command unfolded. Same reason as the description: stream
+      // frames re-render the page, so it has to be component state.
+      const argState = React.useState({});
+      const argRows = argState[0];
+      const setArgRows = argState[1];
+      const isArgsOpen = function (id) { return argRows[id] === true; };
+      const toggleArgs = function (id) {
+        const next = Object.assign({}, argRows);
+        next[id] = argRows[id] !== true;
+        setArgRows(next);
       };
       const toggleReason = function (id) {
         const next = Object.assign({}, openRows);
@@ -4598,6 +4795,8 @@ window.__ModuleLoader__.load({
         view: view,
         copiedId: copiedId,
         isReasonOpen: isReasonOpen,
+        isArgsOpen: isArgsOpen,
+        toggleArgs: toggleArgs,
         openDiff: openDiff,
         copyRow: copyRow,
         toggleReason: toggleReason,
@@ -6280,6 +6479,10 @@ window.__ModuleLoader__.load({
         unreadCount: unreadCount,
         dividerAt: dividerAt,
         hintMsOf: hintMsOf,
+        hintExpired: hintExpired,
+        needsFold: needsFold,
+        adoptAnchor: adoptAnchor,
+        expiresAtOf: expiresAtOf,
         cardNode: cardNode,
         countdownRing: countdownRing,
         cardChipClass: cardChipClass,
