@@ -326,6 +326,20 @@ window.__ModuleLoader__.load({
       'preview.fakeHintSub': '记忆通过 · 已记忆 19 条',
       'row.bodyLine': '{text} · {n} 行',
       'row.aiSkipLabel': '未送 AI：',
+      'row.aiFailedLabel': 'AI 没给出判决：',
+      'row.aiUnparsed': '模型回的不是判决（既不是 allow 也不是 ask），这一行按「问人」处理',
+      'row.aiBreaker': '这个会话的连续失败已让评审器熔断，冷却期内不再调用',
+      'row.aiTimeout': '评审超时（{ms} 毫秒），按「问人」处理',
+      'row.aiFailed': '评审调用失败：{why}',
+      'row.aiBudget': '本轮评审预算已用完',
+      'row.aiOff': '这个会话的 AI 评审是关的',
+      'row.aiNoService': '没有可用的模型服务',
+      'row.aiRetry': '重试评审',
+      'row.aiEndedError': '模型这次调用以错误结束，没走完就没给出判决',
+      'row.aiEndedTokens': '模型的回复被输出上限截断，判决没写完',
+      'row.aiEndedAborted': '这次评审被中止（通常是你先一步做了决定）',
+      'row.aiEndedFiltered': '模型的回复被内容过滤拦下，没有判决',
+      'row.aiEndedOther': '模型的回复以「{why}」结束，没有判决',
       'preview.floatReason': '预览：一条样例命令的理由',
       'preview.floatAdvice': '预览：命令只读、范围明确，但这条操作还没在记忆里',
       'dock.pendingReviewing': 'AI 正在审阅… 已 {sec}s  {spin}',
@@ -663,6 +677,20 @@ window.__ModuleLoader__.load({
       'preview.fakeHintSub': 'memory passed · 19 memorized',
       'row.bodyLine': '{text} · {n} lines',
       'row.aiSkipLabel': 'not reviewed:',
+      'row.aiFailedLabel': 'AI gave no verdict:',
+      'row.aiUnparsed': 'the model replied with something that is not a verdict (neither allow nor ask); this row was treated as a question for a human',
+      'row.aiBreaker': 'repeated failures in this session opened the reviewer circuit; no calls are made until it cools down',
+      'row.aiTimeout': 'the review timed out ({ms} ms) and was treated as a question for a human',
+      'row.aiFailed': 'the review call failed: {why}',
+      'row.aiBudget': 'this turn\'s review budget is spent',
+      'row.aiOff': 'AI review is off for this session',
+      'row.aiNoService': 'no model service is available',
+      'row.aiRetry': 'retry the review',
+      'row.aiEndedError': 'the model\'s call ended with an error before it produced a verdict',
+      'row.aiEndedTokens': 'the model\'s reply hit the output limit and the verdict was cut off',
+      'row.aiEndedAborted': 'this review was aborted (usually because you decided first)',
+      'row.aiEndedFiltered': 'the model\'s reply was stopped by a content filter and carried no verdict',
+      'row.aiEndedOther': 'the model\'s reply ended with \'{why}\' and carried no verdict',
       'preview.floatReason': 'Preview: the reason typed for a sample command',
       'preview.floatAdvice': 'Preview: read-only command, scoped, but this operation is not in memory yet',
       'dock.pendingReviewing': 'the reviewer is thinking… {sec}s  {spin}',
@@ -1522,6 +1550,41 @@ window.__ModuleLoader__.load({
       return '';
     }
 
+    /**
+     * What the reviewer did instead of answering, in one sentence.
+     *
+     * `aiError` has been written to the ledger since the reviewer existed and never displayed:
+     * an unparsable reply, an open circuit or a timeout all looked identical on screen — like no
+     * review at all. The message is already user-shaped ('reviewer reply was not a verdict'), so
+     * it is translated by lookup rather than rewritten.
+     */
+    function reviewFailureOf(entry, t) {
+      if (entry === null || entry === undefined) return '';
+      const raw = typeof entry.aiError === 'string' ? entry.aiError.trim() : '';
+      // A row the reviewer never saw has `aiSkip` instead, which has its own label.
+      if (raw === '' || typeof entry.aiSkip === 'string') return '';
+      const known = {
+        'reviewer reply was not a verdict': 'row.aiUnparsed',
+        'reviewer circuit open': 'row.aiBreaker',
+        'ai disabled': 'row.aiOff',
+        'no llm service': 'row.aiNoService',
+      };
+      const key = known[raw];
+      if (key !== undefined) return t(key);
+      if (raw.startsWith('reviewer timed out')) return t('row.aiTimeout', { ms: raw.replace(/[^0-9]/g, '') });
+      if (raw.startsWith('reviewer failed:')) return t('row.aiFailed', { why: raw.slice(17).trim() });
+      if (raw.startsWith('per-turn review budget')) return t('row.aiBudget');
+      // The shapes the ledger actually contains. Five of them, counted across every session:
+      // 'ended with error' (6), 'circuit open' (6), 'not a verdict' (5), 'max-tokens' (2),
+      // 'aborted' (2). Mapping only two of the five left the rest printing raw English.
+      if (raw === 'reviewer ended with error') return t('row.aiEndedError');
+      if (raw === 'reviewer ended with max-tokens') return t('row.aiEndedTokens');
+      if (raw === 'reviewer ended with aborted') return t('row.aiEndedAborted');
+      if (raw === 'reviewer ended with content-filter') return t('row.aiEndedFiltered');
+      if (raw.startsWith('reviewer ended with ')) return t('row.aiEndedOther', { why: raw.slice(20).trim() });
+      return raw;
+    }
+
     function reasonBlockOf(entry) {
       const own = isDescription(entry.reason) ? entry.reason : '';
       const ai = isDescription(entry.aiReason) ? entry.aiReason : '';
@@ -1722,15 +1785,52 @@ window.__ModuleLoader__.load({
     const ARGS_FOLD_LINES = 3;
 
     /**
-     * A command worth folding: more than a few lines, or one line long enough to wrap past
-     * them. Both bounds are needed — a single 400-character command wraps to more than three
-     * lines, and counting newlines alone would leave it unfolded (2026-11-26).
+     * A command worth folding: it has to occupy more lines than the allowance.
+     *
+     * This used to be a guess — more than three newlines, or more than 240 characters. Both
+     * halves were wrong: the character rule fired on a single 382-char curl line that then
+     * wrapped to exactly three rows with nothing cut, so the row offered a "show full text"
+     * button over text that was already complete; and the line rule fired on a four-line
+     * command so short that four rows still left no cut visible (2026-11-28).
+     *
+     * What decides it is now the only thing the human can see: does the rendered text exceed
+     * the clamp? Nothing else — a fold control over fully visible text is a lie about there
+     * being more.
      */
     function needsFold(text) {
       const value = String(text || '');
       if (value === '') return false;
-      if (value.split('\n').length > ARGS_FOLD_LINES) return true;
-      return value.length > 240;
+      // Exhaustive guess, then corrected by the measured overflow (see measureFold).
+      return value.split('\n').length > ARGS_FOLD_LINES || value.length > 240;
+    }
+
+    /**
+     * Does this rendered element actually overflow its clamp?
+     *
+     * `scrollHeight` counts the clamped-away rows too, so comparing it against `clientHeight`
+     * is the one check that answers "is there more text than you can see". Rows here are
+     * `-webkit-line-clamp:3`, so an element at exactly three rows reports equal values.
+     */
+    /**
+     * Hide the fold control on a row whose text fits after all.
+     *
+     * Called from the args element's ref, i.e. after it is in the document and laid out, which
+     * is the first moment the question can be answered. The row (not the element) carries the
+     * flag, because the button and the button-offset both live at row level; CSS keys off
+     * `.ah-row-nofold`. The exhaustive `needsFold` guess still decides what gets clamped at
+     * first paint, so a genuinely long command never flashes fully expanded.
+     */
+    function markFoldSeam(node) {
+      if (node === null || node === undefined || typeof node.closest !== 'function') return;
+      const row = node.closest('.ah-row');
+      if (row === null || row === undefined) return;
+      row.classList.toggle('ah-row-nofold', overflowsClamp(node) === false);
+    }
+
+    function overflowsClamp(node) {
+      if (node === null || node === undefined) return false;
+      if (typeof node.scrollHeight !== 'number' || typeof node.clientHeight !== 'number') return false;
+      return node.scrollHeight > node.clientHeight + 1;
     }
 
     function firstLineOf(text) {
@@ -3118,13 +3218,35 @@ window.__ModuleLoader__.load({
       '.ah-main{position:relative}',
       // Only the command line shares its row with the buttons; the first line owns the
       // full width, which is what lets the date sit on the right edge.
+      // Only the command line shares its row with the buttons; the first line owns the full
+      // width, which is what lets the date sit on the right edge.
+      // This was widened to every line for one round and pushed the date 78px left — the buttons
+      // had merely been raised into the content band, which is the real defect (2026-11-27).
       '.ah-main .ah-line + .ah-line{padding-right:78px}',
+      // The buttons hang off the command block itself: same bottom line as the code. This is the
+      // row's bottom edge (the row keeps 12px of padding below it), NOT the content band — raising
+      // them to `bottom:0` put them one line under the date and the two read as one crowded band
+      // (2026-11-27).
       '.ah-row-actions{position:absolute;right:0;bottom:-7px;display:flex;align-items:center;gap:2px}',
+      // A foldable row ends with the seam rather than with the command text, so the same -7px puts
+      // the buttons 10px BELOW that seam (measured: seam 498-514, buttons 500-524) and they read as
+      // hanging off the row. Centre them on the seam instead (2026-11-27).
+      '.ah-main-fold .ah-row-actions{bottom:-1px}',
+      // Measured as fitting: no clamp, no seam, no offset — the row is an ordinary row again.
+      '.ah-row-nofold .ah-args-fold{display:block;overflow:visible;-webkit-line-clamp:unset}',
+      '.ah-row-nofold .ah-fold-btn{display:none}',
+      '.ah-row-nofold .ah-main-fold .ah-row-actions{bottom:-7px}',
       '.ah-row-reason{margin-top:4px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.12));font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary,#b6bcc4);white-space:pre-wrap;overflow-wrap:anywhere}',
       // The reviewer's reason is its own paragraph: a hairline separates "what the caller
       // said" from "why the reviewer stopped it", so neither can be mistaken for the other.
       '.ah-row-reason-ai{margin-top:5px;padding-top:5px;border-top:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.22))}',
       '.ah-row-reason-head{display:flex;align-items:baseline;gap:6px}',
+      // Same-size text makes centre and baseline identical, so this only moves the lone icon.
+      // A failure head is one label plus one icon: give the icon its own small offset so it reads as
+      // a button rather than as part of the label's punctuation, and lift it to the text's optical
+      // centre (measured: label centre 227.5, icon centre 227.0 before the nudge).
+      '.ah-row-reason-ai-fail .ah-row-reason-head{align-items:center;gap:7px}',
+      '.ah-row-reason-ai-fail .ah-prompt-btn{margin:-1px 0 0;padding:0 2px}',
       // Baseline-aligned with the label and inheriting its size: the smaller font sat
       // its glyphs a pixel off the label it belongs to.
       '.ah-risk{font-size:inherit;line-height:inherit;white-space:nowrap}',
@@ -3202,6 +3324,10 @@ window.__ModuleLoader__.load({
       '.ah-ai-pick.ah-ai-on{color:var(--ah-ai-fg,#2fa84f)}',
       '.ah-ai-pick.ah-ai-dim{opacity:.4;color:var(--dsw-alias-label-tertiary,#9aa0a6);cursor:not-allowed;background:transparent}',
       '.ah-row-reason-ai-solo{margin-top:0;padding-top:0;border-top:0}',
+      // A failed review is not an error of the *approval*: the row was still decided. Muted text
+      // with a warning dot says "something was missing" without shouting at the human.
+      '.ah-row-reason-fail{margin-top:4px;font-size:11.5px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+      '.ah-row-reason-fail::before{content:\'⚠ \';color:var(--ah-human-fg,#f7ad31)}',
       '.ah-row-reason-label{color:var(--dsw-alias-label-primary,#fff)}',
       '.ah-row-model{flex:0 1 auto;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
       // "AI 打回" is a property of the row, not of the AI lane: the chip already carries the
@@ -3247,8 +3373,21 @@ window.__ModuleLoader__.load({
       // visible instead of the text just stopping. -webkit-line-clamp is the one clamp that
       // works over block content in every engine this panel runs in.
       '.ah-args-fold{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
-      '.ah-fold-btn{align-self:flex-start;margin:0 0 2px;padding:0;border:0;background:none;cursor:pointer;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
-      '.ah-fold-btn:hover{color:var(--dsw-alias-label-secondary,#b6bcc4);text-decoration:underline}',
+      // A seam, not a link: two hairlines grow out of the label to fill the row, so the control
+      // spans the text it belongs to and cannot be mistaken for a stray link in the corner.
+      // The right rule stops short of the row's action buttons: they hang at the row's bottom-right
+      // corner, and a hairline drawn under them reads as a strike-through on the icons
+      // (measured: rule ended at 1269, buttons occupied 1218-1268).
+      '.ah-fold-btn{display:flex;align-items:center;gap:8px;align-self:stretch;width:100%;box-sizing:border-box;margin:1px 0 3px;padding:0 78px 0 0;border:0;background:none;cursor:pointer;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
+      // A single hairline reads as the bottom border of the block above it — which is why the seam
+      // looked like it had white space hanging under it. Two hairlines read as a seam *between* two
+      // blocks, which is the meaning here: the text continues below (2026-11-28).
+      // The rules keep one brightness in every state. The button's own colour carries the
+      // "this is clickable" signal (hover lifts the label), and a hovering rule read as a
+      // highlight sweeping across the row rather than as part of the seam (2026-11-28).
+      '.ah-fold-rule{flex:1 1 auto;height:5px;border-top:1px solid currentColor;border-bottom:1px solid currentColor;opacity:.42}',
+      '.ah-fold-label{flex:none;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}',
+      '.ah-fold-btn:hover{color:var(--dsw-alias-label-secondary,#b6bcc4)}',
       '.ah-line{min-width:0}',
       '.ah-chip{background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.16))}',
       '.ah-empty{padding:24px 16px;text-align:center;font-size:12px;color:var(--dsw-alias-label-tertiary,#9aa0a6)}',
@@ -4446,6 +4585,7 @@ window.__ModuleLoader__.load({
         const laneTag = rowModelOf(entry);
         const stamp = stampOf(entry.ts);
         const reason = reasonBlockOf(entry);
+        const reviewFailure = reviewFailureOf(entry, opts.t);
         const reasonOpen = opts.isReasonOpen(entry.id);
         const argsText = timelineTextOf(opts.t, entry);
         const argFold = needsFold(argsText);
@@ -4461,7 +4601,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'ah-body' },
             // The two text lines and the actions share one box: the buttons hang off
             // the *command*, so opening the description below does not move them.
-            h('div', { className: 'ah-main', key: 'main' },
+            h('div', { className: 'ah-main' + (argFold === true ? ' ah-main-fold' : ''), key: 'main' },
               h('div', { className: 'ah-line' },
                 h('span', { className: 'ah-tool' }, String(entry.toolName || '—')),
                 h('span', { className: 'ah-chip ah-tone-' + chip.tone }, chipBody(chip, memory, opts.t)),
@@ -4490,6 +4630,8 @@ window.__ModuleLoader__.load({
                 h('span', {
                   className: 'ah-args' + (argOpen === false && argFold === true ? ' ah-args-fold' : ''),
                   key: 'args',
+                  // Measured, not guessed: this fires once the element is laid out.
+                  ref: argFold === true && argOpen === false ? markFoldSeam : undefined,
                 }, argsText === '' ? '—' : argsText),
                 deltaChip(rowDelta(entry), 'delta')
               ),
@@ -4501,8 +4643,19 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   className: 'ah-fold-btn',
                   key: 'fold',
+                  'aria-expanded': argOpen === true ? 'true' : 'false',
                   onClick: function () { opts.toggleArgs(entry.id); },
-                }, opts.t(argOpen === true ? 'row.foldLess' : 'row.foldMore'))
+                }, [
+                  // Rules on both sides, so the control reads as a seam in the row rather than a
+                  // stray link: the line says "there is more of this one thing below", which is
+                  // exactly what an expansion means. The chevron repeats it with direction.
+                  h('span', { className: 'ah-fold-rule', key: 'l', 'aria-hidden': 'true' }),
+                  h('span', { className: 'ah-fold-label', key: 't' }, [
+                    h('span', { key: 's' }, opts.t(argOpen === true ? 'row.foldLess' : 'row.foldMore')),
+                    icon(argOpen === true ? 'chevronUp' : 'chevronDown', 12),
+                  ]),
+                  h('span', { className: 'ah-fold-rule', key: 'r', 'aria-hidden': 'true' }),
+                ])
                 : null,
               // Description, then the change, then the one-click copy of the command.
               h('div', { className: 'ah-row-actions', key: 'actions' },
@@ -4511,7 +4664,7 @@ window.__ModuleLoader__.load({
                   : null,
                 // Unknown tool: one click puts it on the reviewer's list, permanently.
                 aiPickerNode(opts.t, aiPickerOf(entry)),
-                reason.own === '' && reason.ai === ''
+                reason.own === '' && reason.ai === '' && reviewFailure === ''
                   ? null
                   : iconButton(
                     reasonOpen ? 'chevronUp' : 'chevronDown',
@@ -4526,14 +4679,23 @@ window.__ModuleLoader__.load({
                 )
               )
             ),
-            reasonOpen && (reason.own !== '' || reason.ai !== '')
-              ? h('div', { className: 'ah-row-reason', key: 'reason' },
+            // A failed review is a fact about the approval and must be visible: the row used to
+            // render its header (label, risk, model, time) only when the reviewer had *said*
+            // something, so an unparsable reply or an open circuit left an empty panel while the
+            // ledger held `aiError` the whole time (2026-11-27).
+            reasonOpen && (reason.own !== '' || reason.ai !== '' || reviewFailure !== '')
+              ? h('div', { className: 'ah-row-reason', key: 'reason' }, [
                 reason.own === '' ? null : h('div', { className: 'ah-row-reason-own', key: 'own' }, reason.own),
-                reason.ai === ''
+                reason.ai === '' && reviewFailure === ''
                   ? null
-                  : h('div', { className: 'ah-row-reason-ai' + (reason.own === '' ? ' ah-row-reason-ai-solo' : ''), key: 'ai' },
+                  : h('div', {
+                    // A failure head carries a label and a lone icon; baseline alignment (right for
+                    // the risk/ms chips) leaves that icon riding low, so it gets its own alignment.
+                    className: 'ah-row-reason-ai' + (reason.own === '' ? ' ah-row-reason-ai-solo' : '') + (reason.ai === '' ? ' ah-row-reason-ai-fail' : ''),
+                    key: 'ai',
+                  },
                     h('div', { className: 'ah-row-reason-head', key: 'head' },
-                      h('span', { className: 'ah-row-reason-label', key: 'label' }, opts.t(reason.label)),
+                      h('span', { className: 'ah-row-reason-label', key: 'label' }, opts.t(reason.ai === '' ? 'row.aiFailedLabel' : reason.label)),
                       reason.risk === ''
                         ? null
                         : h('span', { className: 'ah-risk ah-risk-' + reason.risk, key: 'risk' }, opts.t('row.risk') + ' · ' + riskLabel(reason.risk, opts.t)),
@@ -4567,7 +4729,13 @@ window.__ModuleLoader__.load({
                           onClick: function () { openPrompt(entry); },
                         }, icon('prompt', 14))
                         : null),
-                    h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai)))
+                    h('div', { className: 'ah-row-reason-text', key: 'text' }, reason.ai === '' ? reviewFailure : reason.ai)),
+                // The icon answers "why did it decide that"; a failure answers "why is there no
+                // decision", and it is a different sentence, so it gets its own line.
+                reviewFailure !== '' && reason.ai !== ''
+                  ? h('div', { className: 'ah-row-reason-fail', key: 'fail' }, reviewFailure)
+                  : null,
+              ])
               : null,
             opts.view.diff !== null && opts.view.diff.callId === entry.callId && opts.view.diff.inline === true ? renderDiff(opts.t, opts.view) : null,
           ),
@@ -6480,7 +6648,9 @@ window.__ModuleLoader__.load({
         dividerAt: dividerAt,
         hintMsOf: hintMsOf,
         hintExpired: hintExpired,
+        reviewFailureOf: reviewFailureOf,
         needsFold: needsFold,
+        overflowsClamp: overflowsClamp,
         adoptAnchor: adoptAnchor,
         expiresAtOf: expiresAtOf,
         cardNode: cardNode,

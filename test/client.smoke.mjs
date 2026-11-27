@@ -405,6 +405,32 @@ export const cases = [
 			const rowNode = bag.approvalRowNode({ id: 'r1', ts: 1700000000000, toolName: 'pwsh', decidedBy: 'human', outcome: 'allowed-once', aiSource: 'ai', reason: 'escalate', aiReason: 'needs a human', riskLevel: 'medium', memoryCount: 2, fpMode: 'normalized', droppedKeys: ['limit'] }, rowOpts);
 			assertEqual(rowNode.props.className, 'ah-row');
 			assertTrue(bag.approvalRowNode({ id: 'r2', ts: 1, toolName: 'ops_bash', decidedBy: 'memory', outcome: 'allowed-once', memoryCount: 3 }, rowOpts).props.className === 'ah-row', '记忆行同样能独立渲染');
+			/** Depth-first search for a node whose className contains `needle`. */
+			const findClass = function findClass(node, needle) {
+				if (node === null || node === undefined || typeof node !== 'object') return null;
+				const cls = node.props && typeof node.props.className === 'string' ? node.props.className : '';
+				if (cls.split(/\s+/).includes(needle)) return node;
+				const kids = node.props ? node.props.children : undefined;
+				const list = Array.isArray(kids) ? kids : (kids === undefined || kids === null ? [] : [kids]);
+				for (const kid of list) {
+					const hit = findClass(kid, needle);
+					if (hit !== null) return hit;
+				}
+				return null;
+			};
+
+			// 失败行的详情：头部必须出现，且带一个失败专属的类名（图标单独居中）以及一行失败说明。
+			// 这几条防的是「有 aiError 却什么都不显示」——它曾经因为 reason.ai 是空串而整块不渲染。
+			const failedRow = { id: 'f1', ts: 1700000000000, toolName: 'plugin_manager', decidedBy: 'human', outcome: 'allowed-once', aiSource: 'unparsed', aiError: 'reviewer reply was not a verdict', reason: 'plugin_manager {"action":"list_plugins"}', argsText: '{"action":"list_plugins"}' };
+			const openOpts = Object.assign({}, rowOpts, { isReasonOpen: function () { return true; } });
+			const failedNode = bag.approvalRowNode(failedRow, openOpts);
+			assertTrue(findClass(failedNode, 'ah-row-reason-head') !== null, '失败行必须画出详情头部');
+			assertTrue(findClass(failedNode, 'ah-row-reason-ai-fail') !== null, '失败行的头部要带专属对齐类');
+			const failText = bag.reviewFailureOf(failedRow, rowOpts.t);
+			assertEqual(failText, 'row.aiUnparsed', '失败原因走中文键');
+			// 正常行不能带上那个类：它有风险/用时等文字做邻居，基线对齐才是对的。
+			const normalNode = bag.approvalRowNode({ id: 'n1', ts: 1700000000000, toolName: 'pwsh', decidedBy: 'ai', outcome: 'allowed-once', aiSource: 'ai', aiReason: 'fine', reason: 'escalate' }, openOpts);
+			assertTrue(findClass(normalNode, 'ah-row-reason-ai-fail') === null, '正常行不该用失败行的对齐');
 			// 记忆页分桶：文件是共同主体；没有文件就按指纹各算各的（否则两条无关命令会被加在一起）
 			assertEqual(bag.memoryBucketId('pwsh', '', 'aaa'), bag.memoryBucketId('pwsh', '', 'aaa'));
 			assertTrue(bag.memoryBucketId('pwsh', '', 'aaa') !== bag.memoryBucketId('pwsh', '', 'bbb'), '同工具不同指纹不能并成一桶');
@@ -450,6 +476,31 @@ export const cases = [
 			assertEqual(bag.needsFold('a\nb\nc\nd'), true, '四行要折');
 			assertEqual(bag.needsFold('x'.repeat(241)), true, '单行超长也要折');
 			assertEqual(bag.needsFold(''), false, '空文本不折');
+			// 折叠按钮只在「真的被截断」时出现。判据是量出来的溢出，不是字符数：
+			// 一条 382 字符的 curl 命令换行后正好三行、一个字都没截，却因为 >240 被判要折。
+			const el = function (scroll, client) { return { scrollHeight: scroll, clientHeight: client }; };
+			assertEqual(bag.overflowsClamp(el(60, 51)), true, '三行之外还有内容');
+			assertEqual(bag.overflowsClamp(el(51, 51)), false, '正好三行不算溢出');
+			assertEqual(bag.overflowsClamp(el(50, 51)), false, '更矮也不算');
+			assertEqual(bag.overflowsClamp(null), false, '没节点不抛');
+			assertEqual(bag.overflowsClamp({}), false, '量不了就当没溢出');
+			// 台账里一直有 aiError，但面板从来不显示：失败的评审看起来和「没有评审」一模一样。
+			// 这几条用的是台账里的真实原文（session-a13d41cd 的 7 行失败记录）。
+			const te = function (k, p) { return p === undefined ? k : k + ':' + Object.values(p).join(','); };
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer reply was not a verdict' }, te), 'row.aiUnparsed', '非判决回包');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer circuit open' }, te), 'row.aiBreaker', '熔断');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer timed out after 16000ms' }, te), 'row.aiTimeout:16000', '超时带毫秒');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer failed: boom' }, te), 'row.aiFailed:boom', '其它失败原样带出');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer circuit open', aiSkip: 'hard-risk:delete' }, te), '', '没送 AI 的行不算失败');
+			// 全台账里只有这五种形状（按出现次数）：ended with error 6、circuit open 6、
+			// not a verdict 5、max-tokens 2、aborted 2。每一种都要有中文说法。
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer ended with error' }, te), 'row.aiEndedError', '以错误结束');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer ended with max-tokens' }, te), 'row.aiEndedTokens', '被截断');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer ended with aborted' }, te), 'row.aiEndedAborted', '被中止');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer ended with content-filter' }, te), 'row.aiEndedFiltered', '被内容过滤');
+			assertEqual(bag.reviewFailureOf({ aiError: 'reviewer ended with weird' }, te), 'row.aiEndedOther:weird', '认不出的结束原因带出原文');
+			assertEqual(bag.reviewFailureOf({}, te), '', '没错误就没有这一行');
+			assertEqual(bag.reviewFailureOf(null, te), '', '空行不抛');
 			// 悬浮卡的锚点：量不到时不许丢上一次的测量。丢掉的后果是退回按视口算的 CSS，
 			// 左边栏一开就比对话列宽、压到侧栏上（#10）。
 			bag.store.hints = [];
