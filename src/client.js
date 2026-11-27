@@ -3231,6 +3231,11 @@ window.__ModuleLoader__.load({
       // A foldable row ends with the seam rather than with the command text, so the same -7px puts
       // the buttons 10px BELOW that seam (measured: seam 498-514, buttons 500-524) and they read as
       // hanging off the row. Centre them on the seam instead (2026-11-27).
+      // A foldable row already ends with a seam, so it does not need the full 12px of block
+      // padding as well: the line ends the block, and 12px under a line reads as a gap, not as
+      // spacing. 6px keeps the rows from touching while removing the "hanging white"
+      // (2026-11-28).
+      '.ah-row-fold{padding-bottom:6px}',
       '.ah-main-fold .ah-row-actions{bottom:-1px}',
       // Measured as fitting: no clamp, no seam, no offset — the row is an ordinary row again.
       '.ah-row-nofold .ah-args-fold{display:block;overflow:visible;-webkit-line-clamp:unset}',
@@ -3385,7 +3390,10 @@ window.__ModuleLoader__.load({
       // The rules keep one brightness in every state. The button's own colour carries the
       // "this is clickable" signal (hover lifts the label), and a hovering rule read as a
       // highlight sweeping across the row rather than as part of the seam (2026-11-28).
-      '.ah-fold-rule{flex:1 1 auto;height:5px;border-top:1px solid currentColor;border-bottom:1px solid currentColor;opacity:.42}',
+      // Explicit colour, not `currentColor`: the button spans the whole row, so hovering anywhere in
+      // it restyles the label, and an inherited colour dragged the seam along with it — the "hover
+      // highlight" that survived removing the opacity rule (2026-11-28).
+      '.ah-fold-rule{flex:1 1 auto;height:5px;border-top:1px solid var(--dsw-alias-label-tertiary,#9aa0a6);border-bottom:1px solid var(--dsw-alias-label-tertiary,#9aa0a6);opacity:.42}',
       '.ah-fold-label{flex:none;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}',
       '.ah-fold-btn:hover{color:var(--dsw-alias-label-secondary,#b6bcc4)}',
       '.ah-line{min-width:0}',
@@ -4591,7 +4599,7 @@ window.__ModuleLoader__.load({
         const argFold = needsFold(argsText);
         const argOpen = typeof opts.isArgsOpen === 'function' ? opts.isArgsOpen(entry.id) : false;
         const mark = entry.outcome === 'rejected' ? '×' : (entry.outcome === 'allowed-once' ? '✓' : '·');
-        return h('div', { className: 'ah-row', key: entry.id },
+        return h('div', { className: 'ah-row' + (argFold === true ? ' ah-row-fold' : ''), key: entry.id },
           // Left rail: the decision mark plus a connector, so a dense list still reads
           // as a timeline rather than a table.
           h('div', { className: 'ah-rail', key: 'rail' },
