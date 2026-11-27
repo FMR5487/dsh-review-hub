@@ -431,6 +431,17 @@ export const cases = [
 			// 正常行不能带上那个类：它有风险/用时等文字做邻居，基线对齐才是对的。
 			const normalNode = bag.approvalRowNode({ id: 'n1', ts: 1700000000000, toolName: 'pwsh', decidedBy: 'ai', outcome: 'allowed-once', aiSource: 'ai', aiReason: 'fine', reason: 'escalate' }, openOpts);
 			assertTrue(findClass(normalNode, 'ah-row-reason-ai-fail') === null, '正常行不该用失败行的对齐');
+			// 分割线自己就是那条线：它上面那一行去掉自己的下边框，否则会看到两条相距几像素的线。
+			// 用节点标记而不是 `:has(+ .ah-divider)`——老引擎解析不了那个选择器，会整条规则丢掉。
+			const node0 = function (key) { return { type: 'div', props: { className: 'ah-row', key: key } }; };
+			const rowsIn = [node0('a'), node0('b'), node0('c')];
+			const withDiv = bag.withDivider(rowsIn, [{ ts: 3 }, { ts: 2 }, { ts: 1 }], 2, rowOpts.t);
+			assertEqual(withDiv.length, 4, '插了一条分割线');
+			// ts=[3,2,1], mark=2: the first row at or below the mark is index 1, so `out` is [row a]
+			// and the divider lands after it — the tagged one is index 0.
+			assertTrue(String(withDiv[0].props.className).includes('ah-row-before-divider'), '分割线上面那一行要打标');
+			assertTrue(String(withDiv[2].props.className).indexOf('ah-row-before-divider') < 0, '下面那行不打标');
+			assertEqual(bag.withDivider(rowsIn, [{ ts: 3 }, { ts: 2 }], 0, rowOpts.t).length, 3, '没有标记就不插');
 			// 记忆页分桶：文件是共同主体；没有文件就按指纹各算各的（否则两条无关命令会被加在一起）
 			assertEqual(bag.memoryBucketId('pwsh', '', 'aaa'), bag.memoryBucketId('pwsh', '', 'aaa'));
 			assertTrue(bag.memoryBucketId('pwsh', '', 'aaa') !== bag.memoryBucketId('pwsh', '', 'bbb'), '同工具不同指纹不能并成一桶');
@@ -472,18 +483,24 @@ export const cases = [
 			assertEqual(bag.valueOf({ argsText: '{"content":"line1\\nline2\\nline3"}' }, tp), 'row.bodyLine|line1|3');
 			assertEqual(bag.valueOf({ argsText: '{"query":"needle"}' }, tp), 'needle', '短标识符直接显示');
 			// 长命令折叠：三行以内不折，超过就折；单行超长也要折（它换行后同样占据多行视图）
+			// 阈值是设置（默认 10 行），不是写死的 3：判据只看换行数，字符数不再参与——
+			// 那半条规则会把单行但换行后只有两三行的命令判成「要折」。
+			const savedFoldCfg = bag.store.config;
+			bag.store.config = { argsFoldLines: 10 };
 			assertEqual(bag.needsFold('a\nb\nc'), false, '三行不折');
-			assertEqual(bag.needsFold('a\nb\nc\nd'), true, '四行要折');
-			assertEqual(bag.needsFold('x'.repeat(241)), true, '单行超长也要折');
+			assertEqual(bag.needsFold(new Array(11).fill('x').join('\n')), true, '十一行要折');
+			assertEqual(bag.needsFold(new Array(10).fill('x').join('\n')), false, '正好十行不折');
+			assertEqual(bag.needsFold('x'.repeat(400)), false, '单行再长也不算多行');
+			bag.store.config = { argsFoldLines: 3 };
+			assertEqual(bag.needsFold('a\nb\nc\nd'), true, '改小阈值后四行就折');
+			bag.store.config = { argsFoldLines: 0 };
+			assertEqual(bag.needsFold(new Array(50).fill('x').join('\n')), false, '0 = 关掉折叠');
+			bag.store.config = savedFoldCfg;
 			assertEqual(bag.needsFold(''), false, '空文本不折');
 			// 折叠按钮只在「真的被截断」时出现。判据是量出来的溢出，不是字符数：
 			// 一条 382 字符的 curl 命令换行后正好三行、一个字都没截，却因为 >240 被判要折。
-			const el = function (scroll, client) { return { scrollHeight: scroll, clientHeight: client }; };
-			assertEqual(bag.overflowsClamp(el(60, 51)), true, '三行之外还有内容');
-			assertEqual(bag.overflowsClamp(el(51, 51)), false, '正好三行不算溢出');
-			assertEqual(bag.overflowsClamp(el(50, 51)), false, '更矮也不算');
-			assertEqual(bag.overflowsClamp(null), false, '没节点不抛');
-			assertEqual(bag.overflowsClamp({}), false, '量不了就当没溢出');
+			// 不再用 DOM 测量决定是否折叠：Chrome 对 line-clamp 的盒子报 scrollHeight == clientHeight，
+			// 于是那条检查永远得出「没截断」，把一条 14 行的命令的夹取整个撤掉了。判据只有换行数。
 			// 台账里一直有 aiError，但面板从来不显示：失败的评审看起来和「没有评审」一模一样。
 			// 这几条用的是台账里的真实原文（session-a13d41cd 的 7 行失败记录）。
 			const te = function (k, p) { return p === undefined ? k : k + ':' + Object.values(p).join(','); };

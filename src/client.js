@@ -165,6 +165,8 @@ window.__ModuleLoader__.load({
       'stats.cache': '审批缓存命中',
       'setting.secMemory': '自动放行',
       'setting.secCard': 'UI与提示卡',
+      'setting.foldLines': '折叠阈值',
+      'setting.foldLinesNote': '命令超过这么多行才折叠（0 = 不折叠）。只按换行数算；折起来后仍会实测是否真的被截断，没截断就不显示按钮',
       'setting.secData': '数据',
       'list.divider': '以上为新增审批',
       'row.showReason': '展开详情',
@@ -516,6 +518,8 @@ window.__ModuleLoader__.load({
       'stats.cache': 'approval cache hits',
       'setting.secMemory': 'Auto-approve',
       'setting.secCard': 'UI and hint cards',
+      'setting.foldLines': 'fold threshold',
+      'setting.foldLinesNote': 'fold a command once it takes more than this many lines (0 = never). Counts newlines only, and a folded row still checks for a real cut before offering the button',
       'setting.secData': 'Data',
       'list.divider': 'New approvals above',
       'row.showReason': 'Show details',
@@ -1073,6 +1077,13 @@ window.__ModuleLoader__.load({
       const at = dividerAt(entries, seenAt);
       if (at <= 0) return rows;
       const out = rows.slice(0, at);
+      // The divider takes over the separation, so the row above it drops its own border. Done by
+      // tagging the node rather than with `:has(+)`, which older engines do not parse.
+      const last = out[out.length - 1];
+      if (last !== undefined && last !== null && last.props !== undefined) {
+        const cls = typeof last.props.className === 'string' ? last.props.className : '';
+        out[out.length - 1] = h('div', { ...last.props, className: cls + ' ah-row-before-divider' });
+      }
       out.push(h('div', { className: 'ah-divider', key: 'ah-divider' },
         h('span', { className: 'ah-divider-text' }, t('list.divider'))));
       return out.concat(rows.slice(at));
@@ -1781,8 +1792,11 @@ window.__ModuleLoader__.load({
      * The first line worth reading: blank lines and bare braces are skipped, because a body
      * that opens with `{` or a blank line says nothing about what the call does.
      */
-    /** Lines a long command is allowed to take before it is folded away. */
-    const ARGS_FOLD_LINES = 3;
+    /** Lines a long command is allowed to take before it is folded away (settings, default 10). */
+    function foldLines() {
+      const value = Number(settings().argsFoldLines);
+      return Number.isFinite(value) && value >= 0 ? value : 10;
+    }
 
     /**
      * A command worth folding: it has to occupy more lines than the allowance.
@@ -1800,8 +1814,13 @@ window.__ModuleLoader__.load({
     function needsFold(text) {
       const value = String(text || '');
       if (value === '') return false;
-      // Exhaustive guess, then corrected by the measured overflow (see measureFold).
-      return value.split('\n').length > ARGS_FOLD_LINES || value.length > 240;
+      // Only the newline count. The old >240-characters half fired on single-line commands that
+      // wrapped to fewer rows than the allowance, and a DOM overflow check turned out to be
+      // unusable here: Chrome reports scrollHeight == clientHeight for a line-clamp box, so the
+      // check kept declaring "not truncated" and stripped the clamp off a 14-line command.
+      const limit = foldLines();
+      if (limit <= 0) return false;
+      return value.split('\n').length > limit;
     }
 
     /**
@@ -1811,27 +1830,6 @@ window.__ModuleLoader__.load({
      * is the one check that answers "is there more text than you can see". Rows here are
      * `-webkit-line-clamp:3`, so an element at exactly three rows reports equal values.
      */
-    /**
-     * Hide the fold control on a row whose text fits after all.
-     *
-     * Called from the args element's ref, i.e. after it is in the document and laid out, which
-     * is the first moment the question can be answered. The row (not the element) carries the
-     * flag, because the button and the button-offset both live at row level; CSS keys off
-     * `.ah-row-nofold`. The exhaustive `needsFold` guess still decides what gets clamped at
-     * first paint, so a genuinely long command never flashes fully expanded.
-     */
-    function markFoldSeam(node) {
-      if (node === null || node === undefined || typeof node.closest !== 'function') return;
-      const row = node.closest('.ah-row');
-      if (row === null || row === undefined) return;
-      row.classList.toggle('ah-row-nofold', overflowsClamp(node) === false);
-    }
-
-    function overflowsClamp(node) {
-      if (node === null || node === undefined) return false;
-      if (typeof node.scrollHeight !== 'number' || typeof node.clientHeight !== 'number') return false;
-      return node.scrollHeight > node.clientHeight + 1;
-    }
 
     function firstLineOf(text) {
       const lines = String(text).split('\n');
@@ -3163,6 +3161,10 @@ window.__ModuleLoader__.load({
       // Body colour, not the AI green: on the floating card the advice is the text, and
       // `--dsw-alias-label-primary` is what flips with the theme (white ⇄ ink).
       '.ah-divider{display:flex;align-items:center;gap:8px;padding:6px 12px;color:var(--dsw-alias-label-tertiary,#9aa0a6);font-size:11px}',
+      // The divider *is* the separation: the row above it drops its own border, so the two lines
+      // that used to sit a few pixels apart (row border + divider rules) become one mark that
+      // says where the new approvals start (2026-11-28).
+      '.ah-row-before-divider{border-bottom:0}',
       '.ah-divider::before,.ah-divider::after{content:"";flex:1 1 auto;height:1px;background:var(--dsw-alias-border-l2)}',
       '.ah-divider-text{flex:none}',
       '.ah-section{margin:10px 0 2px;font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);border-bottom:1px solid var(--dsw-alias-border-l2);padding-bottom:4px}',
@@ -3238,9 +3240,6 @@ window.__ModuleLoader__.load({
       '.ah-row-fold{padding-bottom:6px}',
       '.ah-main-fold .ah-row-actions{bottom:-1px}',
       // Measured as fitting: no clamp, no seam, no offset — the row is an ordinary row again.
-      '.ah-row-nofold .ah-args-fold{display:block;overflow:visible;-webkit-line-clamp:unset}',
-      '.ah-row-nofold .ah-fold-btn{display:none}',
-      '.ah-row-nofold .ah-main-fold .ah-row-actions{bottom:-7px}',
       '.ah-row-reason{margin-top:4px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,rgba(128,128,128,.12));font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary,#b6bcc4);white-space:pre-wrap;overflow-wrap:anywhere}',
       // The reviewer's reason is its own paragraph: a hairline separates "what the caller
       // said" from "why the reviewer stopped it", so neither can be mistaken for the other.
@@ -4522,6 +4521,9 @@ window.__ModuleLoader__.load({
         numRow('hintAi', t('setting.hintAi'), t('setting.hintAiNote'), hintMsValue('ai', 30000), function (value) { void patchHintMs('ai', value); }, 2000, 600000),
         numRow('hintMemory', t('setting.hintMemory'), t('setting.hintMemoryNote'), hintMsValue('memory', 8000), function (value) { void patchHintMs('memory', value); }, 2000, 600000),
         numRow('hintPending', t('setting.hintPending'), t('setting.hintPendingNote'), hintMsValue('pending', 0), function (value) { void patchHintMs('pending', value); }, 0, 600000),
+        // Last in this group because it is the most technical of the card knobs: how many
+        // lines a command may take before the row starts folding it. 0 turns folding off.
+        numRow('argsFoldLines', t('setting.foldLines'), t('setting.foldLinesNote'), config.argsFoldLines === undefined ? 10 : config.argsFoldLines, function (value) { void savePatch({ argsFoldLines: value }); }, 0, 200),
         h('div', { className: 'ah-section', key: 'sec-notify' }, t('setting.secNotify')),
         // Permission first: without it both switches below do nothing, and saying so here is
         // cheaper than letting someone wonder why the toasts never arrive.
@@ -4638,8 +4640,6 @@ window.__ModuleLoader__.load({
                 h('span', {
                   className: 'ah-args' + (argOpen === false && argFold === true ? ' ah-args-fold' : ''),
                   key: 'args',
-                  // Measured, not guessed: this fires once the element is laid out.
-                  ref: argFold === true && argOpen === false ? markFoldSeam : undefined,
                 }, argsText === '' ? '—' : argsText),
                 deltaChip(rowDelta(entry), 'delta')
               ),
@@ -6654,11 +6654,11 @@ window.__ModuleLoader__.load({
         shouldHint: shouldHint,
         unreadCount: unreadCount,
         dividerAt: dividerAt,
+        withDivider: withDivider,
         hintMsOf: hintMsOf,
         hintExpired: hintExpired,
         reviewFailureOf: reviewFailureOf,
         needsFold: needsFold,
-        overflowsClamp: overflowsClamp,
         adoptAnchor: adoptAnchor,
         expiresAtOf: expiresAtOf,
         cardNode: cardNode,

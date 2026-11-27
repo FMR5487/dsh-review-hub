@@ -34,6 +34,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
 	autoExpandDescription: false,
 	/** Hide knob arguments (limit/offset/…) in the displayed command; copy stays verbatim. */
 	hideKnobs: true,
+	/**
+	 * Lines an approval's command may occupy before the row offers "show full text".
+	 * 0 turns folding off entirely. The row still checks for a real clamp overflow, so a
+	 * number that is too generous can only ever show *more*, never promise text that is not
+	 * there (2026-11-28).
+	 */
+	argsFoldLines: 10,
 	/** Show bookkeeping actions (list_bundles, install_bundle) in Chinese; display only. */
 	translateActions: false,
 	/**
@@ -165,6 +172,7 @@ const BOUNDS = {
 	aiReasonChars: [40, 400],
 	aiContextTurns: [0, 10],
 	aiContextTokens: [200, 8000],
+	argsFoldLines: [0, 200],
 	maxEntriesPerSession: [20, 2000],
 	pollMs: [250, 30000],
 	snapshotRetentionDays: [0, 365],
