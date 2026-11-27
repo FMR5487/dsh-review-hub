@@ -490,7 +490,13 @@ export const cases = [
 			assertEqual(bag.needsFold('a\nb\nc'), false, '三行不折');
 			assertEqual(bag.needsFold(new Array(11).fill('x').join('\n')), true, '十一行要折');
 			assertEqual(bag.needsFold(new Array(10).fill('x').join('\n')), false, '正好十行不折');
-			assertEqual(bag.needsFold('x'.repeat(400)), false, '单行再长也不算多行');
+			// 台账里真实存在的一条：argsText 是 1 行 1878 字符的 pwsh 脚本，屏幕上占十几行。
+			// 只数换行符会说 1 行、于是什么都不折 —— 这正是不折的那个现象。
+			assertEqual(bag.needsFold('x'.repeat(1878)), true, '单行 1878 字符在屏幕上远超 10 行');
+			assertEqual(bag.needsFold('x'.repeat(64)), false, '正好一行的字符数不折');
+			assertEqual(bag.needsFold('x'.repeat(64 * 10)), false, '正好十行不折');
+			assertEqual(bag.needsFold('x'.repeat(64 * 10 + 1)), true, '第十一行要折');
+			assertEqual(bag.needsFold('x'.repeat(325)), false, '325 字符 = 5 行，不折（实测值）');
 			bag.store.config = { argsFoldLines: 3 };
 			assertEqual(bag.needsFold('a\nb\nc\nd'), true, '改小阈值后四行就折');
 			bag.store.config = { argsFoldLines: 0 };

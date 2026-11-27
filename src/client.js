@@ -166,7 +166,7 @@ window.__ModuleLoader__.load({
       'setting.secMemory': '自动放行',
       'setting.secCard': 'UI与提示卡',
       'setting.foldLines': '折叠阈值',
-      'setting.foldLinesNote': '命令超过这么多行才折叠（0 = 不折叠）。只按换行数算；折起来后仍会实测是否真的被截断，没截断就不显示按钮',
+      'setting.foldLinesNote': '命令占用的屏幕行数超过这个值才折叠（0 = 不折叠）。换行和自动换行都算',
       'setting.secData': '数据',
       'list.divider': '以上为新增审批',
       'row.showReason': '展开详情',
@@ -519,7 +519,7 @@ window.__ModuleLoader__.load({
       'setting.secMemory': 'Auto-approve',
       'setting.secCard': 'UI and hint cards',
       'setting.foldLines': 'fold threshold',
-      'setting.foldLinesNote': 'fold a command once it takes more than this many lines (0 = never). Counts newlines only, and a folded row still checks for a real cut before offering the button',
+      'setting.foldLinesNote': 'fold a command once it fills more than this many rows (0 = never). Soft-wrapped rows count too',
       'setting.secData': 'Data',
       'list.divider': 'New approvals above',
       'row.showReason': 'Show details',
@@ -1811,16 +1811,35 @@ window.__ModuleLoader__.load({
      * the clamp? Nothing else — a fold control over fully visible text is a lie about there
      * being more.
      */
+    /** Characters one rendered row holds. MEASURED — see `visualRowsOf`. */
+    const ARGS_COLS = 64;
+
     function needsFold(text) {
       const value = String(text || '');
       if (value === '') return false;
-      // Only the newline count. The old >240-characters half fired on single-line commands that
-      // wrapped to fewer rows than the allowance, and a DOM overflow check turned out to be
-      // unusable here: Chrome reports scrollHeight == clientHeight for a line-clamp box, so the
-      // check kept declaring "not truncated" and stripped the clamp off a 14-line command.
       const limit = foldLines();
       if (limit <= 0) return false;
-      return value.split('\n').length > limit;
+      return visualRowsOf(value) > limit;
+    }
+
+    /**
+     * How many rows this command occupies on screen.
+     *
+     * Counting newlines was wrong often enough to matter: a real entry in this project's ledger is
+     * ONE line of 1878 characters (a generated pwsh script), which the pane wraps into a dozen
+     * rows — and a newline count says 1, so nothing folded, which is exactly what "没折叠了"
+     * looked like on screen. Newlines and wrapping both consume rows, so both are counted.
+     *
+     * `ARGS_COLS` is measured, not guessed: the args column is 876px wide at the ledger pane's
+     * width, and a 325-character command renders there as exactly 5 rows — 65 characters per row.
+     * 64 keeps the estimate on the fold's side (over-counting rows only folds a bit earlier).
+     */
+    function visualRowsOf(text) {
+      let rows = 0;
+      for (const line of String(text).split('\n')) {
+        rows += Math.max(1, Math.ceil(line.length / ARGS_COLS));
+      }
+      return rows;
     }
 
     /**
@@ -3376,7 +3395,9 @@ window.__ModuleLoader__.load({
       // Folded: exactly the three lines the toggle promises, cut with an ellipsis so the cut is
       // visible instead of the text just stopping. -webkit-line-clamp is the one clamp that
       // works over block content in every engine this panel runs in.
-      '.ah-args-fold{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
+      // The clamp comes from the setting through the custom property set on the row: a fixed 3
+      // meant raising the threshold to 10 still hid everything past the third row (2026-11-28).
+      '.ah-args-fold{display:-webkit-box;-webkit-line-clamp:var(--ah-fold-lines,10);-webkit-box-orient:vertical;overflow:hidden}',
       // A seam, not a link: two hairlines grow out of the label to fill the row, so the control
       // spans the text it belongs to and cannot be mistaken for a stray link in the corner.
       // The right rule stops short of the row's action buttons: they hang at the row's bottom-right
@@ -4601,7 +4622,12 @@ window.__ModuleLoader__.load({
         const argFold = needsFold(argsText);
         const argOpen = typeof opts.isArgsOpen === 'function' ? opts.isArgsOpen(entry.id) : false;
         const mark = entry.outcome === 'rejected' ? '×' : (entry.outcome === 'allowed-once' ? '✓' : '·');
-        return h('div', { className: 'ah-row' + (argFold === true ? ' ah-row-fold' : ''), key: entry.id },
+        return h('div', {
+          className: 'ah-row' + (argFold === true ? ' ah-row-fold' : ''),
+          key: entry.id,
+          // One number in one place: the clamp, the row's border and the button all follow it.
+          style: argFold === true ? { '--ah-fold-lines': String(foldLines()) } : undefined,
+        },
           // Left rail: the decision mark plus a connector, so a dense list still reads
           // as a timeline rather than a table.
           h('div', { className: 'ah-rail', key: 'rail' },
